@@ -15,6 +15,9 @@ publish/
 *.sln.docstates
 .vscode/*
 !.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
 
 # Test / coverage
 [Tt]est[Rr]esult*/

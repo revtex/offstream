@@ -1,0 +1,50 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["build", "${workspaceFolder}/Offstream.sln", "-consoleloggerparameters:NoSummary"],
+      "problemMatcher": "$msCompile",
+      "group": { "kind": "build", "isDefault": true }
+    },
+    {
+      "label": "test",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["test", "${workspaceFolder}/Offstream.sln"],
+      "problemMatcher": "$msCompile",
+      "group": { "kind": "test", "isDefault": true }
+    },
+    {
+      "label": "test (core only)",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["test", "${workspaceFolder}/tests/Offstream.Core.Tests"],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "format",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["format", "${workspaceFolder}/Offstream.sln"],
+      "problemMatcher": []
+    },
+    {
+      "label": "format (verify, as CI does)",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["format", "${workspaceFolder}/Offstream.sln", "--verify-no-changes"],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "watch app",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["watch", "--project", "${workspaceFolder}/src/Offstream.App"],
+      "problemMatcher": "$msCompile",
+      "isBackground": true
+    }
+  ]
+}

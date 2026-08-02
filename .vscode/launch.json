@@ -1,0 +1,30 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Offstream (Debug)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/Offstream.App/bin/Debug/net10.0-windows/Offstream.exe",
+      "args": [],
+      "cwd": "${workspaceFolder}/src/Offstream.App",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    },
+    {
+      "name": "FakeSpotify harness",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/tools/FakeSpotify/bin/Debug/net10.0-windows/FakeSpotify.exe",
+      "cwd": "${workspaceFolder}/tools/FakeSpotify",
+      "console": "internalConsole"
+    },
+    {
+      "name": "Attach to process",
+      "type": "coreclr",
+      "request": "attach"
+    }
+  ]
+}
