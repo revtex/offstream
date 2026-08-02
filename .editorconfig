@@ -1,0 +1,32 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+indent_style = space
+indent_size = 4
+trim_trailing_whitespace = true
+
+[*.{json,yml,yaml,xml,csproj,props,targets}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.cs]
+# Modern C# style
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_prefer_braces = when_multiline:suggestion
+dotnet_style_require_accessibility_modifiers = for_non_interface_members:warning
+dotnet_sort_system_directives_first = true
+
+# Correctness rules that matter for this codebase
+dotnet_diagnostic.CA2007.severity = none      # ConfigureAwait: desktop app, context is wanted
+dotnet_diagnostic.CA1848.severity = none      # LoggerMessage delegates: overkill here
+dotnet_diagnostic.CA1416.severity = error     # Platform compatibility: Windows-only, keep honest
+dotnet_diagnostic.CA2100.severity = error
+dotnet_diagnostic.CS8600.severity = warning
+dotnet_diagnostic.CS8602.severity = warning
+dotnet_diagnostic.CS8618.severity = warning
