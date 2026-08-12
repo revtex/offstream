@@ -1,0 +1,47 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!--
+        Offstream's design tokens: the values every page reuses so spacing and colour are a
+        decision made once, not re-typed per view.
+
+        Deliberately small. WPF-UI already ships a Fluent type ramp (BodyTextBlockStyle,
+        SubtitleTextBlockStyle, TitleTextBlockStyle) and a full semantic colour set; duplicating
+        either here would mean two sources of truth that drift. What is defined below is only
+        what WPF-UI has no opinion about: Offstream's spacing rhythm, its page padding, the
+        monospaced face the activity log needs, and the two recording-state colours.
+
+        Merged *after* the WPF-UI dictionaries in App.xaml, so the DynamicResource lookups
+        below resolve and follow the active theme.
+    -->
+
+    <!-- Spacing rhythm. A 4pt scale: everything in the UI is a multiple of one of these. -->
+    <sys:Double x:Key="OffstreamSpaceXs">4</sys:Double>
+    <sys:Double x:Key="OffstreamSpaceSm">8</sys:Double>
+    <sys:Double x:Key="OffstreamSpaceMd">12</sys:Double>
+    <sys:Double x:Key="OffstreamSpaceLg">16</sys:Double>
+    <sys:Double x:Key="OffstreamSpaceXl">24</sys:Double>
+
+    <Thickness x:Key="OffstreamPagePadding">24,12,24,24</Thickness>
+    <Thickness x:Key="OffstreamStackGap">0,0,0,12</Thickness>
+
+    <!--
+        The activity log is read as a stream of timestamped lines, so it needs a fixed pitch.
+        Cascadia Mono ships with Windows 11 (Offstream's only target); the rest are fallbacks
+        for anyone who has removed it.
+    -->
+    <FontFamily x:Key="OffstreamMonoFontFamily">Cascadia Mono, Consolas, Courier New</FontFamily>
+    <sys:Double x:Key="OffstreamMonoFontSize">12</sys:Double>
+
+    <!--
+        Recording state. "Recording" is the one place in the app that earns a saturated colour,
+        so it is fixed rather than themed - it must read as the same signal in light and dark.
+        Idle and error defer to WPF-UI's semantic brushes, which already handle both themes and
+        high contrast.
+    -->
+    <Color x:Key="OffstreamRecordingColor">#E8483F</Color>
+    <SolidColorBrush x:Key="OffstreamRecordingBrush" Color="{StaticResource OffstreamRecordingColor}" />
+    <SolidColorBrush x:Key="OffstreamIdleBrush" Color="{DynamicResource TextFillColorSecondary}" />
+
+</ResourceDictionary>

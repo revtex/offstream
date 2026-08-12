@@ -1,0 +1,19 @@
+<Page x:Class="Offstream.App.Views.Pages.SettingsPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:res="clr-namespace:Offstream.App.Resources"
+      Title="Settings">
+
+    <!--
+        Output path, device, quality, minimum length, format and metadata provider land here in
+        Phase 6 PR 3, against the grouped settings schema from Phase 5.
+    -->
+    <Grid Margin="{StaticResource OffstreamPagePadding}">
+        <TextBlock HorizontalAlignment="Left"
+                   VerticalAlignment="Top"
+                   Foreground="{StaticResource OffstreamIdleBrush}"
+                   Style="{StaticResource BodyTextBlockStyle}"
+                   Text="{x:Static res:Strings.PageEmpty}" />
+    </Grid>
+
+</Page>
