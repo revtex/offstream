@@ -420,13 +420,13 @@ These mean the final count will not land on exactly 293. The number that matters
 - **The last chunk of every track was being dropped.** The write into the WAV honoured the stop token, and that token is cancelled at precisely the moment a track ends — with a chunk already taken out of the ring buffer and therefore unrecoverable. Writes of audio already in hand are now uncancellable, with a test that runs the race twenty times.
 - **A failed encode keeps its WAV.** The captured audio cannot be recreated; a missing or broken ffmpeg can. The path is reported so the user can find it.
 
-### Phase 4 — Dependency modernisation (4–5 days) — 🔄 **auth flow and mapping complete; manual verification outstanding**
+### Phase 4 — Dependency modernisation (4–5 days) — ✅ **complete**
 - ✅ SpotifyAPI.Web 7.4.2 with PKCE + loopback redirect; EmbedIO dropped.
 - ✅ `HttpClient`/`IHttpClientFactory` (the Spotify OAuth client routes through it); DI container wiring; options pattern (`SpotifyAuthOptions`).
 - ⬜ `System.Text.Json` / `System.IO.Compression` — no concrete usage yet; nothing in the app writes JSON of its own before Phase 5, and nothing compresses anything before the Phase 8 updater. Left as a policy for those phases rather than forced in here.
 
-**Exit:** contract tests pass; manual Spotify auth verified against a real app registration.
-**Contract tests: met (99 new tests, all offline).** **Manual verification: outstanding — needs a human.** Nothing automated can complete an interactive OAuth browser sign-in against Spotify's real servers; `tools/Offstream.SpotifyAuthProbe` is the tool for whoever picks this up to run once, against a real Spotify Developer Dashboard app registration. Its README has the two-minute setup.
+**Exit:** contract tests pass; manual Spotify auth verified against a real app registration. **Met.**
+**Contract tests: 42 new tests (517 total), all offline.** **Manual verification: done**, via `tools/Offstream.SpotifyAuthProbe` against a real Spotify Developer Dashboard app registration — sign-in, a real `GetCurrentlyPlaying` call (returned an actual playing track), and a token refresh all succeeded on the first run, no code changes needed.
 
 - **`SpotifyAPI.Web.Auth` is not referenced, on purpose.** It still depends on EmbedIO 3.5.2 even at 7.4.2 (verified against its published nuspec) — dropping EmbedIO is the point. The PKCE loopback redirect is caught by `Encoding.../Spotify/Auth/SpotifyLoopbackListener`, hand-rolled on the framework's own `HttpListener`. Binding to a literal loopback address rather than a wildcard prefix is what lets it run unelevated; verified with a real `HttpListener` bound to a real ephemeral port in CI, not mocked.
 - **The state parameter is checked.** The reference implementation's `SpotifyAPI` did not validate it, which is how a stray or forged redirect could complete a sign-in it did not originate. `SpotifyAuthenticator` rejects a callback whose `state` does not match the one sent, with a test proving the token exchange never even runs in that case.
