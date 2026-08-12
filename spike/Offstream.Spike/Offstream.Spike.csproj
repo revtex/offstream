@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Phase 0 retarget spike. Deliberately kept in the solution so `dotnet build` keeps it
+    honest; delete the whole spike/ folder once Phase 2 lands the real Interop code.
+    Shared settings (TFM, nullable, analyzers) come from Directory.Build.props.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Offstream.Spike</RootNamespace>
+    <AssemblyName>Offstream.Spike</AssemblyName>
+
+    <!-- SYSLIB1054 prefers LibraryImport over DllImport. The spike stays close to the
+         reference implementation on purpose; Phase 2 moves this to CsWin32. -->
+    <NoWarn>$(NoWarn);SYSLIB1054</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NAudio" />
+    <ProjectReference Include="..\..\src\Offstream.Core\Offstream.Core.csproj" />
+  </ItemGroup>
+
+</Project>
