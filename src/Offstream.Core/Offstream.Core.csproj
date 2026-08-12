@@ -16,6 +16,7 @@
     <PackageReference Include="NAudio" />
     <PackageReference Include="Serilog" />
     <PackageReference Include="TagLibSharp" />
+    <PackageReference Include="SpotifyAPI.Web" />
     <PackageReference Include="System.IO.Abstractions" />
 
     <!-- Source-generated, typed P/Invoke from NativeMethods.txt. Replaces the hand-written
