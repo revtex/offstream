@@ -18,6 +18,7 @@
     <PackageReference Include="TagLibSharp" />
     <PackageReference Include="SpotifyAPI.Web" />
     <PackageReference Include="System.IO.Abstractions" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" />
 
     <!-- Source-generated, typed P/Invoke from NativeMethods.txt. Replaces the hand-written
          DllImport declarations the reference implementation carried. -->

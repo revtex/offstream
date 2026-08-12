@@ -61,6 +61,15 @@ phase plan these entries follow.
   actual browser.
 - **`IHttpClientFactory`-backed DI wiring** for the Spotify OAuth client, and the options
   pattern (`SpotifyAuthOptions`) plan §10 Phase 4 asks for.
+- **Settings persistence** at `%APPDATA%\Offstream\settings.json` — a schema grouped into
+  `output`, `recording`, `metadata` and `app` sections, with a `schemaVersion`, validation on
+  load, and first-run defaults chosen so the app is usable before Settings is ever opened.
+- **Atomic settings writes.** The file is written to a sibling temp file and moved over the
+  destination, so a crash mid-save leaves either the old file or the new one — never a
+  half-written one.
+- **DPAPI protection for the Spotify refresh token** (`CurrentUser` scope) before it reaches
+  disk. A token that will not decrypt — a copied file, a different Windows user — is treated as
+  "sign in again" rather than as a corrupt settings file, so every other preference survives.
 
 ### Changed
 
@@ -93,6 +102,9 @@ phase plan these entries follow.
   using `System.Timers.Timer` with an `async void` handler, a fire-and-forget event raise, and a
   `bool` re-entrancy guard.
 - **Windows 11 (build 22000) is the floor.** Windows 10 is no longer supported.
+- **Settings are validated on load and rejected loudly.** Malformed JSON, an unknown
+  `schemaVersion`, or an out-of-range value produces a message naming the offending field rather
+  than silently reverting to defaults and discarding the user's configuration.
 - **Settings live at `%APPDATA%\Offstream\settings.json`** as JSON, replacing the .NET
   `user.config` mechanism.
 
@@ -130,9 +142,19 @@ phase plan these entries follow.
 - **A bare release year no longer silently drops the year.** `DateTime.TryParse` rejects a
   four-digit year with nothing else on it, which the predecessor's mapping also relied on —
   dropping the year for every album whose Spotify precision is year-only rather than a full date.
+- **A hand-edited settings file with a section or key removed no longer loads as zeroes.**
+  System.Text.Json's source generator does not run property initializers for properties absent
+  from the JSON, so an omitted `bitrateKbps` read back as `0` and an omitted section as `null`.
+  The schema now declares its defaults as constructor parameter defaults, which the generator
+  does honour, and a test suite pins the behaviour.
+- **The last chunk of a recording could be lost on a fast track change.** Two recorders share one
+  capture buffer across a change, and the incoming one discarded its contents without waiting for
+  the outgoing one to finish reading its own tail out of it.
 
 ### Security
 
 - **Untrusted track metadata can no longer influence an ffmpeg command line** — see the argument
   vector note under *Changed*.
 - **The PKCE `state` parameter is validated** — see *Changed*.
+- **The Spotify refresh token is encrypted at rest** with DPAPI, scoped to the current Windows
+  user, so a copied `settings.json` is useless to anyone else.
