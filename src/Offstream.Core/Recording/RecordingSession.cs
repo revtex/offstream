@@ -241,8 +241,11 @@ public sealed class RecordingSession : IAsyncDisposable
     /// The centre of the session: one track ends, the next begins.
     /// </summary>
     /// <remarks>
-    /// Runs on the poller's loop, so it must not block. Stopping the previous recorder only
-    /// signals it; its file is finalised on its own task.
+    /// Runs on the poller's loop. Stopping the previous recorder blocks only long enough for it
+    /// to finish reading the shared capture buffer — fast, in-memory, never disk I/O — because
+    /// the two recorders share that buffer and the incoming one's <see cref="TrackRecorder.Prime"/>
+    /// would otherwise be free to discard the outgoing one's still-unread tail. Finalising to
+    /// disk happens after this method returns, on its own task, exactly as before.
     /// </remarks>
     private void OnTrackChanged(object? sender, TrackChangedEventArgs e)
     {
@@ -323,6 +326,13 @@ public sealed class RecordingSession : IAsyncDisposable
         if (recorder is null || recording is null) return;
 
         recorder.Stop();
+
+        // Bounded and fast: this recorder's background task only needs to reach the point where
+        // it stops reading the capture buffer, not finish writing or closing its file. Skipping
+        // this wait is the bug this fixes — the incoming recorder's Prime(), called right after
+        // this method returns, discards whatever is in the buffer, and without this it could win
+        // the race against this recorder's own tail-drain and take audio that was never its own.
+        recorder.BufferDrained.GetAwaiter().GetResult();
 
         // Finalising touches the disk, so it is left on its own task rather than blocking the
         // poll loop that has the next track waiting.

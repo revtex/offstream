@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.IO.Abstractions;
 using System.IO.Abstractions.TestingHelpers;
 using Moq;
 using NAudio.Wave;
@@ -89,7 +90,13 @@ public sealed class RecordingSessionTests
     {
         private readonly Mock<ITrackSource> _trackSource = new();
 
-        public Harness(Action<RecordingSettings>? configure = null)
+        /// <param name="fileSystemDelay">
+        /// Artificially delays every file the session opens. Widens the window in the
+        /// track-change race far past anything real thread-pool scheduling would produce, so a
+        /// test can prove the fix deterministically instead of merely exercising the race and
+        /// hoping to catch it.
+        /// </param>
+        public Harness(Action<RecordingSettings>? configure = null, TimeSpan? fileSystemDelay = null)
         {
             FileSystem = new MockFileSystem();
             FileSystem.Directory.CreateDirectory(MusicRoot);
@@ -112,8 +119,12 @@ public sealed class RecordingSessionTests
                 .Setup(x => x.GetCurrentTrackAsync(It.IsAny<CancellationToken>()))
                 .ReturnsAsync(() => Current);
 
+            IFileSystem sessionFileSystem = fileSystemDelay is { } delay
+                ? new DelayedFileSystem(FileSystem, delay)
+                : FileSystem;
+
             Session = new RecordingSession(
-                Capture, Poller, Settings, Encoder, FileSystem, Progress);
+                Capture, Poller, Settings, Encoder, sessionFileSystem, Progress);
 
             Session.TrackSaved += (_, e) => Saved.Enqueue(e);
             Session.TrackRecorded += (_, e) => Recorded.Enqueue(e);
@@ -276,6 +287,73 @@ public sealed class RecordingSessionTests
 
         Assert.Equal("Second", harness.Session.CurrentTrack?.Title);
         Assert.Contains(harness.Saved, s => s.Path.EndsWith(@"Artist - First.mp3", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Back-to-back track changes must never lose the outgoing track's audio to the incoming
+    /// one's buffer discard.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The two recorders share one <see cref="AudioCaptureBuffer"/>. The incoming recorder's
+    /// <c>Prime()</c> discards whatever is in it, on the theory that leftover audio belongs to
+    /// the track that just ended. That is only true once the outgoing recorder has actually
+    /// finished reading its own tail out of the buffer — and without a wait for that,
+    /// <c>Prime()</c> can run first, on the poll loop, before the outgoing recorder's
+    /// background task ever gets scheduled. <see cref="RecordingSession.OnTrackChanged"/> now
+    /// blocks on <c>TrackRecorder.BufferDrained</c> for exactly this reason.
+    /// </para>
+    /// <para>
+    /// Run many times in a tight loop, the same way <c>TrackRecorderTests.Stop_DoesNotDiscardTheChunkAlreadyInFlight</c>
+    /// races the equivalent case one level down — a single pass proves nothing about a race
+    /// that depends on which of two tasks a thread pool happens to schedule first.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task Session_RapidTrackChangesNeverDropTheOutgoingTracksAudio()
+    {
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            await using var harness = new Harness();
+
+            harness.Session.Start();
+
+            for (var i = 0; i < 4; i++)
+            {
+                await RecordTrackAsync(harness, Harness.Playing("Artist", $"Track {i}"));
+            }
+
+            await harness.Session.StopAsync();
+
+            Assert.DoesNotContain(harness.Recorded, r => r.Outcome == RecordingOutcome.Silent);
+            Assert.Equal(4, harness.Saved.Count);
+        }
+    }
+
+    /// <summary>
+    /// The deterministic counterpart to the stress test above. Racing real background-thread
+    /// scheduling only reproduces the original bug when the thread pool happens to be slow
+    /// enough at exactly the wrong moment — real, but too rare to fail reliably even across
+    /// hundreds of iterations on a typical dev machine. A <see cref="DelayedFileSystem"/>
+    /// stretches the outgoing recorder's file-open past the poll interval on every run, which
+    /// turns "usually wins the race" into "always does" — reproducing the bug on every run
+    /// without the fix, and proving it closed with it.
+    /// </summary>
+    [Fact]
+    public async Task Session_TrackChangeWaitsForTheOutgoingRecorderToDrainTheBufferFirst()
+    {
+        await using var harness = new Harness(fileSystemDelay: TimeSpan.FromMilliseconds(300));
+
+        harness.Session.Start();
+
+        await RecordTrackAsync(harness, Harness.Playing("Artist", "First"));
+        harness.Play(Harness.Playing("Artist", "Second"));
+
+        await WaitFor(() => !harness.Recorded.IsEmpty, "the first track to be reported");
+
+        Assert.True(harness.Recorded.TryDequeue(out var first));
+        Assert.Equal("First", first!.Track.Title);
+        Assert.Equal(RecordingOutcome.Captured, first.Outcome);
     }
 
     /// <summary>
