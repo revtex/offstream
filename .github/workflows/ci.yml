@@ -18,7 +18,18 @@ jobs:
   build:
     # Windows-only by necessity: net10.0-windows, WPF, WASAPI and the routing COM interop
     # cannot build or run anywhere else.
+    #
+    # publish-check used to be a second job here, gated on `needs: build`. Splitting it
+    # bought nothing — `needs` made it run strictly after this job anyway, on a fresh VM
+    # that paid for its own checkout, its own ~35s .NET SDK download (jobs share no
+    # filesystem) and an uncached NuGet restore this job's cache step never touched. It is
+    # now the last few steps of this job instead: same checkout, same SDK, same warm cache.
     runs-on: windows-latest
+
+    env:
+      # Bumping this busts the ffmpeg cache key below along with the download URL, so the
+      # two can never drift apart.
+      FFMPEG_VERSION: 8.1.2
 
     steps:
       - uses: actions/checkout@v4
@@ -38,25 +49,36 @@ jobs:
       # The encode integration tests shell out to ffmpeg and assert with ffprobe (plan §9.2
       # suite 3). Downloaded directly from gyan.dev's versioned package archive and pinned
       # to an exact release, rather than through Chocolatey's community package feed —
-      # that feed 503/504s under load often enough to have failed this job three times in
-      # two days, and a direct HTTPS download to a static host has no such single point of
-      # failure. This build is GPL-licensed (gyan.dev's "essentials" build), which is fine
-      # for a CI tool that only runs tests and is never distributed; it is not the LGPL-only
-      # build plan §5.1 requires for what Offstream actually bundles and ships.
-      - name: Install ffmpeg
+      # that feed 503/504'd under load often enough to have failed this job three times in
+      # two days. Cached by exact version, so a typical run touches gyan.dev at all only
+      # once until FFMPEG_VERSION above changes. This build is GPL-licensed (gyan.dev's
+      # "essentials" build), which is fine for a CI tool that only runs tests and is never
+      # distributed; it is not the LGPL-only build plan §5.1 requires for what Offstream
+      # actually bundles and ships.
+      - name: Cache ffmpeg
+        id: cache-ffmpeg
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}\ffmpeg
+          key: ffmpeg-${{ runner.os }}-${{ env.FFMPEG_VERSION }}
+
+      - name: Download ffmpeg
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
         shell: pwsh
-        env:
-          FFMPEG_VERSION: 8.1.2
         run: |
           $ErrorActionPreference = 'Stop'
           $url = "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-$env:FFMPEG_VERSION-essentials_build.zip"
           $zip = Join-Path $env:RUNNER_TEMP 'ffmpeg.zip'
-          $dest = Join-Path $env:RUNNER_TEMP 'ffmpeg'
 
           Invoke-WebRequest -Uri $url -OutFile $zip
-          Expand-Archive -Path $zip -DestinationPath $dest
+          Expand-Archive -Path $zip -DestinationPath (Join-Path $env:RUNNER_TEMP 'ffmpeg')
 
-          $bin = Get-ChildItem -Path $dest -Filter 'bin' -Directory -Recurse | Select-Object -First 1
+      - name: Add ffmpeg to PATH
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $bin = Get-ChildItem -Path (Join-Path $env:RUNNER_TEMP 'ffmpeg') -Filter 'bin' -Directory -Recurse |
+            Select-Object -First 1
           Add-Content -Path $env:GITHUB_PATH -Value $bin.FullName
 
       - name: Verify ffmpeg
@@ -96,20 +118,11 @@ jobs:
           path: artifacts/test-results
           if-no-files-found: ignore
 
-  publish-check:
-    # Guards the two settings that silently break audio routing at runtime rather than at
-    # compile time: NativeAOT and trimming must stay off (CLAUDE.md, plan §2.2).
-    runs-on: windows-latest
-    needs: build
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up .NET 10
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
+      # Guards the two settings that silently break audio routing at runtime rather than
+      # at compile time: NativeAOT and trimming must stay off (CLAUDE.md, plan §2.2). This
+      # publish is self-contained and RID-specific, which the plain `dotnet build` above is
+      # not, so it cannot reuse that build's output — but it does reuse this job's already
+      # -restored NuGet cache and already-installed SDK, which the old separate job did not.
       - name: Publish self-contained, untrimmed
         run: >
           dotnet publish src/Offstream.App/Offstream.App.csproj
