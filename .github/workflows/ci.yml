@@ -36,11 +36,28 @@ jobs:
           restore-keys: nuget-${{ runner.os }}-
 
       # The encode integration tests shell out to ffmpeg and assert with ffprobe (plan §9.2
-      # suite 3). Pinned to the LGPL build Offstream ships, so CI encodes with the same
-      # binary as release.
+      # suite 3). Downloaded directly from gyan.dev's versioned package archive and pinned
+      # to an exact release, rather than through Chocolatey's community package feed —
+      # that feed 503/504s under load often enough to have failed this job three times in
+      # two days, and a direct HTTPS download to a static host has no such single point of
+      # failure. This build is GPL-licensed (gyan.dev's "essentials" build), which is fine
+      # for a CI tool that only runs tests and is never distributed; it is not the LGPL-only
+      # build plan §5.1 requires for what Offstream actually bundles and ships.
       - name: Install ffmpeg
-        run: choco install ffmpeg --version=8.1.2 --no-progress -y
         shell: pwsh
+        env:
+          FFMPEG_VERSION: 8.1.2
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-$env:FFMPEG_VERSION-essentials_build.zip"
+          $zip = Join-Path $env:RUNNER_TEMP 'ffmpeg.zip'
+          $dest = Join-Path $env:RUNNER_TEMP 'ffmpeg'
+
+          Invoke-WebRequest -Uri $url -OutFile $zip
+          Expand-Archive -Path $zip -DestinationPath $dest
+
+          $bin = Get-ChildItem -Path $dest -Filter 'bin' -Directory -Recurse | Select-Object -First 1
+          Add-Content -Path $env:GITHUB_PATH -Value $bin.FullName
 
       - name: Verify ffmpeg
         run: |
