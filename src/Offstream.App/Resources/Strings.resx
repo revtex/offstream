@@ -157,4 +157,300 @@
     <value>Nothing here yet.</value>
     <comment>Placeholder for a page whose controls have not been built.</comment>
   </data>
+  <data name="SettingsOutputSection" xml:space="preserve">
+    <value>Output</value>
+    <comment>Settings page: heading over the destination and format controls.</comment>
+  </data>
+  <data name="SettingsOutputPathLabel" xml:space="preserve">
+    <value>Save recordings to</value>
+    <comment>Settings page: label for the output folder box.</comment>
+  </data>
+  <data name="SettingsBrowse" xml:space="preserve">
+    <value>Browse…</value>
+    <comment>Opens a folder picker beside a path box.</comment>
+  </data>
+  <data name="SettingsStoredAt" xml:space="preserve">
+    <value>These settings are stored in {0}</value>
+    <comment>Footer on the Settings page. {0} is the full path to settings.json.</comment>
+  </data>
+  <data name="SettingsOutputPathRequired" xml:space="preserve">
+    <value>Choose a folder for recordings.</value>
+    <comment>Inline validation: the output folder is empty.</comment>
+  </data>
+  <data name="SettingsOutputPathInvalid" xml:space="preserve">
+    <value>This folder name contains characters Windows does not allow.</value>
+    <comment>Inline validation: the output folder holds invalid path characters.</comment>
+  </data>
+  <data name="SettingsOutputPathNotAbsolute" xml:space="preserve">
+    <value>Enter a full path, starting with a drive letter or \\server\share.</value>
+    <comment>Inline validation: the output folder is relative, which would depend on how Offstream was launched.</comment>
+  </data>
+  <data name="SettingsDeviceLabel" xml:space="preserve">
+    <value>Record from</value>
+    <comment>Settings page: label for the audio endpoint dropdown.</comment>
+  </data>
+  <data name="SettingsDeviceDefault" xml:space="preserve">
+    <value>Whatever Windows is playing to</value>
+    <comment>First entry in the device dropdown: follow the default render endpoint.</comment>
+  </data>
+  <data name="SettingsDeviceUnavailable" xml:space="preserve">
+    <value>{0} (not connected)</value>
+    <comment>Device dropdown entry for a saved device that is not present right now. {0} is its id.</comment>
+  </data>
+  <data name="SettingsDeviceRefresh" xml:space="preserve">
+    <value>Refresh</value>
+    <comment>Re-enumerates audio devices, for one plugged in after Offstream started.</comment>
+  </data>
+  <data name="SettingsFormatLabel" xml:space="preserve">
+    <value>Format</value>
+    <comment>Settings page: label for the output format dropdown.</comment>
+  </data>
+  <data name="SettingsBitrateLabel" xml:space="preserve">
+    <value>Bitrate</value>
+    <comment>Settings page: label for the bitrate dropdown.</comment>
+  </data>
+  <data name="SettingsBitrateItem" xml:space="preserve">
+    <value>{0} kbps</value>
+    <comment>One entry in the bitrate dropdown. {0} is the rate in kilobits per second.</comment>
+  </data>
+  <data name="SettingsBitrateNotApplicable" xml:space="preserve">
+    <value>This format sets its own rate.</value>
+    <comment>Shown next to the disabled bitrate control for FLAC and WAV.</comment>
+  </data>
+  <data name="SettingsRecordingSection" xml:space="preserve">
+    <value>Recording</value>
+    <comment>Settings page: heading over what gets kept.</comment>
+  </data>
+  <data name="SettingsMinimumLengthLabel" xml:space="preserve">
+    <value>Discard recordings shorter than</value>
+    <comment>Settings page: label for the minimum length box, which is followed by a seconds unit.</comment>
+  </data>
+  <data name="SettingsSecondsUnit" xml:space="preserve">
+    <value>seconds</value>
+    <comment>Unit shown after the minimum length box.</comment>
+  </data>
+  <data name="SettingsMinimumLengthInvalid" xml:space="preserve">
+    <value>Enter a whole number of seconds, from 0 to {0}.</value>
+    <comment>Inline validation for the minimum length box. {0} is the maximum accepted.</comment>
+  </data>
+  <data name="SettingsMetadataSection" xml:space="preserve">
+    <value>Track details</value>
+    <comment>Settings page: heading over the metadata provider controls.</comment>
+  </data>
+  <data name="SettingsProviderLabel" xml:space="preserve">
+    <value>Look up album and artwork with</value>
+    <comment>Settings page: label for the metadata provider dropdown.</comment>
+  </data>
+  <data name="SettingsProviderNone" xml:space="preserve">
+    <value>Nothing — use the window title only</value>
+    <comment>Metadata provider option: no lookup at all.</comment>
+  </data>
+  <data name="SettingsProviderLastFm" xml:space="preserve">
+    <value>Last.fm</value>
+    <comment>Metadata provider option. A product name; not translated.</comment>
+  </data>
+  <data name="SettingsProviderSpotify" xml:space="preserve">
+    <value>Spotify</value>
+    <comment>Metadata provider option. A product name; not translated.</comment>
+  </data>
+  <data name="SettingsClientIdLabel" xml:space="preserve">
+    <value>Spotify Client ID</value>
+    <comment>Settings page: label for the Spotify application id.</comment>
+  </data>
+  <data name="SettingsClientIdHint" xml:space="preserve">
+    <value>From your own app on the Spotify Developer Dashboard. Signing in arrives with the metadata pipeline.</value>
+    <comment>Explains where the Client ID comes from, and that it is not yet used for a sign-in.</comment>
+  </data>
+  <data name="SettingsClientIdRequired" xml:space="preserve">
+    <value>Enter a Client ID, or choose another source above.</value>
+    <comment>Inline validation: Spotify is the chosen provider but no Client ID is set.</comment>
+  </data>
+  <data name="AdvancedNamingSection" xml:space="preserve">
+    <value>File names</value>
+    <comment>Advanced page: heading over the filename template controls.</comment>
+  </data>
+  <data name="AdvancedTemplateLabel" xml:space="preserve">
+    <value>Name recordings</value>
+    <comment>Advanced page: label for the filename template box.</comment>
+  </data>
+  <data name="AdvancedTemplateTokens" xml:space="preserve">
+    <value>Tokens</value>
+    <comment>Button that shows the list of tokens a template may use.</comment>
+  </data>
+  <data name="AdvancedTemplateDefault" xml:space="preserve">
+    <value>Artist and title</value>
+    <comment>Button that sets the template Offstream ships with.</comment>
+  </data>
+  <data name="AdvancedTemplateGrouped" xml:space="preserve">
+    <value>A folder per album</value>
+    <comment>Button that sets the grouped template.</comment>
+  </data>
+  <data name="AdvancedPreviewLabel" xml:space="preserve">
+    <value>Next file</value>
+    <comment>Label over the live preview of the rendered file name.</comment>
+  </data>
+  <data name="AdvancedPreviewUnavailable" xml:space="preserve">
+    <value>This template does not produce a file name.</value>
+    <comment>Shown instead of the preview when the template renders to nothing usable.</comment>
+  </data>
+  <data name="AdvancedTokenArtist" xml:space="preserve">
+    <value>The artist, or all of them for a collaboration</value>
+    <comment>Token reference row.</comment>
+  </data>
+  <data name="AdvancedTokenTitle" xml:space="preserve">
+    <value>The track title</value>
+    <comment>Token reference row.</comment>
+  </data>
+  <data name="AdvancedTokenAlbum" xml:space="preserve">
+    <value>The album</value>
+    <comment>Token reference row.</comment>
+  </data>
+  <data name="AdvancedTokenAlbumArtist" xml:space="preserve">
+    <value>The album's artist, which differs from the track's on compilations</value>
+    <comment>Token reference row.</comment>
+  </data>
+  <data name="AdvancedTokenYear" xml:space="preserve">
+    <value>Release year</value>
+    <comment>Token reference row.</comment>
+  </data>
+  <data name="AdvancedTokenTrack" xml:space="preserve">
+    <value>Track number on the album; write {track:00} to pad it</value>
+    <comment>Token reference row. The braces are literal syntax and must not be translated.</comment>
+  </data>
+  <data name="AdvancedTokenDisc" xml:space="preserve">
+    <value>Disc number</value>
+    <comment>Token reference row.</comment>
+  </data>
+  <data name="AdvancedTokenCount" xml:space="preserve">
+    <value>A number that grows with each recording; write {count:000} to pad it</value>
+    <comment>Token reference row. The braces are literal syntax and must not be translated.</comment>
+  </data>
+  <data name="AdvancedTokenDate" xml:space="preserve">
+    <value>Today's date, as yyyy-MM-dd unless you give a format</value>
+    <comment>Token reference row. The date pattern is .NET syntax and must not be translated.</comment>
+  </data>
+  <data name="AdvancedTokenTime" xml:space="preserve">
+    <value>The time the recording started, as HHmmss unless you give a format</value>
+    <comment>Token reference row. The time pattern is .NET syntax and must not be translated.</comment>
+  </data>
+  <data name="AdvancedSampleArtist" xml:space="preserve">
+    <value>Artist name</value>
+    <comment>Stand-in artist used to render the filename preview.</comment>
+  </data>
+  <data name="AdvancedSampleTitle" xml:space="preserve">
+    <value>Track title</value>
+    <comment>Stand-in title used to render the filename preview.</comment>
+  </data>
+  <data name="AdvancedSampleAlbum" xml:space="preserve">
+    <value>Album name</value>
+    <comment>Stand-in album used to render the filename preview.</comment>
+  </data>
+  <data name="AdvancedCounterLabel" xml:space="preserve">
+    <value>Next number</value>
+    <comment>Advanced page: label for the running file counter.</comment>
+  </data>
+  <data name="AdvancedCounterHint" xml:space="preserve">
+    <value>Used by the {count} token, and kept across restarts.</value>
+    <comment>Explains the counter box. The braces are literal template syntax.</comment>
+  </data>
+  <data name="AdvancedCounterInvalid" xml:space="preserve">
+    <value>Enter a number from 1 to {0}.</value>
+    <comment>Inline validation for the counter. {0} is the ceiling the template's padding allows.</comment>
+  </data>
+  <data name="AdvancedExistingLabel" xml:space="preserve">
+    <value>When that file already exists</value>
+    <comment>Advanced page: label for the existing-file policy dropdown.</comment>
+  </data>
+  <data name="AdvancedExistingSkip" xml:space="preserve">
+    <value>Keep the one on disk</value>
+    <comment>Existing-file policy: do not record over it.</comment>
+  </data>
+  <data name="AdvancedExistingOverwrite" xml:space="preserve">
+    <value>Replace it</value>
+    <comment>Existing-file policy: overwrite.</comment>
+  </data>
+  <data name="AdvancedExistingDuplicate" xml:space="preserve">
+    <value>Save the new one alongside it</value>
+    <comment>Existing-file policy: keep both, numbering the newcomer.</comment>
+  </data>
+  <data name="AdvancedDetectionSection" xml:space="preserve">
+    <value>Detection</value>
+    <comment>Advanced page: heading over what counts as a track worth recording. The predecessor called these "spy options"; plan §0 renames them.</comment>
+  </data>
+  <data name="AdvancedMuteAds" xml:space="preserve">
+    <value>Mute advertisements</value>
+    <comment>Detection option: silence Spotify's adverts instead of hearing them.</comment>
+  </data>
+  <data name="AdvancedRecordEverything" xml:space="preserve">
+    <value>Record everything Spotify plays</value>
+    <comment>Detection option: do not require an artist - title window title.</comment>
+  </data>
+  <data name="AdvancedRecordEverythingHint" xml:space="preserve">
+    <value>Includes podcasts and anything else without an artist.</value>
+    <comment>Explains the record-everything option.</comment>
+  </data>
+  <data name="AdvancedRecordAds" xml:space="preserve">
+    <value>Include advertisements</value>
+    <comment>Detection option, only meaningful while everything is being recorded.</comment>
+  </data>
+  <data name="AdvancedTimerEnabled" xml:space="preserve">
+    <value>Stop recording after</value>
+    <comment>Advanced page: turns the recording timer on, followed by a duration box.</comment>
+  </data>
+  <data name="AdvancedTimerInvalid" xml:space="preserve">
+    <value>Enter a duration as hh:mm:ss, up to 99:59:59.</value>
+    <comment>Inline validation for the recording timer.</comment>
+  </data>
+  <data name="AdvancedTagsSection" xml:space="preserve">
+    <value>Tags</value>
+    <comment>Advanced page: heading over what is written into the file's metadata.</comment>
+  </data>
+  <data name="AdvancedWriteCounter" xml:space="preserve">
+    <value>Write the number into the track-number tag</value>
+    <comment>Tag option: put the running counter in the track number field.</comment>
+  </data>
+  <data name="AdvancedWriteCounterHint" xml:space="preserve">
+    <value>Players then sort recordings in the order they were made.</value>
+    <comment>Explains the track-number tag option.</comment>
+  </data>
+  <data name="AdvancedAppSection" xml:space="preserve">
+    <value>Application</value>
+    <comment>Advanced page: heading over settings that are not about recording.</comment>
+  </data>
+  <data name="AdvancedMinimizeToTray" xml:space="preserve">
+    <value>Minimise to the notification area</value>
+    <comment>Application option: keep running in the tray rather than on the taskbar.</comment>
+  </data>
+  <data name="AdvancedLanguageLabel" xml:space="preserve">
+    <value>Language</value>
+    <comment>Advanced page: label for the UI language dropdown.</comment>
+  </data>
+  <data name="AdvancedLanguageSystem" xml:space="preserve">
+    <value>Match Windows</value>
+    <comment>Language option: follow the system UI language.</comment>
+  </data>
+  <data name="AdvancedLanguageRestart" xml:space="preserve">
+    <value>Takes effect the next time Offstream starts.</value>
+    <comment>Explains that a language change is not applied live.</comment>
+  </data>
+  <data name="AdvancedFfmpegLabel" xml:space="preserve">
+    <value>ffmpeg</value>
+    <comment>Advanced page: label for the ffmpeg path box. A program name; not translated.</comment>
+  </data>
+  <data name="AdvancedFfmpegHint" xml:space="preserve">
+    <value>Leave empty to use the copy shipped with Offstream, or ffmpeg on PATH.</value>
+    <comment>Explains the ffmpeg path box. PATH is the environment variable; not translated.</comment>
+  </data>
+  <data name="AdvancedFfmpegFound" xml:space="preserve">
+    <value>Using {0}</value>
+    <comment>Shown under the ffmpeg box once a build is resolved. {0} is the full path.</comment>
+  </data>
+  <data name="AdvancedFfmpegMissing" xml:space="preserve">
+    <value>No ffmpeg found. Recording cannot start until there is one.</value>
+    <comment>Shown under the ffmpeg box when nothing resolves, including the bundled copy and PATH.</comment>
+  </data>
+  <data name="AdvancedFfmpegNotFound" xml:space="preserve">
+    <value>There is no ffmpeg.exe at that path.</value>
+    <comment>Inline validation: an explicit ffmpeg path that does not exist.</comment>
+  </data>
 </root>

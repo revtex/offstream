@@ -130,4 +130,226 @@
   <data name="PageEmpty" xml:space="preserve">
     <value>Rien ici pour l'instant.</value>
   </data>
+  <data name="SettingsOutputSection" xml:space="preserve">
+    <value>Sortie</value>
+  </data>
+  <data name="SettingsOutputPathLabel" xml:space="preserve">
+    <value>Enregistrer dans</value>
+  </data>
+  <data name="SettingsBrowse" xml:space="preserve">
+    <value>Parcourir…</value>
+  </data>
+  <data name="SettingsStoredAt" xml:space="preserve">
+    <value>Ces réglages sont conservés dans {0}</value>
+  </data>
+  <data name="SettingsOutputPathRequired" xml:space="preserve">
+    <value>Choisissez un dossier pour les enregistrements.</value>
+  </data>
+  <data name="SettingsOutputPathInvalid" xml:space="preserve">
+    <value>Ce nom de dossier contient des caractères que Windows n'autorise pas.</value>
+  </data>
+  <data name="SettingsOutputPathNotAbsolute" xml:space="preserve">
+    <value>Indiquez un chemin complet, commençant par une lettre de lecteur ou \\serveur\partage.</value>
+  </data>
+  <data name="SettingsDeviceLabel" xml:space="preserve">
+    <value>Enregistrer depuis</value>
+  </data>
+  <data name="SettingsDeviceDefault" xml:space="preserve">
+    <value>Le périphérique utilisé par Windows</value>
+  </data>
+  <data name="SettingsDeviceUnavailable" xml:space="preserve">
+    <value>{0} (non connecté)</value>
+  </data>
+  <data name="SettingsDeviceRefresh" xml:space="preserve">
+    <value>Actualiser</value>
+  </data>
+  <data name="SettingsFormatLabel" xml:space="preserve">
+    <value>Format</value>
+  </data>
+  <data name="SettingsBitrateLabel" xml:space="preserve">
+    <value>Débit</value>
+  </data>
+  <data name="SettingsBitrateItem" xml:space="preserve">
+    <value>{0} kbit/s</value>
+  </data>
+  <data name="SettingsBitrateNotApplicable" xml:space="preserve">
+    <value>Ce format choisit lui-même son débit.</value>
+  </data>
+  <data name="SettingsRecordingSection" xml:space="preserve">
+    <value>Enregistrement</value>
+  </data>
+  <data name="SettingsMinimumLengthLabel" xml:space="preserve">
+    <value>Jeter les enregistrements plus courts que</value>
+  </data>
+  <data name="SettingsSecondsUnit" xml:space="preserve">
+    <value>secondes</value>
+  </data>
+  <data name="SettingsMinimumLengthInvalid" xml:space="preserve">
+    <value>Saisissez un nombre entier de secondes, de 0 à {0}.</value>
+  </data>
+  <data name="SettingsMetadataSection" xml:space="preserve">
+    <value>Détails des titres</value>
+  </data>
+  <data name="SettingsProviderLabel" xml:space="preserve">
+    <value>Chercher l'album et la pochette avec</value>
+  </data>
+  <data name="SettingsProviderNone" xml:space="preserve">
+    <value>Rien — utiliser seulement le titre de la fenêtre</value>
+  </data>
+  <data name="SettingsProviderLastFm" xml:space="preserve">
+    <value>Last.fm</value>
+  </data>
+  <data name="SettingsProviderSpotify" xml:space="preserve">
+    <value>Spotify</value>
+  </data>
+  <data name="SettingsClientIdLabel" xml:space="preserve">
+    <value>Client ID Spotify</value>
+  </data>
+  <data name="SettingsClientIdHint" xml:space="preserve">
+    <value>Celui de votre application sur le Spotify Developer Dashboard. La connexion arrivera avec le reste des métadonnées.</value>
+  </data>
+  <data name="SettingsClientIdRequired" xml:space="preserve">
+    <value>Saisissez un Client ID, ou choisissez une autre source ci-dessus.</value>
+  </data>
+  <data name="AdvancedNamingSection" xml:space="preserve">
+    <value>Noms de fichiers</value>
+  </data>
+  <data name="AdvancedTemplateLabel" xml:space="preserve">
+    <value>Nommer les enregistrements</value>
+  </data>
+  <data name="AdvancedTemplateTokens" xml:space="preserve">
+    <value>Jetons</value>
+  </data>
+  <data name="AdvancedTemplateDefault" xml:space="preserve">
+    <value>Artiste et titre</value>
+  </data>
+  <data name="AdvancedTemplateGrouped" xml:space="preserve">
+    <value>Un dossier par album</value>
+  </data>
+  <data name="AdvancedPreviewLabel" xml:space="preserve">
+    <value>Prochain fichier</value>
+  </data>
+  <data name="AdvancedPreviewUnavailable" xml:space="preserve">
+    <value>Ce modèle ne produit aucun nom de fichier.</value>
+  </data>
+  <data name="AdvancedTokenArtist" xml:space="preserve">
+    <value>L'artiste, ou tous en cas de collaboration</value>
+  </data>
+  <data name="AdvancedTokenTitle" xml:space="preserve">
+    <value>Le titre du morceau</value>
+  </data>
+  <data name="AdvancedTokenAlbum" xml:space="preserve">
+    <value>L'album</value>
+  </data>
+  <data name="AdvancedTokenAlbumArtist" xml:space="preserve">
+    <value>L'artiste de l'album, différent de celui du morceau sur les compilations</value>
+  </data>
+  <data name="AdvancedTokenYear" xml:space="preserve">
+    <value>Année de sortie</value>
+  </data>
+  <data name="AdvancedTokenTrack" xml:space="preserve">
+    <value>Numéro de piste sur l'album ; écrivez {track:00} pour le compléter</value>
+  </data>
+  <data name="AdvancedTokenDisc" xml:space="preserve">
+    <value>Numéro de disque</value>
+  </data>
+  <data name="AdvancedTokenCount" xml:space="preserve">
+    <value>Un nombre qui augmente à chaque enregistrement ; écrivez {count:000} pour le compléter</value>
+  </data>
+  <data name="AdvancedTokenDate" xml:space="preserve">
+    <value>La date du jour, au format yyyy-MM-dd sauf indication contraire</value>
+  </data>
+  <data name="AdvancedTokenTime" xml:space="preserve">
+    <value>L'heure de début de l'enregistrement, au format HHmmss sauf indication contraire</value>
+  </data>
+  <data name="AdvancedSampleArtist" xml:space="preserve">
+    <value>Nom de l'artiste</value>
+  </data>
+  <data name="AdvancedSampleTitle" xml:space="preserve">
+    <value>Titre du morceau</value>
+  </data>
+  <data name="AdvancedSampleAlbum" xml:space="preserve">
+    <value>Nom de l'album</value>
+  </data>
+  <data name="AdvancedCounterLabel" xml:space="preserve">
+    <value>Prochain numéro</value>
+  </data>
+  <data name="AdvancedCounterHint" xml:space="preserve">
+    <value>Utilisé par le jeton {count}, et conservé d'une session à l'autre.</value>
+  </data>
+  <data name="AdvancedCounterInvalid" xml:space="preserve">
+    <value>Saisissez un nombre de 1 à {0}.</value>
+  </data>
+  <data name="AdvancedExistingLabel" xml:space="preserve">
+    <value>Si ce fichier existe déjà</value>
+  </data>
+  <data name="AdvancedExistingSkip" xml:space="preserve">
+    <value>Garder celui sur le disque</value>
+  </data>
+  <data name="AdvancedExistingOverwrite" xml:space="preserve">
+    <value>Le remplacer</value>
+  </data>
+  <data name="AdvancedExistingDuplicate" xml:space="preserve">
+    <value>Enregistrer le nouveau à côté</value>
+  </data>
+  <data name="AdvancedDetectionSection" xml:space="preserve">
+    <value>Détection</value>
+  </data>
+  <data name="AdvancedMuteAds" xml:space="preserve">
+    <value>Couper le son des publicités</value>
+  </data>
+  <data name="AdvancedRecordEverything" xml:space="preserve">
+    <value>Enregistrer tout ce que joue Spotify</value>
+  </data>
+  <data name="AdvancedRecordEverythingHint" xml:space="preserve">
+    <value>Y compris les podcasts et tout ce qui n'a pas d'artiste.</value>
+  </data>
+  <data name="AdvancedRecordAds" xml:space="preserve">
+    <value>Inclure les publicités</value>
+  </data>
+  <data name="AdvancedTimerEnabled" xml:space="preserve">
+    <value>Arrêter l'enregistrement après</value>
+  </data>
+  <data name="AdvancedTimerInvalid" xml:space="preserve">
+    <value>Saisissez une durée au format hh:mm:ss, jusqu'à 99:59:59.</value>
+  </data>
+  <data name="AdvancedTagsSection" xml:space="preserve">
+    <value>Étiquettes</value>
+  </data>
+  <data name="AdvancedWriteCounter" xml:space="preserve">
+    <value>Écrire le numéro dans l'étiquette de piste</value>
+  </data>
+  <data name="AdvancedWriteCounterHint" xml:space="preserve">
+    <value>Les lecteurs classent alors les enregistrements dans l'ordre où ils ont été faits.</value>
+  </data>
+  <data name="AdvancedAppSection" xml:space="preserve">
+    <value>Application</value>
+  </data>
+  <data name="AdvancedMinimizeToTray" xml:space="preserve">
+    <value>Réduire dans la zone de notification</value>
+  </data>
+  <data name="AdvancedLanguageLabel" xml:space="preserve">
+    <value>Langue</value>
+  </data>
+  <data name="AdvancedLanguageSystem" xml:space="preserve">
+    <value>Suivre Windows</value>
+  </data>
+  <data name="AdvancedLanguageRestart" xml:space="preserve">
+    <value>Prend effet au prochain démarrage d'Offstream.</value>
+  </data>
+  <data name="AdvancedFfmpegLabel" xml:space="preserve">
+    <value>ffmpeg</value>
+  </data>
+  <data name="AdvancedFfmpegHint" xml:space="preserve">
+    <value>Laissez vide pour utiliser la copie fournie avec Offstream, ou ffmpeg dans PATH.</value>
+  </data>
+  <data name="AdvancedFfmpegFound" xml:space="preserve">
+    <value>Utilise {0}</value>
+  </data>
+  <data name="AdvancedFfmpegMissing" xml:space="preserve">
+    <value>Aucun ffmpeg trouvé. L'enregistrement ne pourra pas démarrer.</value>
+  </data>
+  <data name="AdvancedFfmpegNotFound" xml:space="preserve">
+    <value>Il n'y a pas de ffmpeg.exe à ce chemin.</value>
+  </data>
 </root>
