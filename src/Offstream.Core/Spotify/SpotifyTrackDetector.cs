@@ -34,6 +34,7 @@ public interface ISpotifyPlaybackProbe
 /// </list>
 /// </remarks>
 public sealed class SpotifyTrackDetector(IProcessManager processManager, ISpotifyPlaybackProbe playbackProbe)
+    : ITrackSource
 {
     private int? _spotifyProcessId = FindMainSpotifyProcess(processManager)?.Id;
 

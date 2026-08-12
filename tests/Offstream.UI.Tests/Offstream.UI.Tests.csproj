@@ -21,6 +21,12 @@
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="FlaUI.UIA3" />
+
+    <!-- For the ViewModel and controller tests, which stand in for the pipeline rather than
+         driving a window: a fake session factory needs a track source and an encoder, and
+         SettingsStore needs somewhere to not find a settings file. -->
+    <PackageReference Include="Moq" />
+    <PackageReference Include="System.IO.Abstractions.TestingHelpers" />
   </ItemGroup>
 
 </Project>
