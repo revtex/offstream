@@ -206,7 +206,9 @@ Always: a `CancellationToken` with deadline, `RedirectStandardError` drained *be
 
 ## 6. Settings — clean slate
 
-Offstream stores settings at **`%APPDATA%\Offstream\settings.json`**, bound through `Microsoft.Extensions.Configuration`, with a `schemaVersion` field, validation on load, and atomic writes (temp file + `File.Move` with overwrite).
+Offstream stores settings at **`%APPDATA%\Offstream\settings.json`**, with a `schemaVersion` field, validation on load, and atomic writes (temp file + `File.Move` with overwrite).
+
+> **Built as `Settings/SettingsStore` rather than through `Microsoft.Extensions.Configuration` (Phase 5).** That binder is a read-only, multi-source composition layer — it merges environment variables and command-line arguments over a file and hands back a bound object. Offstream needs the opposite: one file it owns, reads *and writes back*, with validation and atomic replacement. Configuration binding cannot write, so it would have been half the job plus a second serializer to do the other half. The Spotify Client ID is still read from `IConfiguration` in `Offstream.App`, where composing user-secrets and environment variables genuinely helps during development.
 
 **There is no import from the predecessor.** Offstream does not read `%LOCALAPPDATA%\Spytify\user.config`, does not know its key names, and ships no migration code. A first run starts from defaults and the first-run experience is designed for that: sensible defaults for output path (`%USERPROFILE%\Music\Offstream`), format, and template, so the app is usable before the user opens Settings at all. Anyone moving over re-enters their preferences once.
 
@@ -217,7 +219,7 @@ The JSON schema is designed for Offstream, not transcribed from the old flat key
 Two rules the schema must honour:
 
 - **No log text in settings.** Logs go to a rotating Serilog file under `%APPDATA%\Offstream\logs\`. Unbounded console text in a settings string is fragile.
-- **The Spotify API client secret is never written in the clear.** Protect it with DPAPI (`ProtectedData`, `CurrentUser` scope) before it reaches disk.
+- **No credential is written in the clear.** Protect it with DPAPI (`ProtectedData`, `CurrentUser` scope) before it reaches disk. **As built, that means the Spotify *refresh token*** — Phase 4 chose PKCE, which has no client secret for a public desktop client to protect in the first place. The Client ID stays readable; it is sent in the clear on every authorize request and is not a credential on its own.
 
 ---
 
@@ -253,7 +255,7 @@ Tokens `{artist} {title} {album} {album_artist} {year} {track} {disc} {count} {d
 | SpotifyAPI.Web | 5.1.1 | **7.4.2** | ✅ **Breaking, done** — `SpotifyClient`/`SpotifyWebAPI` replaced; PKCE with a hand-rolled loopback listener (§10 Phase 4) |
 | TagLibSharp | 2.2.0 | **2.3.0** | ✅ retained, for Ogg/Opus cover art and nothing else (§5.2) |
 | System.IO.Abstractions | 13.2.8 | current | Minor |
-| Newtonsoft.Json | 13.0.1 | **System.Text.Json** | Source-generated contexts |
+| Newtonsoft.Json | 13.0.1 | **System.Text.Json** | ✅ source-generated context for settings (Phase 5). Still present transitively via SpotifyAPI.Web, which serializes its own models with it |
 | EmbedIO / Unosquare.Swan | 2.9.2 | **removed** | ✅ was the OAuth loopback listener; replaced by `HttpListener` directly (`Spotify/Auth/SpotifyLoopbackListener`) — `SpotifyAPI.Web.Auth`'s own helper still depends on EmbedIO, so it is not referenced either |
 | MetroFramework | 1.4.0 | **removed** | Replaced by WPF-UI |
 | DotNetZip | 1.11.0 | **removed** | Known high-severity advisory; use `System.IO.Compression` |
@@ -423,7 +425,7 @@ These mean the final count will not land on exactly 293. The number that matters
 ### Phase 4 — Dependency modernisation (4–5 days) — ✅ **complete**
 - ✅ SpotifyAPI.Web 7.4.2 with PKCE + loopback redirect; EmbedIO dropped.
 - ✅ `HttpClient`/`IHttpClientFactory` (the Spotify OAuth client routes through it); DI container wiring; options pattern (`SpotifyAuthOptions`).
-- ⬜ `System.Text.Json` / `System.IO.Compression` — no concrete usage yet; nothing in the app writes JSON of its own before Phase 5, and nothing compresses anything before the Phase 8 updater. Left as a policy for those phases rather than forced in here.
+- ✅ `System.Text.Json` — landed in Phase 5, where the app first writes JSON of its own (settings). ⬜ `System.IO.Compression` — still no use for it before the Phase 8 updater.
 
 **Exit:** contract tests pass; manual Spotify auth verified against a real app registration. **Met.**
 **Contract tests: 42 new tests (517 total), all offline.** **Manual verification: done**, via `tools/Offstream.SpotifyAuthProbe` against a real Spotify Developer Dashboard app registration — sign-in, a real `GetCurrentlyPlaying` call (returned an actual playing track), and a token refresh all succeeded on the first run, no code changes needed.
@@ -437,12 +439,18 @@ These mean the final count will not land on exactly 293. The number that matters
 
 **Reference test files still outstanding, and where each lands:** `SpotifyAPITests`' 9 cases are superseded by `SpotifyTrackMapperTests` (18 cases — the extra coverage is the two bugs above, plus `ChooseCoverUrl` edge cases the original never exercised).
 
-### Phase 5 — Settings (1–2 days)
-- JSON schema (grouped sections), atomic writes, validation, `schemaVersion` handling.
-- First-run defaults; DPAPI for the client secret.
-- No importer — §6.
+### Phase 5 — Settings (1–2 days) — ✅ **complete**
+- ✅ JSON schema (grouped sections `output`/`recording`/`metadata`/`app`), atomic writes, validation, `schemaVersion` handling.
+- ✅ First-run defaults; DPAPI — **for the refresh token, not a client secret** (see below).
+- ✅ No importer — §6. A test asserts the written file carries no inherited key vocabulary.
 
-**Exit:** regression suite 4 passes; a fresh profile round-trips and a corrupted `settings.json` fails with a clear message rather than a crash.
+**Exit:** regression suite 4 passes; a fresh profile round-trips and a corrupted `settings.json` fails with a clear message rather than a crash. **Met** — 575 tests green, 56 of them new.
+
+- **DPAPI protects the Spotify refresh token, because there is no client secret to protect.** This section was written before Phase 4 chose PKCE, which has no client secret at all — a public desktop app could never keep one confidential regardless of storage. What PKCE does produce is a long-lived refresh token granting API access on the user's behalf, so that is what goes through `ISecretProtector` on the way to disk. The Client ID stays readable: a PKCE public client's ID is sent in the clear on every authorize request and is not a credential on its own.
+- **A token that will not decrypt is a normal outcome, not a corrupt file.** The same `settings.json` opened under a different Windows user, restored to another machine, or read after a credential reset will not decrypt. That costs one browser sign-in; refusing to load settings at all would cost the user every other preference they have, so the token becomes null and everything else loads.
+- **System.Text.Json's source generator ignores property initializers, and that is why every settings record uses primary-constructor parameter defaults.** With `{ get; init; } = 320;`, JSON that omits `bitrateKbps` deserializes as **0**, not 320; reference types come back null rather than their initialized value. Reflection-based deserialization honours initializers, so the difference is invisible in review and shows up only as a settings file that quietly loads as zeroes — a hand-pruned file was enough to trigger it. Constructor parameter defaults *are* honoured. Measured against the actual generator rather than assumed, and pinned by `SettingsSchemaDefaultsTests` so a refactor back to initializers fails loudly.
+- **The output path is the one default that cannot be a constructor default**, since it is derived from the current user's Music folder and a C# parameter default must be a compile-time constant. It is filled in on load instead, so omitting `path` behaves like omitting anything else. Null means "not specified" and gets the default; an explicit `""` is a value the user did set, and still fails validation rather than being silently overridden.
+- **`OffstreamSettings` is deliberately not `RecordingSettings`.** The latter is the pipeline's working view: flat, full of computed properties, and mutated mid-session as the file counter increments. Persisting it directly would put derived values like `orderNumberMax` in the file and let the pipeline's convenience dictate the on-disk shape. `ToRecordingSettings` / `CaptureRuntimeState` bridge them, and `SettingsMappingTests` catches a field added to one and forgotten in the other — which would otherwise be a setting that silently does nothing.
 
 ### Phase 6 — WPF shell (8–10 days) ← the largest phase
 - App host, DI, navigation, Fluent theme, dark mode.
