@@ -250,11 +250,11 @@ Tokens `{artist} {title} {album} {album_artist} {year} {track} {disc} {count} {d
 | --- | --- | --- | --- |
 | NAudio | 1.10.0 | 2.2.x | Namespace/API shifts; moderate |
 | NAudio.Lame | 1.1.6 | **removed** | ✅ ffmpeg replaces it; never added here, and no `libmp3lame.*.dll` was ever copied in |
-| SpotifyAPI.Web | 5.1.1 | 7.x | **Breaking** — client construction and auth flow differ. Move to PKCE with loopback redirect |
+| SpotifyAPI.Web | 5.1.1 | **7.4.2** | ✅ **Breaking, done** — `SpotifyClient`/`SpotifyWebAPI` replaced; PKCE with a hand-rolled loopback listener (§10 Phase 4) |
 | TagLibSharp | 2.2.0 | **2.3.0** | ✅ retained, for Ogg/Opus cover art and nothing else (§5.2) |
 | System.IO.Abstractions | 13.2.8 | current | Minor |
 | Newtonsoft.Json | 13.0.1 | **System.Text.Json** | Source-generated contexts |
-| EmbedIO / Unosquare.Swan | 2.9.2 | **removed** | Was the OAuth loopback listener; use `HttpListener` or the SDK's built-in |
+| EmbedIO / Unosquare.Swan | 2.9.2 | **removed** | ✅ was the OAuth loopback listener; replaced by `HttpListener` directly (`Spotify/Auth/SpotifyLoopbackListener`) — `SpotifyAPI.Web.Auth`'s own helper still depends on EmbedIO, so it is not referenced either |
 | MetroFramework | 1.4.0 | **removed** | Replaced by WPF-UI |
 | DotNetZip | 1.11.0 | **removed** | Known high-severity advisory; use `System.IO.Compression` |
 | ExceptionReporter / Handlebars | — | already removed | — |
@@ -336,7 +336,7 @@ Prove the risky parts survive the move before restructuring anything.
 
 **Exit:** 293/293 green on .NET 10; `Offstream.Core` has no `System.Windows` reference; naming-hygiene test green.
 
-**Progress — 475 tests green** (474 core + 1 FlaUI), 0 warnings, format clean, self-contained publish verified, `Offstream.Spike accept` 8/8 against the code in `Core`.
+**Progress — 475 tests green** (474 core + 1 FlaUI), 0 warnings, format clean, self-contained publish verified, `Offstream.Spike accept` 8/8 against the code in `Core`. (Phase 4 has since added 42 more, offline — see below.)
 
 > **325 > 293 does not mean the exit criterion is met.** The counts are not comparable: four reference test files are deliberately deferred to the phase that reshapes what they cover (below), while several ported areas gained cases the reference never had. Phase 2 closes when the deferred files have landed in their phases and nothing from the reference suite is unaccounted for — not when a number is exceeded.
 
@@ -359,7 +359,7 @@ Prove the risky parts survive the move before restructuring anything.
 | `Recording/RecordingPolicy` (what to record, and when to stop) | ✅ ported, split from orchestration |
 | `Recording` orchestration (`RecordingSession`, `TrackRecorder`) | ✅ ported in Phase 3 — rules already split out; the form reference and the static `Running` flag are gone |
 | `Metadata/Providers/LastFm*` (models + mapping) | ✅ ported; live-API test replaced by fixtures |
-| `Metadata/Providers/Spotify*` (mapping) | ⬜ — maps SDK types; **moves to Phase 4** with the SpotifyAPI.Web 5→7 upgrade |
+| `Metadata/Providers/Spotify*` (mapping + PKCE auth) | ✅ ported in Phase 4 — `SpotifyTrackMapper`, `Spotify/Auth/*`; not yet consumed by `RecordingSession` (needs Phase 5/6) |
 | `Metadata/CoverArtWriter` (TagLib) | ✅ ported in Phase 3 — narrowed to Ogg/Opus cover art; ffmpeg writes the tags (§5.2) |
 | `Audio/AudioRingBuffer` | ✅ ported — **fixed a data race**, added the coverage it never had |
 | `Interop/PowerManagement`, `Interop/MediaKeys` via **CsWin32** | ✅ ported — hand-written `DllImport` gone |
@@ -374,7 +374,7 @@ Prove the risky parts survive the move before restructuring anything.
 | `RecorderTests` | 7 | ✅ Phase 3 — the encode paths they covered are gone (§4); what they really tested lands in `TrackRecorderTests` and `RecordingSessionTests` |
 | `FFmpegTests` | 7 | ✅ Phase 3 — rewritten as argv golden tests (§9.2 suite 2) |
 | `MapperID3Tests` | 5 | ✅ Phase 3 — superseded by `CoverArtIntegrationTests`, which reads the picture back out of each container rather than asserting on a mapper's output |
-| `SpotifyAPITests` | 9 | Phase 4 — maps SDK types that change shape in the 5→7 upgrade |
+| `SpotifyAPITests` | 9 | ✅ Phase 4 — superseded by `SpotifyTrackMapperTests` (18 cases) |
 | `TranslationTests` | 4 | Phase 6 — en/fr key parity against Offstream's own `.resx` |
 
 Deliberate departures so far, each a consequence of a decision already taken:
@@ -420,12 +420,22 @@ These mean the final count will not land on exactly 293. The number that matters
 - **The last chunk of every track was being dropped.** The write into the WAV honoured the stop token, and that token is cancelled at precisely the moment a track ends — with a chunk already taken out of the ring buffer and therefore unrecoverable. Writes of audio already in hand are now uncancellable, with a test that runs the race twenty times.
 - **A failed encode keeps its WAV.** The captured audio cannot be recreated; a missing or broken ffmpeg can. The path is reported so the user can find it.
 
-### Phase 4 — Dependency modernisation (4–5 days)
-- SpotifyAPI.Web 7.x with PKCE + loopback redirect; drop EmbedIO.
-- `HttpClient`/`IHttpClientFactory`; `System.Text.Json`; `System.IO.Compression`.
-- DI container wiring; options pattern.
+### Phase 4 — Dependency modernisation (4–5 days) — ✅ **complete**
+- ✅ SpotifyAPI.Web 7.4.2 with PKCE + loopback redirect; EmbedIO dropped.
+- ✅ `HttpClient`/`IHttpClientFactory` (the Spotify OAuth client routes through it); DI container wiring; options pattern (`SpotifyAuthOptions`).
+- ⬜ `System.Text.Json` / `System.IO.Compression` — no concrete usage yet; nothing in the app writes JSON of its own before Phase 5, and nothing compresses anything before the Phase 8 updater. Left as a policy for those phases rather than forced in here.
 
-**Exit:** contract tests pass; manual Spotify auth verified against a real app registration.
+**Exit:** contract tests pass; manual Spotify auth verified against a real app registration. **Met.**
+**Contract tests: 42 new tests (517 total), all offline.** **Manual verification: done**, via `tools/Offstream.SpotifyAuthProbe` against a real Spotify Developer Dashboard app registration — sign-in, a real `GetCurrentlyPlaying` call (returned an actual playing track), and a token refresh all succeeded on the first run, no code changes needed.
+
+- **`SpotifyAPI.Web.Auth` is not referenced, on purpose.** It still depends on EmbedIO 3.5.2 even at 7.4.2 (verified against its published nuspec) — dropping EmbedIO is the point. The PKCE loopback redirect is caught by `Encoding.../Spotify/Auth/SpotifyLoopbackListener`, hand-rolled on the framework's own `HttpListener`. Binding to a literal loopback address rather than a wildcard prefix is what lets it run unelevated; verified with a real `HttpListener` bound to a real ephemeral port in CI, not mocked.
+- **The state parameter is checked.** The reference implementation's `SpotifyAPI` did not validate it, which is how a stray or forged redirect could complete a sign-in it did not originate. `SpotifyAuthenticator` rejects a callback whose `state` does not match the one sent, with a test proving the token exchange never even runs in that case.
+- **`SpotifyTrackMapper` replaces the reference's `SpotifyAPI.MapSpotifyTrackToTrack`/`MapSpotifyAlbumToTrack`**, reusing `SpotifyTitleParser.SplitTitle` for the title/subtitle split instead of a second copy of the same logic. Two real bugs surfaced while porting the reference's own test cases and fixed rather than carried forward:
+  - `FullTrack.TrackNumber`/`DiscNumber` are non-nullable `int` on the current SDK, defaulting to 0 for a track it could not fully populate. The reference wrote that 0 straight into the tag; Spotify numbers both from 1, so 0 now maps to `null` instead of a literal (and wrong) zeroth track.
+  - `DateTime.TryParse` rejects a bare four-digit year outright, silently dropping the release year for every album whose Spotify precision is year-only rather than a full date — the same call the reference made, with the same bug. Now parses "1987", "2010-10" and "2010-10-10" alike.
+- **`SpotifyMetadataProvider` is the read half only** of the reference's `SpotifyAPI.UpdateTrack` — the retry-with-delay, fall-back-to-Last.fm-on-failure and reopen-the-auth-dialog orchestration is deliberately not ported here, because it belongs with whatever in the pipeline actually calls this, and nothing does yet. `RecordingSession` does not consume it: wiring a provider selection needs the settings screen (Phase 5) and the shell (Phase 6) that do not exist. The title-match guard against `RecordingSession`'s independently-racing detection *is* kept, reproduced from `IsPlaybackTrackDetectedTrack`.
+
+**Reference test files still outstanding, and where each lands:** `SpotifyAPITests`' 9 cases are superseded by `SpotifyTrackMapperTests` (18 cases — the extra coverage is the two bugs above, plus `ChooseCoverUrl` edge cases the original never exercised).
 
 ### Phase 5 — Settings (1–2 days)
 - JSON schema (grouped sections), atomic writes, validation, `schemaVersion` handling.

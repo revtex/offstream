@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Manual verification only — plan §10 Phase 4's exit criterion ("manual Spotify auth verified
+    against a real app registration") needs a human with a Spotify Developer account and a
+    browser, which nothing automated can stand in for. Run with `dotnet run`; see README.md.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Offstream.SpotifyAuthProbe</RootNamespace>
+    <AssemblyName>Offstream.SpotifyAuthProbe</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Offstream.Core\Offstream.Core.csproj" />
+  </ItemGroup>
+
+</Project>

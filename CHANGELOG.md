@@ -47,9 +47,28 @@ phase plan these entries follow.
 - **475 tests**, including ffmpeg argument golden tests and encode-integration tests that
   assert with `ffprobe`, and a naming-hygiene test that fails the build on an identifier
   inherited from the predecessor.
+- **Spotify Web API metadata, on PKCE.** `SpotifyTrackMapper` maps `FullTrack`/`FullAlbum` onto
+  a `Track`; `SpotifyMetadataProvider` fetches the currently-playing track and its album and
+  applies the mapping, guarded by the same title-match check the predecessor used to stop a
+  race between detection and enrichment from tagging the wrong track. The PKCE sign-in itself —
+  login URL, code exchange, refresh — is `Spotify/Auth/*`, orchestrated by
+  `SpotifyAuthenticator` against `SpotifyAPI.Web` 7.4.2.
+- **A loopback redirect listener with no EmbedIO dependency.** `SpotifyLoopbackListener` catches
+  the PKCE authorization code on `System.Net.HttpListener`, bound to a literal loopback address
+  so it runs without elevation.
+- **`tools/Offstream.SpotifyAuthProbe`**, a console tool for the one verification step nothing
+  automated can do: running the real PKCE flow against a real Spotify app registration in an
+  actual browser.
+- **`IHttpClientFactory`-backed DI wiring** for the Spotify OAuth client, and the options
+  pattern (`SpotifyAuthOptions`) plan §10 Phase 4 asks for.
 
 ### Changed
 
+- **SpotifyAPI.Web upgraded 5.1.1 → 7.4.2.** `SpotifyWebAPI` and `AuthorizationCodeAuth` are
+  gone; auth is PKCE end to end, which needs no client secret at all — a public desktop app was
+  never able to keep one confidential regardless of how it was stored.
+- **The PKCE sign-in validates its `state` parameter.** The predecessor did not; skipping that
+  check is how a stray or forged redirect could complete a sign-in it did not originate.
 - **All audio conversion goes through ffmpeg** as an external process, replacing in-process
   encoding.
 - **ffmpeg arguments are passed as an argument vector**, never a command string. Track metadata
@@ -104,8 +123,16 @@ phase plan these entries follow.
   `{count:0000}` mask and breaking both sort order and the "have I already recorded this?"
   check. It now saturates so the ceiling can be detected.
 - **A test that called the live Last.fm API** and failed with no network is now fixture-driven.
+- **Spotify track/disc numbers of 0 no longer get written as a literal zeroth track.** The SDK's
+  `FullTrack.TrackNumber`/`DiscNumber` default to 0 (a non-nullable `int`) when a track could not
+  be fully populated; the predecessor wrote that 0 straight into the tag. Now mapped to "unknown"
+  instead, since Spotify numbers both from 1.
+- **A bare release year no longer silently drops the year.** `DateTime.TryParse` rejects a
+  four-digit year with nothing else on it, which the predecessor's mapping also relied on —
+  dropping the year for every album whose Spotify precision is year-only rather than a full date.
 
 ### Security
 
 - **Untrusted track metadata can no longer influence an ffmpeg command line** — see the argument
   vector note under *Changed*.
+- **The PKCE `state` parameter is validated** — see *Changed*.
