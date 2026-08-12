@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  build:
+    # Windows-only by necessity: net10.0-windows, WPF, WASAPI and the routing COM interop
+    # cannot build or run anywhere else.
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/Directory.Packages.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      # The encode integration tests shell out to ffmpeg and assert with ffprobe (plan §9.2
+      # suite 3). Pinned to the LGPL build Offstream ships, so CI encodes with the same
+      # binary as release.
+      - name: Install ffmpeg
+        run: choco install ffmpeg --version=8.1.2 --no-progress -y
+        shell: pwsh
+
+      - name: Verify ffmpeg
+        run: |
+          ffmpeg -version
+          ffprobe -version
+        shell: pwsh
+
+      - name: Restore
+        run: dotnet restore Offstream.slnx
+
+      # Style is checked separately from analyzers so a formatting nit reports as a
+      # formatting nit, not as a wall of build errors. Analyzers are errors via
+      # Directory.Build.props and fail the Build step instead.
+      - name: Verify formatting
+        run: dotnet format Offstream.slnx --verify-no-changes --no-restore
+
+      - name: Build
+        run: dotnet build Offstream.slnx --configuration Release --no-restore
+
+      # FlaUI tests drive a real window and need an interactive desktop session, which
+      # hosted runners do not provide. They run locally and on a self-hosted agent.
+      - name: Test
+        run: >
+          dotnet test Offstream.slnx
+          --configuration Release
+          --no-build
+          --filter "Category!=Desktop"
+          --logger "trx;LogFileName=test-results.trx"
+          --results-directory artifacts/test-results
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: artifacts/test-results
+          if-no-files-found: ignore
+
+  publish-check:
+    # Guards the two settings that silently break audio routing at runtime rather than at
+    # compile time: NativeAOT and trimming must stay off (CLAUDE.md, plan §2.2).
+    runs-on: windows-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish self-contained, untrimmed
+        run: >
+          dotnet publish src/Offstream.App/Offstream.App.csproj
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:PublishTrimmed=false
+
+      - name: Assert trimming and AOT stayed off
+        shell: pwsh
+        run: |
+          $proj = Get-Content src/Offstream.App/Offstream.App.csproj -Raw
+          $props = Get-Content Directory.Build.props -Raw
+          foreach ($bad in @('<PublishTrimmed>true<', '<PublishAot>true<')) {
+            if ($proj -like "*$bad*" -or $props -like "*$bad*") {
+              throw "$bad is set. Trimming and NativeAOT break the audio-routing COM interop - see CLAUDE.md."
+            }
+          }
+          Write-Host 'Trimming and NativeAOT are off, as required.'

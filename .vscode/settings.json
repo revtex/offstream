@@ -3,7 +3,7 @@
   "files.trimTrailingWhitespace": true,
   "files.insertFinalNewline": true,
   "files.eol": "\r\n",
-  "dotnet.defaultSolution": "Offstream.sln",
+  "dotnet.defaultSolution": "Offstream.slnx",
   "dotnet.completion.showCompletionItemsFromUnimportedNamespaces": true,
   "omnisharp.enableEditorConfigSupport": true,
   "[csharp]": { "editor.defaultFormatter": "ms-dotnettools.csharp" },

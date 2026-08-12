@@ -1,0 +1,22 @@
+<Solution>
+  <!--
+    No <Configurations> block on purpose. Every project uses the SDK default platform
+    (AnyCPU), so the solution's default "Any CPU" configuration maps cleanly and there is
+    nothing to declare. Pinning a platform here only works if Directory.Build.props pins the
+    same one in every project - and doing that broke Visual Studio, so neither is pinned.
+  -->
+  <Folder Name="/spike/">
+    <Project Path="spike/Offstream.Spike/Offstream.Spike.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Offstream.App/Offstream.App.csproj" />
+    <Project Path="src/Offstream.Core/Offstream.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Offstream.Core.Tests/Offstream.Core.Tests.csproj" />
+    <Project Path="tests/Offstream.UI.Tests/Offstream.UI.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/Offstream.FakeSpotify/Offstream.FakeSpotify.csproj" />
+  </Folder>
+</Solution>
