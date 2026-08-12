@@ -66,6 +66,8 @@ public sealed class TrackRecorder : IDisposable
     private readonly Track _track;
 
     private readonly CancellationTokenSource _stopping = new();
+    private readonly TaskCompletionSource _bufferDrained =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     private long _bytesWritten;
     private bool _primed;
@@ -99,6 +101,21 @@ public sealed class TrackRecorder : IDisposable
 
     /// <summary>Whether the capture loop is still running.</summary>
     public bool IsRecording { get; private set; }
+
+    /// <summary>
+    /// Completes the instant this recorder is done reading from the shared capture buffer —
+    /// well before the file is flushed and closed.
+    /// </summary>
+    /// <remarks>
+    /// This is what <see cref="RecordingSession"/> waits on before starting the next track's
+    /// recorder. Two recorders never overlap in wall-clock terms, but they do share one
+    /// <see cref="AudioCaptureBuffer"/>, and the next one's <see cref="Prime"/> discards
+    /// whatever is sitting in it — including this recorder's own unread tail, if <see cref="Prime"/>
+    /// runs before this recorder's background task gets around to draining it. Waiting on this
+    /// buffer-only signal (fast, in-memory) closes that race without waiting on this recorder's
+    /// disk I/O too (slow, and exactly what <see cref="RecordingSession"/> must not block on).
+    /// </remarks>
+    public Task BufferDrained => _bufferDrained.Task;
 
     /// <summary>
     /// Claims the capture buffer for this track, dropping what the previous one left in it.
@@ -152,11 +169,22 @@ public sealed class TrackRecorder : IDisposable
                              tempWavePath, FileMode.Create, FileAccess.Write, FileShare.Read))
             await using (var writer = new WaveFileWriter(stream, _buffer.Format))
             {
-                await CaptureAsync(writer, chunk, stopping.Token);
+                try
+                {
+                    await CaptureAsync(writer, chunk, stopping.Token);
 
-                // The tail: everything captured between the last chunk and the stop request.
-                var remaining = _buffer.Drain(chunk);
-                if (remaining > 0) await WriteAsync(writer, chunk, remaining);
+                    // The tail: everything captured between the last chunk and the stop request.
+                    var remaining = _buffer.Drain(chunk);
+                    if (remaining > 0) await WriteAsync(writer, chunk, remaining);
+                }
+                finally
+                {
+                    // Signalled here, not in a top-level finally: this must fire the moment the
+                    // buffer is done with, before the flush below, or the wait it unblocks would
+                    // itself be waiting on this recorder's disk I/O — precisely what it exists to
+                    // avoid.
+                    _bufferDrained.TrySetResult();
+                }
 
                 await writer.FlushAsync(CancellationToken.None);
             }
@@ -164,6 +192,11 @@ public sealed class TrackRecorder : IDisposable
         finally
         {
             IsRecording = false;
+
+            // A safety net, not the primary signal: covers a throw before the buffer was ever
+            // touched (e.g. the temp file could not be created), so a waiter is never left
+            // hanging. TrySetResult is idempotent — the normal path above already set it.
+            _bufferDrained.TrySetResult();
         }
 
         if (cancellationToken.IsCancellationRequested)
