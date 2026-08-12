@@ -6,6 +6,7 @@ using Offstream.App.ViewModels;
 using Offstream.App.Views;
 using Offstream.App.Views.Pages;
 using Offstream.Core.Diagnostics;
+using Offstream.Core.Interop;
 using Offstream.Core.Settings;
 using Offstream.Core.Spotify.Auth;
 using SpotifyAPI.Web;
@@ -59,6 +60,13 @@ public static class AppServices
 
         services.AddSingleton<ShellWindow>();
         services.AddSingleton<ShellViewModel>();
+
+        // Recording (plan §§3-4). The controller is a singleton because the session it owns is
+        // the app's - starting one from a page and finding it gone when the tab is switched away
+        // would be a recording lost to navigation.
+        services.AddSingleton<IRecordingSessionFactory, RecordingSessionFactory>();
+        services.AddSingleton<IProcessManager, ProcessManager>();
+        services.AddSingleton<RecordingController>();
 
         // Pages are singletons to match NavigationCacheMode.Enabled on the navigation items:
         // switching tabs must not discard the activity log or a half-filled settings form.

@@ -33,9 +33,13 @@ public sealed class RecordingSessionTests
     private static WaveFormat TinyFormat() => new(50, 8, 2);
 
     /// <summary>A capture source the test drives by hand.</summary>
-    private sealed class FakeCaptureSource : IAudioCaptureSource
+    /// <param name="format">
+    /// Defaults to <see cref="TinyFormat"/>, which keeps recordings short. The level-meter tests
+    /// pass a 16-bit format instead, because 8-bit is not one the meter reads.
+    /// </param>
+    private sealed class FakeCaptureSource(WaveFormat? format = null) : IAudioCaptureSource
     {
-        public WaveFormat Format { get; } = TinyFormat();
+        public WaveFormat Format { get; } = format ?? TinyFormat();
 
         public bool IsCapturing { get; private set; }
 
@@ -63,6 +67,10 @@ public sealed class RecordingSessionTests
 
             DataAvailable?.Invoke(this, new AudioDataEventArgs(buffer, bytes));
         }
+
+        /// <summary>Delivers an exact buffer, for asserting on what the level meter made of it.</summary>
+        public void Deliver(byte[] buffer) =>
+            DataAvailable?.Invoke(this, new AudioDataEventArgs(buffer, buffer.Length));
     }
 
     /// <summary>An encoder that produces a plausible file instead of running ffmpeg.</summary>
@@ -96,8 +104,13 @@ public sealed class RecordingSessionTests
         /// test can prove the fix deterministically instead of merely exercising the race and
         /// hoping to catch it.
         /// </param>
-        public Harness(Action<RecordingSettings>? configure = null, TimeSpan? fileSystemDelay = null)
+        public Harness(
+            Action<RecordingSettings>? configure = null,
+            TimeSpan? fileSystemDelay = null,
+            WaveFormat? captureFormat = null)
         {
+            Capture = new FakeCaptureSource(captureFormat);
+
             FileSystem = new MockFileSystem();
             FileSystem.Directory.CreateDirectory(MusicRoot);
 
@@ -135,7 +148,7 @@ public sealed class RecordingSessionTests
 
         public RecordingSettings Settings { get; }
 
-        public FakeCaptureSource Capture { get; } = new();
+        public FakeCaptureSource Capture { get; }
 
         public FakeEncoder Encoder { get; }
 
@@ -487,5 +500,54 @@ public sealed class RecordingSessionTests
             "a recording progress report");
 
         Assert.Contains(harness.Reports, r => r.Stage == RecordingStage.Stopped);
+    }
+
+    /// <summary>
+    /// The shell shows a running time. It comes from the poller through progress rather than
+    /// from a timer in the UI, so a paused or stalled session stops counting on its own.
+    /// </summary>
+    [Fact]
+    public async Task Session_ReportsElapsedTimeWhileATrackPlays()
+    {
+        await using var harness = new Harness();
+
+        harness.Session.Start();
+
+        await RecordTrackAsync(harness, Harness.Playing("Artist", "Title"));
+
+        await WaitFor(
+            () => harness.Reports.Any(r => r.Elapsed is not null && r.Track is not null),
+            "an elapsed-time report naming the track");
+    }
+
+    [Fact]
+    public async Task Level_MeasuresWhatCaptureDelivers()
+    {
+        await using var harness = new Harness(captureFormat: new WaveFormat(44100, 16, 2));
+
+        harness.Session.Start();
+
+        Assert.True(harness.Session.Level.IsSupported);
+
+        harness.Capture.Deliver(BitConverter.GetBytes((short)16384));
+
+        Assert.Equal(0.5f, harness.Session.Level.Read(), precision: 4);
+    }
+
+    /// <summary>
+    /// Nothing drains the meter once a session stops, so a peak left in it would freeze the
+    /// display at whatever was playing when the user pressed stop.
+    /// </summary>
+    [Fact]
+    public async Task Level_IsClearedWhenTheSessionStops()
+    {
+        await using var harness = new Harness(captureFormat: new WaveFormat(44100, 16, 2));
+
+        harness.Session.Start();
+        harness.Capture.Deliver(BitConverter.GetBytes(short.MaxValue));
+
+        await harness.Session.StopAsync();
+
+        Assert.Equal(0f, harness.Session.Level.Read());
     }
 }

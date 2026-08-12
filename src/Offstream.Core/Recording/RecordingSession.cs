@@ -116,7 +116,19 @@ public sealed class RecordingSession : IAsyncDisposable
         _backlog = new EncodeBacklog(encoder);
         _backlog.Completed += OnEncodeCompleted;
         _backlog.Failed += OnEncodeFailed;
+
+        Level = new AudioLevelMeter(capture.Format);
     }
+
+    /// <summary>
+    /// Live capture level, for a meter. Drained by whoever draws it, at its own rate.
+    /// </summary>
+    /// <remarks>
+    /// Fed from the same callback that feeds the recording buffer, so it measures what is
+    /// actually being captured rather than what the system volume is set to — the distinction
+    /// that matters when Spotify is playing to a device this session is not recording.
+    /// </remarks>
+    public AudioLevelMeter Level { get; }
 
     /// <summary>A track finished recording — including the ones that produced nothing.</summary>
     public event EventHandler<TrackRecordedEventArgs>? TrackRecorded;
@@ -159,6 +171,7 @@ public sealed class RecordingSession : IAsyncDisposable
 
         _poller.TrackChanged += OnTrackChanged;
         _poller.PlayStateChanged += OnPlayStateChanged;
+        _poller.TrackTimeChanged += OnTrackTimeChanged;
         _poller.Start();
 
         StartRecordingTimer();
@@ -182,12 +195,17 @@ public sealed class RecordingSession : IAsyncDisposable
 
         _poller.TrackChanged -= OnTrackChanged;
         _poller.PlayStateChanged -= OnPlayStateChanged;
+        _poller.TrackTimeChanged -= OnTrackTimeChanged;
         await _poller.DisposeAsync();
 
         await FinishCurrentTrackAsync();
 
         _capture.DataAvailable -= OnAudioAvailable;
         _capture.StopCapture();
+
+        // The meter is drained by the UI, which stops asking once the session stops. Clearing it
+        // means the display settles at silence instead of freezing on the last peak.
+        Level.Reset();
 
         StopRecordingTimer();
 
@@ -230,7 +248,31 @@ public sealed class RecordingSession : IAsyncDisposable
         _stopping.Dispose();
     }
 
-    private void OnAudioAvailable(object? sender, AudioDataEventArgs e) => _buffer?.Write(e.Data);
+    private void OnAudioAvailable(object? sender, AudioDataEventArgs e)
+    {
+        _buffer?.Write(e.Data);
+        Level.Write(e.Data);
+    }
+
+    /// <summary>
+    /// The elapsed counter ticked. Reported so the shell can show a running time without
+    /// polling the session or running a timer of its own.
+    /// </summary>
+    /// <remarks>
+    /// The stage comes from whether a recorder is actually running, but the track name comes
+    /// from the poller when it is not: an ad or a skipped track is still worth showing as
+    /// "playing", and a now-playing line that blanks out whenever recording pauses reads as a
+    /// bug rather than as the rule it is.
+    /// </remarks>
+    private void OnTrackTimeChanged(object? sender, TrackTimeChangedEventArgs e)
+    {
+        var recording = CurrentTrack;
+
+        Report(
+            recording is null ? RecordingStage.WaitingForTrack : RecordingStage.Recording,
+            (recording ?? _poller.CurrentTrack)?.ToString(),
+            TimeSpan.FromSeconds(e.TrackTimeSeconds));
+    }
 
     private void OnPlayStateChanged(object? sender, PlayStateChangedEventArgs e) =>
         Report(

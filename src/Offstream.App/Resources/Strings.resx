@@ -85,6 +85,70 @@
     <value>Not recording.</value>
     <comment>Shown above the activity log before a session starts.</comment>
   </data>
+  <data name="RecordStatusWaiting" xml:space="preserve">
+    <value>Waiting for Spotify to play something.</value>
+    <comment>Status line while a session is running but no track has started.</comment>
+  </data>
+  <data name="RecordStatusRecording" xml:space="preserve">
+    <value>Recording.</value>
+    <comment>Status line while audio is being captured.</comment>
+  </data>
+  <data name="RecordStatusStopping" xml:space="preserve">
+    <value>Finishing the last track…</value>
+    <comment>Status line while the encode queue drains after Stop. Stopping is not instant.</comment>
+  </data>
+  <data name="RecordStart" xml:space="preserve">
+    <value>Start recording</value>
+    <comment>The transport button when idle. Same verb as the status it produces.</comment>
+  </data>
+  <data name="RecordStop" xml:space="preserve">
+    <value>Stop recording</value>
+    <comment>The transport button while a session runs.</comment>
+  </data>
+  <data name="RecordNothingPlaying" xml:space="preserve">
+    <value>Nothing playing</value>
+    <comment>Stands in for the track name when Spotify has no track on screen.</comment>
+  </data>
+  <data name="RecordLevelLabel" xml:space="preserve">
+    <value>Output level</value>
+    <comment>Accessible name for the waveform. Screen readers get this; sighted users get the bars.</comment>
+  </data>
+  <data name="RecordCannotStartSettings" xml:space="preserve">
+    <value>Settings could not be read, so recording did not start. Fix or delete the settings file and try again.</value>
+    <comment>Start failed. Recording on defaults would write to a folder the user never chose.</comment>
+  </data>
+  <data name="RecordCannotStartFfmpeg" xml:space="preserve">
+    <value>ffmpeg was not found. Set its location on the Settings page, then start again.</value>
+    <comment>Start failed. Every conversion goes through ffmpeg, so there is no degraded mode.</comment>
+  </data>
+  <data name="RecordCannotStartAudioDevice" xml:space="preserve">
+    <value>The audio device could not be opened. Check it is still connected, then start again.</value>
+    <comment>Start failed, usually a device unplugged since it was chosen in settings.</comment>
+  </data>
+  <data name="RecordFilterLabel" xml:space="preserve">
+    <value>Show</value>
+    <comment>Label for the activity log's level filter.</comment>
+  </data>
+  <data name="RecordFilterAll" xml:space="preserve">
+    <value>Everything</value>
+    <comment>Log filter: no filtering, including debug detail.</comment>
+  </data>
+  <data name="RecordFilterActivity" xml:space="preserve">
+    <value>Activity</value>
+    <comment>Log filter: information and above. The default — what the app is doing, without the detail.</comment>
+  </data>
+  <data name="RecordFilterProblems" xml:space="preserve">
+    <value>Problems only</value>
+    <comment>Log filter: warnings and errors.</comment>
+  </data>
+  <data name="RecordCopyLog" xml:space="preserve">
+    <value>Copy log</value>
+    <comment>Button that copies the visible log lines to the clipboard.</comment>
+  </data>
+  <data name="RecordLogCopied" xml:space="preserve">
+    <value>Copied {0} lines to the clipboard.</value>
+    <comment>Logged after Copy log. {0} is the number of lines copied.</comment>
+  </data>
   <data name="RecordClearLog" xml:space="preserve">
     <value>Clear log</value>
     <comment>Button that empties the activity log.</comment>

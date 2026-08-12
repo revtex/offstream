@@ -76,6 +76,54 @@
   <data name="RecordStatusIdle" xml:space="preserve">
     <value>Aucun enregistrement en cours.</value>
   </data>
+  <data name="RecordStatusWaiting" xml:space="preserve">
+    <value>En attente d'une lecture dans Spotify.</value>
+  </data>
+  <data name="RecordStatusRecording" xml:space="preserve">
+    <value>Enregistrement en cours.</value>
+  </data>
+  <data name="RecordStatusStopping" xml:space="preserve">
+    <value>Finalisation de la dernière piste…</value>
+  </data>
+  <data name="RecordStart" xml:space="preserve">
+    <value>Démarrer l'enregistrement</value>
+  </data>
+  <data name="RecordStop" xml:space="preserve">
+    <value>Arrêter l'enregistrement</value>
+  </data>
+  <data name="RecordNothingPlaying" xml:space="preserve">
+    <value>Aucune lecture</value>
+  </data>
+  <data name="RecordLevelLabel" xml:space="preserve">
+    <value>Niveau de sortie</value>
+  </data>
+  <data name="RecordCannotStartSettings" xml:space="preserve">
+    <value>Les paramètres n'ont pas pu être lus, l'enregistrement n'a pas démarré. Corrigez ou supprimez le fichier de paramètres, puis réessayez.</value>
+  </data>
+  <data name="RecordCannotStartFfmpeg" xml:space="preserve">
+    <value>ffmpeg est introuvable. Indiquez son emplacement dans les paramètres, puis redémarrez l'enregistrement.</value>
+  </data>
+  <data name="RecordCannotStartAudioDevice" xml:space="preserve">
+    <value>Le périphérique audio n'a pas pu être ouvert. Vérifiez qu'il est toujours connecté, puis réessayez.</value>
+  </data>
+  <data name="RecordFilterLabel" xml:space="preserve">
+    <value>Afficher</value>
+  </data>
+  <data name="RecordFilterAll" xml:space="preserve">
+    <value>Tout</value>
+  </data>
+  <data name="RecordFilterActivity" xml:space="preserve">
+    <value>Activité</value>
+  </data>
+  <data name="RecordFilterProblems" xml:space="preserve">
+    <value>Problèmes uniquement</value>
+  </data>
+  <data name="RecordCopyLog" xml:space="preserve">
+    <value>Copier le journal</value>
+  </data>
+  <data name="RecordLogCopied" xml:space="preserve">
+    <value>{0} lignes copiées dans le presse-papiers.</value>
+  </data>
   <data name="RecordClearLog" xml:space="preserve">
     <value>Effacer le journal</value>
   </data>

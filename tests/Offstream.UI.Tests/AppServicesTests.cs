@@ -57,8 +57,23 @@ public sealed class AppServicesTests
     [InlineData(typeof(INavigationService))]
     [InlineData(typeof(INavigationViewPageProvider))]
     [InlineData(typeof(SettingsStore))]
+    [InlineData(typeof(RecordingController))]
+    [InlineData(typeof(IRecordingSessionFactory))]
     public void AddOffstream_RegistersTheShell(Type serviceType) =>
         Assert.Contains(Build(), descriptor => descriptor.ServiceType == serviceType);
+
+    /// <summary>
+    /// The session belongs to the app, not to the page that started it. A transient controller
+    /// would give the Record page a different one every time it was rebuilt, so a recording
+    /// started before switching tabs would become unstoppable.
+    /// </summary>
+    [Fact]
+    public void AddOffstream_KeepsOneRecordingController()
+    {
+        var descriptor = Assert.Single(Build(), item => item.ServiceType == typeof(RecordingController));
+
+        Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
+    }
 
     /// <summary>
     /// Pages are cached by the navigation (<c>NavigationCacheMode.Enabled</c>), so a transient
