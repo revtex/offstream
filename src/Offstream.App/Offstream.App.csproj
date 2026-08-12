@@ -6,17 +6,58 @@
     <AssemblyName>Offstream</AssemblyName>
     <UseWPF>true</UseWPF>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <!-- The neutral language is declared in AssemblyInfo.cs; see the comment there for why. -->
+    <GenerateNeutralResourcesLanguageAttribute>false</GenerateNeutralResourcesLanguageAttribute>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Offstream.Core\Offstream.Core.csproj" />
   </ItemGroup>
 
+  <!--
+    Generates a public `Offstream.App.Resources.Strings` class from the neutral .resx, so XAML
+    can reach a key through `{x:Static res:Strings.NavRecord}` and a typo fails the build
+    instead of rendering an empty label. The generated file goes to obj/ rather than into the
+    tree: it is a build output, and a checked-in designer file drifts from its .resx the first
+    time someone edits the XML by hand. Strings.fr.resx deliberately has no generator - a
+    satellite culture contributes translations, not API.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Update="Resources\Strings.resx">
+      <Generator>MSBuild:Compile</Generator>
+      <StronglyTypedFileName>$(IntermediateOutputPath)\Strings.Designer.cs</StronglyTypedFileName>
+      <StronglyTypedLanguage>CSharp</StronglyTypedLanguage>
+      <StronglyTypedNamespace>Offstream.App.Resources</StronglyTypedNamespace>
+      <StronglyTypedClassName>Strings</StronglyTypedClassName>
+      <PublicClass>true</PublicClass>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <!--
+    Load-bearing, and not obvious. Any XAML naming a type from this project (the shell names its
+    pages) makes WPF compile a throwaway assembly first, so markup compilation has something to
+    resolve those types against. That temp project invokes `CoreCompile` directly, and only the
+    `Compile` target pulls in resource generation — so Strings.Designer.cs does not exist during
+    that pass and every `{x:Static res:Strings.*}` fails with "the namespace 'Resources' does not
+    exist in the namespace 'Offstream.App'".
+
+    Depend on `CoreResGen`, NOT on `PrepareResources`. WPF adds MarkupCompilePass2ForMainAssembly
+    to PrepareResourcesDependsOn, so the obvious-looking version of this target makes the temp
+    assembly's compile re-enter markup compilation and the build recurses until it is killed —
+    which it does silently, with no error, just a build that never returns. `CoreResGen` depends
+    only on reference resolution and has no path back into markup.
+  -->
+  <Target Name="OffstreamGenerateResourcesBeforeCompile"
+          BeforeTargets="CoreCompile"
+          DependsOnTargets="PrepareResourceNames;CoreResGen" />
+
   <ItemGroup>
     <PackageReference Include="WPF-UI" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Microsoft.Extensions.Http" />
+    <PackageReference Include="System.IO.Abstractions" />
     <PackageReference Include="Serilog" />
     <PackageReference Include="Serilog.Extensions.Hosting" />
     <PackageReference Include="Serilog.Sinks.File" />

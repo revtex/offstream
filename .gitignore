@@ -1,6 +1,10 @@
 # Build output
 [Bb]in/
 [Oo]bj/
+
+# WPF writes a throwaway project next to the real one to markup-compile XAML that names local
+# types, and leaves it behind when a build is interrupted. It is generated, never edited.
+*_wpftmp.csproj
 [Ll]og/
 [Ll]ogs/
 artifacts/

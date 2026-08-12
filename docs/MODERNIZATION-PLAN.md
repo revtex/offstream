@@ -452,16 +452,27 @@ These mean the final count will not land on exactly 293. The number that matters
 - **The output path is the one default that cannot be a constructor default**, since it is derived from the current user's Music folder and a C# parameter default must be a compile-time constant. It is filled in on load instead, so omitting `path` behaves like omitting anything else. Null means "not specified" and gets the default; an explicit `""` is a value the user did set, and still fails validation rather than being silently overridden.
 - **`OffstreamSettings` is deliberately not `RecordingSettings`.** The latter is the pipeline's working view: flat, full of computed properties, and mutated mid-session as the file counter increments. Persisting it directly would put derived values like `orderNumberMax` in the file and let the pipeline's convenience dictate the on-disk shape. `ToRecordingSettings` / `CaptureRuntimeState` bridge them, and `SettingsMappingTests` catches a field added to one and forgotten in the other — which would otherwise be a setting that silently does nothing.
 
-### Phase 6 — WPF shell (8–10 days) ← the largest phase
-- App host, DI, navigation, Fluent theme, dark mode.
-- **Record tab:** status, now-playing, elapsed, console log (with filter + copy), start/stop.
+### Phase 6 — WPF shell (8–10 days) ← the largest phase — 🔄 **in progress**
+
+Delivered in four PRs. **PR 1 (shell scaffold, DI, navigation, design tokens) has landed;** PR 2 is the Record page, PR 3 the Settings and Advanced pages, PR 4 the FlaUI sweep and polish.
+
+- ✅ App host, DI, navigation, Fluent theme, dark mode.
+- **Record tab:** status, now-playing, elapsed, console log (with filter + copy), start/stop. *(Shell, status line and activity log landed in PR 1; the rest is PR 2.)*
 - **Settings tab:** output path, device, quality, min length, format (incl. FLAC/AAC), metadata provider.
 - **Advanced tab:** tray, timer, counter, filename template with `?` reference **and live preview**, existing-file policy, detection options, tag options.
 - Inline validation via `INotifyDataErrorInfo` instead of modal dialogs.
-- i18n from `Offstream.App/Resources/Strings.resx` with an en/fr key-parity test (the reference tree's translation test, re-namespaced). **Resource keys are re-keyed for Offstream** — this is the file where inherited naming would otherwise survive longest.
+- ✅ i18n from `Offstream.App/Resources/Strings.resx` with an en/fr key-parity test (the reference tree's translation test, re-namespaced). **Resource keys are re-keyed for Offstream** — this is the file where inherited naming would otherwise survive longest.
 - Tray icon, minimise behaviour, single-instance guard.
 
-**Exit:** FlaUI suite covers every control; key-parity test passes; side-by-side behavioural review against the reference app (behaviour compared, chrome and wording deliberately not copied).
+**Exit:** FlaUI suite covers every control; key-parity test passes; side-by-side behavioural review against the reference app (behaviour compared, chrome and wording deliberately not copied). **Key-parity met** in PR 1 — 591 tests green, 38 of them in `Offstream.UI.Tests`.
+
+- **The three tabs are `NavigationView` items, not a `TabControl`.** §11 keeps the three-tab structure; it does not require the predecessor's control. A top-mode `NavigationView` reads as tabs, keeps each page a separate `Page` the container builds, and gets keyboard and UIA behaviour for free — which is what PR 4's FlaUI sweep will drive.
+- **Pages come from the DI container via `INavigationViewPageProvider`, never from WPF-UI's default activator.** The default constructs pages reflectively, so a page whose constructor takes a ViewModel is built with nulls instead of failing — a blank tab with no exception. `PageProvider` resolves from the container, and `AppServicesTests` asserts every `Page` in `Views.Pages` is registered, since that failure is otherwise invisible until someone clicks the tab.
+- **Pages and their ViewModels are singletons**, to match `NavigationCacheMode.Enabled`. A transient registration hands out an instance the navigation cache never displays, so a half-filled settings form quietly stops being the one on screen.
+- **XAML reaches strings through `{x:Static res:Strings.*}`**, against a `Strings` class generated from the .resx into `obj/` by MSBuild. A mistyped key fails the build rather than rendering an empty label. The cost is that a language change takes effect on the next launch — acceptable for a setting touched once, and the predecessor rebuilt its entire form to do it live.
+- **Generating that class inside a WPF project needs an explicit ordering target, and the obvious version of it hangs the build.** Any XAML naming a local type makes WPF compile a throwaway assembly first, and that temp project invokes `CoreCompile` directly, so the generated `Strings` class does not exist during the pass that needs it. The fix is a target depending on `PrepareResourceNames;CoreResGen` — **not** on `PrepareResources`, which WPF extends with `MarkupCompilePass2ForMainAssembly` and which therefore recurses into markup compilation forever, silently, with no error output. Same class of trap for `NeutralResourcesLanguageAttribute`: the MSBuild property does not reach the temp project, so CA1824 fails there and only there, and the attribute lives in `AssemblyInfo.cs` instead. Both are commented at the site.
+- **`SystemTheme` has twelve members and `ApplicationTheme` has four.** `== Dark ? Dark : Light` compiles, reads correctly, and renders the four high-contrast schemes as an ordinary light theme — silently undoing an accessibility setting. `ThemeService.FromSystem` maps them to `HighContrast` and everything unrecognised to Dark, pinned by `ThemeServiceTests`.
+- **A settings file that will not load surfaces as an `InfoBar`, not a dialog.** §6's exit criterion asks for a clear message; the inline-validation rule rules out a modal. The message goes to the log as well, so it outlives the session.
 
 ### Phase 7 — Windows integration polish (3–4 days)
 - **Raise the TFM to `net10.0-windows10.0.22621.0` first.** SMTC needs WinRT projections, which a bare `net10.0-windows` TFM does not provide. This is now free: Windows 11's floor is build 22000, so a versioned TFM costs no supported users. Expect the change to be mechanical (one property in `Directory.Build.props`) but verify the routing interop still binds afterwards — it is hand-rolled COM and the projections change what the compiler generates around WinRT types.

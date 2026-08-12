@@ -5,8 +5,15 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
+                <!--
+                    Order matters. The theme dictionary declares the palette Tokens.xaml reaches
+                    into with DynamicResource, so Offstream's tokens are merged last. The theme
+                    named here is only the startup value; ThemeService swaps it for the system's
+                    in OnStartup.
+                -->
                 <ui:ThemesDictionary Theme="Dark" />
                 <ui:ControlsDictionary />
+                <ResourceDictionary Source="pack://application:,,,/Themes/Tokens.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

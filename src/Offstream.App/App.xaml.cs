@@ -1,17 +1,14 @@
 using System.Globalization;
-using System.Net.Http;
 using System.Windows;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Offstream.App.Services;
 using Offstream.App.ViewModels;
 using Offstream.App.Views;
 using Offstream.Core;
 using Offstream.Core.Diagnostics;
-using Offstream.Core.Spotify.Auth;
+using Offstream.Core.Settings;
 using Serilog;
-using SpotifyAPI.Web;
-using SpotifyAPI.Web.Http;
 
 namespace Offstream.App;
 
@@ -22,7 +19,7 @@ public partial class App : Application
 {
     private readonly IHost _host;
 
-    /// <summary>The in-app log sink, shared with the console pane.</summary>
+    /// <summary>The in-app log sink, shared with the activity log on the Record page.</summary>
     public static InMemoryLogSink LogSink { get; } = new();
 
     public App()
@@ -45,62 +42,8 @@ public partial class App : Application
         _host = Host.CreateDefaultBuilder()
             .UseSerilog()
             .ConfigureServices((context, services) =>
-            {
-                services.AddSingleton(LogSink);
-                services.AddSingleton<ShellViewModel>();
-                services.AddSingleton<ShellWindow>();
-
-                ConfigureSpotify(services, context.Configuration);
-            })
+                services.AddOffstream(context.Configuration, LogSink))
             .Build();
-    }
-
-    /// <summary>
-    /// Registers the Spotify auth pieces from <see cref="Offstream.Core.Spotify.Auth"/>, when a
-    /// Client ID is configured.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Nothing resolves <see cref="SpotifyAuthenticator"/> from the container yet — there is no
-    /// settings UI to type a Client ID into (Phase 5) and no shell screen to trigger a sign-in
-    /// from (Phase 6). This is the infrastructure those phases build on: an
-    /// <see cref="IHttpClientFactory"/>-routed <see cref="ISpotifyOAuthClient"/> instead of the
-    /// SDK's own bare <c>new HttpClient()</c>, and the options-pattern binding plan §10 Phase 4
-    /// asks for. <c>tools/Offstream.SpotifyAuthProbe</c> is what actually exercises the PKCE
-    /// flow end to end today.
-    /// </para>
-    /// <para>
-    /// The Client ID itself comes from configuration — <c>appsettings.json</c>, user secrets or
-    /// the <c>Spotify__ClientId</c> environment variable, all of which
-    /// <see cref="Host.CreateDefaultBuilder(string[])"/> already wires up — because there is
-    /// nowhere else for it to live before Phase 5 gives Offstream real settings persistence.
-    /// </para>
-    /// </remarks>
-    private static void ConfigureSpotify(IServiceCollection services, IConfiguration configuration)
-    {
-        services.AddHttpClient();
-
-        var clientId = configuration["Spotify:ClientId"];
-        if (string.IsNullOrWhiteSpace(clientId)) return;
-
-        services.AddSingleton(new SpotifyAuthOptions { ClientId = clientId });
-        services.AddSingleton<IBrowserLauncher, BrowserLauncher>();
-
-        services.AddTransient<ISpotifyOAuthClient>(provider =>
-        {
-            var httpClient = provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(Offstream));
-            var config = SpotifyClientConfig.CreateDefault().WithHTTPClient(new NetHttpClient(httpClient));
-
-            return new SpotifyOAuthClient(config);
-        });
-
-        services.AddTransient<SpotifyPkceFlow>();
-
-        services.AddTransient(provider => new SpotifyAuthenticator(
-            provider.GetRequiredService<SpotifyAuthOptions>(),
-            provider.GetRequiredService<SpotifyPkceFlow>(),
-            provider.GetRequiredService<IBrowserLauncher>(),
-            redirectUri => new SpotifyLoopbackListener(redirectUri)));
     }
 
     protected override async void OnStartup(StartupEventArgs e)
@@ -111,7 +54,64 @@ public partial class App : Application
 
         Log.Information("Offstream starting. Settings: {Settings}", OffstreamPaths.SettingsFile);
 
-        _host.Services.GetRequiredService<ShellWindow>().Show();
+        var settings = LoadSettings(out var problem);
+
+        // Both of these have to happen before the shell is resolved. The language decides which
+        // satellite assembly x:Static reads its strings from, and those are resolved once when
+        // the XAML loads; the theme decides what the window looks like on its first frame.
+        ApplyLanguage(settings.App.Language);
+        ThemeService.Apply(ShellTheme.System);
+
+        var shell = _host.Services.GetRequiredService<ShellWindow>();
+        _host.Services.GetRequiredService<ShellViewModel>().StartupWarning = problem;
+        shell.Show();
+    }
+
+    /// <summary>
+    /// Reads settings without letting a bad file stop the app from opening.
+    /// </summary>
+    /// <remarks>
+    /// Plan §6's exit criterion: a corrupted <c>settings.json</c> fails with a clear message
+    /// rather than a crash. The message goes to two places on purpose — the log, so it survives
+    /// the session, and <see cref="ShellViewModel.StartupWarning"/>, so the user sees it without
+    /// going looking.
+    /// </remarks>
+    private OffstreamSettings LoadSettings(out string? problem)
+    {
+        var settings = _host.Services.GetRequiredService<SettingsStore>().LoadOrDefault(out problem);
+
+        if (problem is not null)
+        {
+            Log.Warning("Settings could not be read, starting on defaults: {Problem}", problem);
+        }
+
+        return settings;
+    }
+
+    /// <summary>
+    /// Applies the configured UI language, or leaves the system's in place.
+    /// </summary>
+    /// <remarks>
+    /// A change takes effect on the next launch. Re-reading every string on the fly would mean
+    /// routing all of them through a binding that can be invalidated, which buys nothing for a
+    /// setting that is touched once — and the predecessor rebuilt its entire form to do it.
+    /// </remarks>
+    private static void ApplyLanguage(string? language)
+    {
+        if (string.IsNullOrWhiteSpace(language)) return;
+
+        try
+        {
+            var culture = CultureInfo.GetCultureInfo(language);
+            CultureInfo.DefaultThreadCurrentUICulture = culture;
+            CultureInfo.CurrentUICulture = culture;
+        }
+        catch (CultureNotFoundException)
+        {
+            // A hand-edited settings file can name a culture that does not exist. Falling back
+            // to the system language is strictly better than refusing to start.
+            Log.Warning("Ignoring unknown UI language {Language}.", language);
+        }
     }
 
     protected override async void OnExit(ExitEventArgs e)
