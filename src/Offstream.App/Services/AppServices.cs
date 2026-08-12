@@ -53,6 +53,13 @@ public static class AppServices
         services.AddSingleton<ISecretProtector, DpapiSecretProtector>();
         services.AddSingleton<SettingsStore>();
 
+        // One working copy of the settings, shared by the two pages that edit them. Two
+        // documents would each save the whole file, and whichever tab was touched second would
+        // silently revert the other.
+        services.AddSingleton<SettingsDocument>();
+        services.AddSingleton<IAudioDeviceCatalog, AudioDeviceCatalog>();
+        services.AddSingleton<IFolderPicker, FolderPicker>();
+
         // Navigation. NavigationService takes the page provider, so the container is what
         // builds every page - see PageProvider for why that matters.
         services.AddSingleton<INavigationViewPageProvider, PageProvider>();
@@ -73,7 +80,9 @@ public static class AppServices
         services.AddSingleton<RecordPage>();
         services.AddSingleton<RecordViewModel>();
         services.AddSingleton<SettingsPage>();
+        services.AddSingleton<SettingsViewModel>();
         services.AddSingleton<AdvancedPage>();
+        services.AddSingleton<AdvancedViewModel>();
 
         AddSpotify(services, configuration);
 
@@ -86,18 +95,21 @@ public static class AppServices
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Nothing resolves <see cref="SpotifyAuthenticator"/> from the container yet — the
-    /// settings page that offers a sign-in arrives in Phase 6 PR 3. This is the infrastructure
-    /// it builds on: an <see cref="IHttpClientFactory"/>-routed <see cref="ISpotifyOAuthClient"/>
-    /// instead of the SDK's own bare <c>new HttpClient()</c>, and the options-pattern binding
-    /// plan §10 Phase 4 asks for. <c>tools/Offstream.SpotifyAuthProbe</c> is what actually
-    /// exercises the PKCE flow end to end today.
+    /// Nothing resolves <see cref="SpotifyAuthenticator"/> from the container yet. The Settings
+    /// page offers the Client ID field, but not the browser sign-in: no recording path consumes
+    /// <c>SpotifyMetadataProvider</c> yet, so a refresh token obtained here would be read by
+    /// nothing. This is the infrastructure that sign-in builds on — an
+    /// <see cref="IHttpClientFactory"/>-routed <see cref="ISpotifyOAuthClient"/> instead of the
+    /// SDK's own bare <c>new HttpClient()</c>, and the options-pattern binding plan §10 Phase 4
+    /// asks for. <c>tools/Offstream.SpotifyAuthProbe</c> is what actually exercises the PKCE
+    /// flow end to end today.
     /// </para>
     /// <para>
-    /// The Client ID comes from configuration — <c>appsettings.json</c>, user secrets or the
-    /// <c>Spotify__ClientId</c> environment variable — rather than from
-    /// <see cref="MetadataSettings.SpotifyClientId"/>, because nothing can type one into
-    /// settings until PR 3 builds that field.
+    /// The Client ID still comes from configuration — <c>appsettings.json</c>, user secrets or
+    /// the <c>Spotify__ClientId</c> environment variable — rather than from
+    /// <see cref="MetadataSettings.SpotifyClientId"/>. Reading the settings value instead would
+    /// mean these registrations had to become unconditional and re-read after every edit, which
+    /// is work for the sign-in change to do rather than this one.
     /// </para>
     /// </remarks>
     private static void AddSpotify(IServiceCollection services, IConfiguration configuration)

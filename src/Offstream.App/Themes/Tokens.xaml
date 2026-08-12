@@ -44,4 +44,48 @@
     <SolidColorBrush x:Key="OffstreamRecordingBrush" Color="{StaticResource OffstreamRecordingColor}" />
     <SolidColorBrush x:Key="OffstreamIdleBrush" Color="{DynamicResource TextFillColorSecondary}" />
 
+    <!--
+        The three text roles the settings pages repeat: a group heading, the explanatory line
+        under a control, and the message a failed validation puts beneath the field it belongs
+        to. Defined once because two pages use them on nearly every row, and because the
+        validation message is the one piece of chrome that must never be quietly restyled into
+        something that does not read as an error.
+    -->
+    <Style x:Key="OffstreamSectionHeaderStyle"
+           BasedOn="{StaticResource SubtitleTextBlockStyle}"
+           TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,12,0,8" />
+    </Style>
+
+    <Style x:Key="OffstreamHintStyle"
+           BasedOn="{StaticResource CaptionTextBlockStyle}"
+           TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource OffstreamIdleBrush}" />
+        <Setter Property="Margin" Value="0,2,0,0" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style x:Key="OffstreamValidationMessageStyle"
+           BasedOn="{StaticResource CaptionTextBlockStyle}"
+           TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+        <Setter Property="Margin" Value="0,4,0,0" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+
+        <!--
+            Collapsed when there is nothing to say, so a valid form has no gaps reserved for
+            errors that are not there. Both empty and null: a binding to (Validation.Errors) with
+            no errors in it falls back to the property default, and one whose source is null
+            does not, so a single trigger would leave the other case occupying a line.
+        -->
+        <Style.Triggers>
+            <Trigger Property="Text" Value="">
+                <Setter Property="Visibility" Value="Collapsed" />
+            </Trigger>
+            <Trigger Property="Text" Value="{x:Null}">
+                <Setter Property="Visibility" Value="Collapsed" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
 </ResourceDictionary>

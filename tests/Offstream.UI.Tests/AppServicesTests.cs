@@ -57,6 +57,11 @@ public sealed class AppServicesTests
     [InlineData(typeof(INavigationService))]
     [InlineData(typeof(INavigationViewPageProvider))]
     [InlineData(typeof(SettingsStore))]
+    [InlineData(typeof(SettingsDocument))]
+    [InlineData(typeof(SettingsViewModel))]
+    [InlineData(typeof(AdvancedViewModel))]
+    [InlineData(typeof(IAudioDeviceCatalog))]
+    [InlineData(typeof(IFolderPicker))]
     [InlineData(typeof(RecordingController))]
     [InlineData(typeof(IRecordingSessionFactory))]
     public void AddOffstream_RegistersTheShell(Type serviceType) =>
@@ -85,7 +90,11 @@ public sealed class AppServicesTests
     {
         var services = Build();
 
-        Type[] cached = [typeof(RecordPage), typeof(SettingsPage), typeof(AdvancedPage), typeof(RecordViewModel)];
+        Type[] cached =
+        [
+            typeof(RecordPage), typeof(SettingsPage), typeof(AdvancedPage),
+            typeof(RecordViewModel), typeof(SettingsViewModel), typeof(AdvancedViewModel),
+        ];
 
         foreach (var type in cached)
         {
