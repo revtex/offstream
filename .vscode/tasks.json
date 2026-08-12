@@ -5,7 +5,7 @@
       "label": "build",
       "command": "dotnet",
       "type": "process",
-      "args": ["build", "${workspaceFolder}/Offstream.sln", "-consoleloggerparameters:NoSummary"],
+      "args": ["build", "${workspaceFolder}/Offstream.slnx", "-consoleloggerparameters:NoSummary"],
       "problemMatcher": "$msCompile",
       "group": { "kind": "build", "isDefault": true }
     },
@@ -13,7 +13,7 @@
       "label": "test",
       "command": "dotnet",
       "type": "process",
-      "args": ["test", "${workspaceFolder}/Offstream.sln"],
+      "args": ["test", "${workspaceFolder}/Offstream.slnx"],
       "problemMatcher": "$msCompile",
       "group": { "kind": "test", "isDefault": true }
     },
@@ -28,14 +28,14 @@
       "label": "format",
       "command": "dotnet",
       "type": "process",
-      "args": ["format", "${workspaceFolder}/Offstream.sln"],
+      "args": ["format", "${workspaceFolder}/Offstream.slnx"],
       "problemMatcher": []
     },
     {
       "label": "format (verify, as CI does)",
       "command": "dotnet",
       "type": "process",
-      "args": ["format", "${workspaceFolder}/Offstream.sln", "--verify-no-changes"],
+      "args": ["format", "${workspaceFolder}/Offstream.slnx", "--verify-no-changes"],
       "problemMatcher": "$msCompile"
     },
     {

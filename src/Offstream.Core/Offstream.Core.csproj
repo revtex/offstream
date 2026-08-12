@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The testable half of the app. Hard rule: no WPF, no System.Windows, no UI types.
+    Progress reaches the shell through events and IProgress<T>, never a form reference.
+    Enforced by ArchitectureTests.
+  -->
+  <PropertyGroup>
+    <RootNamespace>Offstream.Core</RootNamespace>
+    <AssemblyName>Offstream.Core</AssemblyName>
+    <UseWPF>false</UseWPF>
+    <UseWindowsForms>false</UseWindowsForms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NAudio" />
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="TagLibSharp" />
+    <PackageReference Include="System.IO.Abstractions" />
+
+    <!-- Source-generated, typed P/Invoke from NativeMethods.txt. Replaces the hand-written
+         DllImport declarations the reference implementation carried. -->
+    <PackageReference Include="Microsoft.Windows.CsWin32" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Offstream.Core.Tests" />
+  </ItemGroup>
+
+</Project>

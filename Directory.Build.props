@@ -1,0 +1,48 @@
+<Project>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AccelerateBuildsInVisualStudio>true</AccelerateBuildsInVisualStudio>
+
+    <!--
+      Deliberately NOT setting <Platforms>x64</Platforms>/<PlatformTarget>x64</PlatformTarget>.
+      Constraining every project to x64 gained nothing - AnyCPU already runs 64-bit on 64-bit
+      Windows, and the shipped architecture is pinned by `dotnet publish -r win-x64` - while
+      breaking Visual Studio, which maps the solution's "Any CPU" configuration onto projects
+      that offered only Debug|x64 and Release|x64.
+    -->
+
+    <!--
+      Do NOT set InvariantGlobalization. WPF's font cache constructs CultureInfo("en")
+      while measuring text, which throws CultureNotFoundException in invariant mode and
+      kills the process at first render with no window ever appearing. It would also break
+      the en/fr localisation in plan §7. Verified the hard way in Phase 1.
+    -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <!--
+    Load-bearing, not preferences. The audio-routing interop uses built-in COM interop,
+    which NativeAOT does not support, and WPF trims poorly. See CLAUDE.md.
+  -->
+  <PropertyGroup>
+    <PublishAot>false</PublishAot>
+    <PublishTrimmed>false</PublishTrimmed>
+  </PropertyGroup>
+
+  <!--
+    Analyzers as errors (plan §9.3). Code *style* is deliberately not enforced here:
+    CI runs `dotnet format` in verify mode for that, which gives a fixable diff
+    rather than a wall of build errors.
+  -->
+  <PropertyGroup>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+</Project>

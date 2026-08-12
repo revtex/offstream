@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    FlaUI end-to-end tests. These drive a real window, so they need an interactive desktop
+    session and are excluded from the default CI test run by the Category!=Desktop filter
+    (see .github/workflows/ci.yml).
+  -->
+  <PropertyGroup>
+    <RootNamespace>Offstream.UI.Tests</RootNamespace>
+    <AssemblyName>Offstream.UI.Tests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Offstream.App\Offstream.App.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="FlaUI.UIA3" />
+  </ItemGroup>
+
+</Project>

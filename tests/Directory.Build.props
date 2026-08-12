@@ -1,0 +1,15 @@
+<Project>
+
+  <!-- Inherit everything from the repo root, then relax the rules that fight test code. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <!--
+      CA1707 forbids underscores in member names. Test methods are named
+      Method_Scenario_ExpectedResult on purpose: the underscores are what make a failing
+      test name readable in CI output. Relaxed for tests only, never for shipping code.
+    -->
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
+  </PropertyGroup>
+
+</Project>

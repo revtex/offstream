@@ -1,0 +1,27 @@
+# Normalise line endings. The repo is developed on Windows and .editorconfig specifies
+# CRLF, but files can be written from WSL with LF, which makes `dotnet format` fail in CI
+# for reasons that have nothing to do with the change under review.
+* text=auto eol=crlf
+
+# Windows-only tooling that must stay CRLF.
+*.ps1   text eol=crlf
+*.cmd   text eol=crlf
+*.bat   text eol=crlf
+*.sln   text eol=crlf
+*.slnx  text eol=crlf
+
+# Shell scripts and CI config stay LF.
+*.sh    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+
+# Binary assets: never touch.
+*.png   binary
+*.jpg   binary
+*.ico   binary
+*.wav   binary
+*.mp3   binary
+*.flac  binary
+*.opus  binary
+*.exe   binary
+*.dll   binary

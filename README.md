@@ -1,26 +1,41 @@
 # Offstream
 
-A Windows desktop recorder for Spotify audio — modernized rewrite on **.NET 10 + WPF**, with all audio conversion delegated to **ffmpeg**.
+A Windows desktop recorder for Spotify audio on **.NET 10 + WPF**, with all audio conversion delegated to **ffmpeg**.
 
-Offstream supersedes **Spytify**, the .NET Framework 4.6.1 / WinForms application it is derived from.
+Offstream succeeds **Spytify**, the .NET Framework 4.6.1 / WinForms application it takes its behaviour from.
 
 ## Status
 
-**Pre-implementation.** The plan is written; no application code exists yet.
+**Phases 0 and 1 complete**, with one gap carried forward. The solution builds and runs; the recording pipeline arrives in Phase 2.
 
-Start here: **[`docs/MODERNIZATION-PLAN.md`](docs/MODERNIZATION-PLAN.md)** — architecture, feature-parity matrix, dependency upgrades, testing strategy, and a ten-phase delivery plan with exit criteria.
+```powershell
+.\build.ps1 -Clean -Test -IncludeDesktop     # 14/14 green
+dotnet run --project spike/Offstream.Spike -- accept --seconds 30
+```
+
+- **Phase 0** — the retarget spike: 8/8 checks green on Windows 11 build 26200, unelevated. Endpoint enumeration, `IAudioPolicyConfig` binding, routing a process to an endpoint and back, session mute, and 30 s of WASAPI loopback capture verified non-silent.
+- **Phase 1** — six projects, CI, analyzers as errors, Serilog, and a WPF-UI Fluent shell that launches and is driven by a FlaUI test.
+**Offstream targets Windows 11 only.** Windows 10 left support in October 2025 and is out of scope.
+
+Read in order: **[`docs/MODERNIZATION-PLAN.md`](docs/MODERNIZATION-PLAN.md)** for architecture, parity matrix and the ten phases; then **[DR-0001](docs/decisions/0001-phase-0-retarget-spike.md)**, which invalidates one of the plan's original assumptions and records what replaced it; then **[DR-0002](docs/decisions/0002-phase-1-solution-scaffold.md)**.
+
+## Offstream owns its own names
+
+Behaviour is inherited. **Naming is not.** Every namespace, type, file, folder, project, resource key and on-disk path in this repository is Offstream's own — nothing carries `EspionSpotify`, `Spytify`, or any other predecessor identifier, and a build-time test enforces it. Settings live at `%APPDATA%\Offstream\settings.json`, and Offstream ships **no importer** for the old app's `user.config`: first run starts from clean defaults.
+
+Plan [§0](docs/MODERNIZATION-PLAN.md) is the full rule and mapping table.
 
 ## Relationship to the app being retired
 
-The predecessor lives at `../spy-spotify` (a fork of the unmaintained [`jwallet/spy-spotify`](https://github.com/jwallet/spy-spotify)). It stays on disk as a **reference**, not a dependency. Nothing here builds against it.
+The predecessor lives at `../spy-spotify` (a fork of the unmaintained [`jwallet/spy-spotify`](https://github.com/jwallet/spy-spotify)). It stays on disk as a **reference to read**, not a dependency. Nothing here builds against it, and nothing here is named after it.
 
 It matters for three reasons:
 
-1. **Source of truth for behaviour.** Spotify window-title parsing, ad and idle-state detection, the audio ring buffer and silence-trim semantics, and the filename template engine all encode years of edge cases. Port them; don't reinvent them.
-2. **Its test suite is the safety net.** 293 xUnit tests come across. Phase 2's exit criterion is all of them green on .NET 10 *before* any behaviour changes.
-3. **It owns the hardest asset.** `Router/AudioPolicyConfigFactory*` drives per-application audio routing through the undocumented `IAudioPolicyConfig` COM interface, with separate implementations for Windows 21H2 and downlevel builds. That code is kept verbatim — it is the main reason this is a retarget rather than a rewrite, and the reason a Go/Wails rewrite was rejected.
+1. **Source of truth for behaviour.** Spotify window-title parsing, ad and idle-state detection, the audio ring buffer and silence-trim semantics, and the filename template engine all encode years of edge cases. Port the logic; don't reinvent it — and rename it on the way in.
+2. **Its test suite is the safety net.** 293 xUnit tests come across with their assertions intact under `Offstream.Core.Tests`. Phase 2's exit criterion is all of them green on .NET 10 *before* any behaviour changes.
+3. **It owns the hardest asset.** `Router/AudioPolicyConfigFactory*` drives per-application audio routing through the undocumented `IAudioPolicyConfig` COM interface, with separate implementations for Windows 21H2 and downlevel builds. That logic transfers intact into `Offstream.Core.Interop.Routing` — it is the main reason this is a retarget rather than a rewrite, and the reason a Go/Wails rewrite was rejected.
 
-Useful reference paths in the old tree:
+Reference paths **in the old tree** (read-only; none of these names appear in this repo):
 
 | Path | What it holds |
 | --- | --- |
@@ -37,26 +52,105 @@ Useful reference paths in the old tree:
 
 ### Prerequisites
 
-| Requirement | Why | Install |
+| Requirement | Why | winget package |
 | --- | --- | --- |
-| Windows 10 22H2+ / Windows 11 | WASAPI, undocumented audio-routing COM | — |
-| **.NET 10 SDK** | Build, test, run | `winget install Microsoft.DotNet.SDK.10` |
-| Git | — | `winget install Git.Git` |
-| **ffmpeg + ffprobe** | Runtime encoding *and* integration tests | `winget install Gyan.FFmpeg` |
-| Spotify desktop | Manual testing (the `FakeSpotify` harness covers most cases) | `winget install Spotify.Spotify` |
+| **Windows 11** | WASAPI, undocumented audio-routing COM | — |
+| **.NET 10 SDK** | Build, test, run | `Microsoft.DotNet.SDK.10` |
+| Git | — | `Git.Git` |
+| **ffmpeg + ffprobe** | Runtime encoding *and* integration tests | `BtbN.FFmpeg.LGPL.8.1` |
+| Spotify desktop | Manual testing (`Offstream.FakeSpotify` covers most cases) | `Spotify.Spotify` |
+| VB-CABLE *(optional)* | Testing the audio-routing path | not on winget — see step 4 |
 | WiX v4 *(Phase 8 only)* | Installer | `dotnet tool install --global wix` |
 
-Verify:
+### Setting up a fresh Windows 11 machine
+
+Everything below runs in **Windows PowerShell or Windows Terminal on Windows itself** — not in WSL. This is a Windows desktop app using Windows-only COM and audio APIs; it cannot be built or run from a Linux shell, even though the repo may live on a drive both can see.
+
+No step needs an elevated prompt except VB-CABLE.
+
+**1. Confirm winget is available**
 
 ```powershell
-dotnet --info          # expect an SDK, not just a runtime
+winget --version
+```
+
+Windows 11 ships with it (via *App Installer*). If the command is not found, install **App Installer** from the Microsoft Store, then reopen the terminal.
+
+**2. Install the .NET 10 SDK**
+
+```powershell
+winget install --id Microsoft.DotNet.SDK.10 --source winget
+```
+
+**Then close and reopen your terminal.** The installer edits the machine `PATH`, and an already-open session will not see it — the single most common reason `dotnet` "isn't installed" immediately after installing it.
+
+The SDK is what matters here, not the runtime. A machine can have several .NET runtimes and still be unable to build anything:
+
+```powershell
+dotnet --list-sdks       # must list a 10.x entry — empty output means runtime-only
+dotnet --list-runtimes   # informational; runtimes alone are not enough
+```
+
+> The runtime-only state is not hypothetical — this repo was created on a machine with the .NET 3.1 and 8.0 *runtimes* and no SDK at all, so nothing could be built. `.\build.ps1` fails fast with the install command when it sees that.
+
+Install the **x64** SDK on an x64 machine and the **Arm64** SDK on Arm64 (Snapdragon X, etc.); winget picks correctly on its own, but a hand-downloaded installer may not. Check with `echo $env:PROCESSOR_ARCHITECTURE`.
+
+**3. Install Git and ffmpeg**
+
+```powershell
+winget install --id Git.Git --source winget
+winget install --id BtbN.FFmpeg.LGPL.8.1 --source winget
+```
+
+Reopen the terminal again afterwards, then confirm ffmpeg resolves:
+
+```powershell
 ffmpeg -version
 ffprobe -version
 ```
 
-> The machine this repo was created on has the .NET **runtime** only — `dotnet --list-sdks` is empty. Install the SDK before Phase 1.
+Both must be on `PATH` — the encode-integration tests shell out to them and assert results with `ffprobe`.
 
-`Gyan.FFmpeg` is a GPL build, which is fine for development. Shipping requires an **LGPL-only** build — see plan §5.1.
+On the ffmpeg build: `BtbN.FFmpeg.LGPL.8.1` is an **LGPL** build, which is the licensing posture Offstream must ship under (plan §5.1), so developing against it keeps dev and release consistent. `Gyan.FFmpeg` also works for local development but is a GPL build — don't let it become the bundled one.
+
+**4. Install VB-CABLE (optional, needed only for routing work)**
+
+Not available through winget. Download the VB-CABLE Virtual Audio Device from [vb-audio.com](https://vb-audio.com/Cable/), unzip, right-click `VBCABLE_Setup_x64.exe` → **Run as administrator**, then reboot. Skip this until you are actually working on audio routing or Phase 0's spike.
+
+It provides a virtual endpoint that Spotify's audio session can be pinned to, so a recording captures Spotify alone with no notification sounds bleeding in.
+
+> The predecessor **bundles** the whole VB-CABLE package and installs it from its own UI. Offstream does not, and no vendor binaries belong in this repo for now — VB-CABLE is donationware whose licence forbids integrating it into another installation procedure without the author's agreement. That is plan open question 9; until it is answered, Offstream **detects** the cable and links out. Install it yourself as above.
+
+**5. Install Spotify (optional)**
+
+```powershell
+winget install --id Spotify.Spotify --source winget
+```
+
+`Offstream.FakeSpotify` simulates window titles for most test scenarios, so the real client is only needed for end-to-end manual passes.
+
+**6. Verify**
+
+From the repo root:
+
+```powershell
+dotnet --info
+```
+
+Expect an **SDK** section listing 10.x, not just runtimes. Once Phase 1 has scaffolded the projects, `dotnet build` and `dotnet test` complete the check.
+
+(The repo has no git remote yet, so there is nothing to clone — work in place.)
+
+### Setup troubleshooting
+
+| Symptom | Cause and fix |
+| --- | --- |
+| `dotnet` not recognised after installing | Terminal predates the `PATH` change — open a new one. |
+| `dotnet --list-sdks` is empty | Runtime installed, SDK not. Install `Microsoft.DotNet.SDK.10`. |
+| `NETSDK1045: current SDK does not support .NET 10` | An older SDK is winning on `PATH`, or a `global.json` pins an older version. Check `dotnet --version`. |
+| `ffmpeg` not recognised in tests only | Your IDE inherited the pre-install environment. Restart the IDE, not just the terminal. |
+| Build fails under WSL / on Linux | Expected — `net10.0-windows` and the COM interop are Windows-only. Build from Windows. |
+| `winget` prompts about source agreements | Run `winget list --accept-source-agreements` once. |
 
 ---
 
@@ -80,7 +174,29 @@ Given how much friction the old app's WinForms designer caused — geometry expr
 
 ---
 
+### `build.ps1`
+
+The usual tasks are wrapped in a script at the repo root, so you don't have to remember flags. It checks the environment first — .NET 10 SDK actually present (not just a runtime), ffmpeg on `PATH` before running tests — and fails with the fix rather than a compiler error.
+
+```powershell
+.\build.ps1                          # Debug build
+.\build.ps1 -Configuration Release
+.\build.ps1 -Test                    # build, then run the whole suite
+.\build.ps1 -Test -Filter FileNameTemplate
+.\build.ps1 -Clean -Test             # rebuild from scratch, then test
+.\build.ps1 -Format                  # apply .editorconfig
+.\build.ps1 -VerifyFormat            # what CI enforces
+.\build.ps1 -Publish                 # self-contained win-x64 publish
+.\build.ps1 -Run                     # build and launch
+```
+
+`-Publish` hard-codes `--self-contained true`, `PublishSingleFile=true` and `PublishTrimmed=false`. Those are not defaults to override — see the constraint below.
+
+If PowerShell blocks the script, either unblock it once (`Unblock-File .\build.ps1`) or run it as `powershell -ExecutionPolicy Bypass -File .\build.ps1`.
+
 ### CLI
+
+The script is a convenience, not a wrapper you're locked into:
 
 ```powershell
 dotnet restore
@@ -111,13 +227,13 @@ dotnet publish src/Offstream.App -c Release -r win-x64 `
 
 1. Install with the **.NET desktop development** workload (brings WPF templates, the XAML designer, and the test runner).
 2. Ensure the **.NET 10** individual component is checked.
-3. Open `Offstream.sln`, set `Offstream.App` as the startup project, press F5.
+3. Open `Offstream.slnx`, set `Offstream.App` as the startup project, press F5.
 
 Use it when you want the XAML designer, the visual tree / live property explorer, or the memory and CPU profilers.
 
 ### Rider
 
-Open `Offstream.sln`. Configure the .NET 10 SDK under *Settings → Build → Toolset*. Rider has its own XAML preview and generally the best refactoring for a port of this size.
+Open `Offstream.slnx`. Configure the .NET 10 SDK under *Settings → Build → Toolset*. Rider has its own XAML preview and generally the best refactoring for a port of this size.
 
 ---
 
@@ -142,13 +258,14 @@ The predecessor at `../spy-spotify` is a .NET Framework 4.6.1 solution and **nee
 ## Layout
 
 ```
+spike/   Offstream.Spike — Phase 0 retarget spike (delete once Phase 2 lands)
 src/     Offstream.Core (no UI refs) and Offstream.App (WPF)
 tests/   Offstream.Core.Tests (xUnit), Offstream.UI.Tests (FlaUI)
-tools/   FakeSpotify harness
+tools/   Offstream.FakeSpotify (window-title harness)
 build/   installer, signing, icons
-docs/    modernization plan, ADRs
+docs/    modernization plan, decision records
 ```
 
 ## Licence
 
-MIT, as inherited. See the predecessor for prior copyright.
+MIT. Portions of the logic derive from the predecessor, which is MIT-licensed; its copyright notices are retained in `LICENSE` alongside Offstream's. Attribution is a licence obligation and lives there — it is not a reason to keep the predecessor's identifiers in the source.

@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Test harness: a window whose title changes like Spotify's does, so track detection can
+    be exercised without the real client. Retargeted from the predecessor's harness.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>Offstream.FakeSpotify</RootNamespace>
+    <AssemblyName>Offstream.FakeSpotify</AssemblyName>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+</Project>

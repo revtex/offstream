@@ -1,0 +1,50 @@
+<ui:FluentWindow x:Class="Offstream.App.Views.ShellWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="Offstream"
+                 Width="900"
+                 Height="600"
+                 MinWidth="640"
+                 MinHeight="420"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica"
+                 WindowCornerPreference="Round"
+                 WindowStartupLocation="CenterScreen">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0" Title="Offstream" />
+
+        <TextBlock Grid.Row="1"
+                   Margin="16,8,16,12"
+                   FontSize="14"
+                   Text="{Binding Status}"
+                   TextWrapping="Wrap" />
+
+        <!-- The console-log metaphor carries over from the predecessor; the three-tab
+             shell that surrounds it arrives in Phase 6. -->
+        <ui:Card Grid.Row="2" Margin="16,0,16,8">
+            <ListBox x:Name="LogList"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     FontFamily="Cascadia Mono, Consolas, monospace"
+                     FontSize="12"
+                     ItemsSource="{Binding LogLines}"
+                     ScrollViewer.HorizontalScrollBarVisibility="Auto" />
+        </ui:Card>
+
+        <ui:Button Grid.Row="3"
+                   Margin="16,0,16,16"
+                   HorizontalAlignment="Left"
+                   Command="{Binding ClearLogCommand}"
+                   Content="Clear log" />
+    </Grid>
+
+</ui:FluentWindow>
