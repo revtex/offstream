@@ -104,11 +104,17 @@
                             </Grid.RowDefinitions>
 
                             <!--
-                                The indicator field. Inverted while audio is being written and
-                                outlined the rest of the time: the difference between armed and
-                                capturing is the first thing a recordist looks for, and it is the
-                                one thing the Start/Stop buttons cannot show, since both states
-                                are "running".
+                                The indicator field. Three states, in the vocabulary every
+                                recorder uses: solid and inverted while audio is being written,
+                                blinking while armed and waiting for a track, static and outlined
+                                while stopped.
+
+                                The blink carries the distinction the transport buttons cannot,
+                                since armed and capturing are both "running" and both show Stop.
+                                It is discrete key frames rather than a fade because an LCD
+                                segment has no in-between — a cross-fade would read as a glow, not
+                                as a driven segment — and it is a whole second per cycle, well
+                                under the rate that matters for photosensitivity.
                             -->
                             <Border Grid.Row="0"
                                     Grid.RowSpan="2"
@@ -126,6 +132,35 @@
                                             <DataTrigger Binding="{Binding IsCapturing, Mode=OneWay}" Value="True">
                                                 <Setter Property="Background" Value="{StaticResource OffstreamLcdSegmentBrush}" />
                                             </DataTrigger>
+
+                                            <!--
+                                                Gated on the system's own animation setting: a
+                                                user who turned animations off asked for this. No
+                                                information is lost when it is off, because armed
+                                                still reads as outlined against capturing's
+                                                inverted block.
+                                            -->
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding IsArmed, Mode=OneWay}" Value="True" />
+                                                    <Condition Binding="{Binding Source={x:Static SystemParameters.ClientAreaAnimation}}" Value="True" />
+                                                </MultiDataTrigger.Conditions>
+
+                                                <MultiDataTrigger.EnterActions>
+                                                    <BeginStoryboard x:Name="BlinkWhileArmed">
+                                                        <Storyboard RepeatBehavior="Forever">
+                                                            <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="Opacity" Duration="0:0:1">
+                                                                <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1" />
+                                                                <DiscreteDoubleKeyFrame KeyTime="0:0:0.55" Value="0" />
+                                                            </DoubleAnimationUsingKeyFrames>
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </MultiDataTrigger.EnterActions>
+
+                                                <MultiDataTrigger.ExitActions>
+                                                    <StopStoryboard BeginStoryboardName="BlinkWhileArmed" />
+                                                </MultiDataTrigger.ExitActions>
+                                            </MultiDataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </Border.Style>

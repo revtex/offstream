@@ -359,6 +359,54 @@ public sealed class RecordViewModelTests
         Assert.Equal(expected, viewModel.Transport);
     }
 
+    /// <summary>
+    /// Armed is running-but-not-writing, which is what the indicator blinks on. Both it and
+    /// capturing show Stop on the buttons, so nothing else on the page distinguishes them.
+    /// </summary>
+    [Fact]
+    public async Task IsArmed_IsRunningWithoutCapturing()
+    {
+        var factory = new FakeSessionFactory();
+        var controller = ControllerFor(factory);
+        var viewModel = new RecordViewModel(new InMemoryLogSink(), controller);
+
+        // Not running at all is not armed - a stopped display must not blink.
+        Assert.False(viewModel.IsArmed);
+
+        await viewModel.StartCommand.ExecuteAsync(null);
+        factory.Progress!.Report(new RecordingProgress(RecordingStage.WaitingForTrack));
+
+        Assert.True(viewModel.IsArmed);
+
+        factory.Progress.Report(new RecordingProgress(RecordingStage.Recording));
+
+        // Solid, not blinking, the moment audio starts reaching the encoder.
+        Assert.False(viewModel.IsArmed);
+        Assert.True(viewModel.IsCapturing);
+    }
+
+    /// <summary>
+    /// The blink is driven by a trigger on this, so it has to raise when either half changes -
+    /// a computed property with a missing notification leaves the indicator stuck.
+    /// </summary>
+    [Fact]
+    public void IsArmed_RaisesWhenEitherHalfChanges()
+    {
+        var viewModel = ViewModelFor();
+        var raised = 0;
+
+        viewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(RecordViewModel.IsArmed)) raised++;
+        };
+
+        viewModel.IsRecording = true;
+        Assert.Equal(1, raised);
+
+        viewModel.IsCapturing = true;
+        Assert.Equal(2, raised);
+    }
+
     [Fact]
     public async Task StopCommand_ResetsTheTransportIndicator()
     {

@@ -597,6 +597,13 @@ looks like.
   sample reaches the encoder. A silent meter has to read as a working meter showing nothing
   rather than as one that has stopped — the failure this page exists to make visible is a folder
   of silent files discovered in the morning.
+- **The indicator blinks while armed and holds solid while capturing**, which is the standby-
+  against-rolling convention every recorder uses, and the only cue the page has for a distinction
+  the transport buttons cannot show — armed and capturing are both "running" and both offer Stop.
+  Discrete key frames rather than a fade, because an LCD segment has no in-between and a
+  cross-fade reads as a glow; one second per cycle, well under the rate that matters for
+  photosensitivity; and gated on `SystemParameters.ClientAreaAnimation`, so a user who turned
+  animations off gets the static outlined block, which still differs from capturing's inverted one.
 - **The palette is fixed rather than themed**, because a physical LCD looks the same in a dark
   room. The transport buttons stay in the app's own style, outside the panel: an LCD is not
   clickable, and styling a button to look like one would be a lie about what can be pressed.

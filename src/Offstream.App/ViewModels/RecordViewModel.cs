@@ -68,6 +68,7 @@ public sealed partial class RecordViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(StartCommand))]
     [NotifyCanExecuteChangedFor(nameof(StopCommand))]
     [NotifyPropertyChangedFor(nameof(IsIdle))]
+    [NotifyPropertyChangedFor(nameof(IsArmed))]
     private bool _isRecording;
 
     [ObservableProperty]
@@ -105,6 +106,7 @@ public sealed partial class RecordViewModel : ObservableObject
     /// the distinction a recordist reads first and the one the buttons cannot show.
     /// </remarks>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsArmed))]
     private bool _isCapturing;
 
     /// <summary>What the output is, as the display prints it.</summary>
@@ -171,6 +173,18 @@ public sealed partial class RecordViewModel : ObservableObject
     /// without a converter.
     /// </summary>
     public bool IsIdle => !IsRecording;
+
+    /// <summary>
+    /// Running, but between tracks — nothing is being written yet.
+    /// </summary>
+    /// <remarks>
+    /// The display blinks its indicator on this and holds it solid on
+    /// <see cref="IsCapturing"/>, which is the convention every recorder uses for standby against
+    /// rolling. It is worth a distinct state rather than a third label because it is the one the
+    /// user is most likely to misread: an armed session looks exactly like a recording one from
+    /// the transport buttons, and a blink says "waiting for something to play" without a word.
+    /// </remarks>
+    public bool IsArmed => IsRecording && !IsCapturing;
 
     private bool CanStart => !IsRecording && !IsBusy;
 
