@@ -1,4 +1,5 @@
 using FlaUI.Core.AutomationElements;
+using Offstream.App.Resources;
 using Xunit;
 
 namespace Offstream.UI.Tests.Desktop;
@@ -36,7 +37,11 @@ public sealed class RecordPageTests : IClassFixture<OffstreamApp>
 
     [Fact]
     public void TheElapsedCounterStartsAtZero() =>
-        Assert.Equal("0:00", _app.Find("RecordElapsed").AsLabel().Text);
+        Assert.Equal("00H00M00S", _app.Find("RecordElapsed").AsLabel().Text);
+
+    [Fact]
+    public void TheTransportIndicatorReadsStopped() =>
+        Assert.Equal(Strings.RecordTransportStopped, _app.Find("RecordTransport").AsLabel().Text);
 
     [Fact]
     public void TheLevelMeterIsOnThePage() =>

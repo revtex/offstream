@@ -514,7 +514,7 @@ Delivered in four PRs: **PR 1** (shell scaffold, DI, navigation, design tokens),
 - **The tray menu has its own Exit.** Without one, an app hidden in the tray can only be quit by restoring it first — the predecessor's tray icon had no menu at all, and that is where the papercut came from.
 - **Surfacing takes three steps in order:** `Show()` undoes the hide, `WindowState = Normal` undoes the minimise (the window is still minimised until it is restored, so skipping this shows a window that is not on screen), and `Activate()` stops it coming back behind whatever the user was looking at.
 - **The tray reads recording state from `RecordingController`, not from `RecordViewModel`.** Both are singletons so either compiles, but the controller is the source of truth and the Record page is a peer reading the same events — chaining one ViewModel off another would mean the tray silently stopped updating whenever the page's logic changed.
-- **`WaveformView` needed an automation peer to exist at all.** `FrameworkElement` creates none, so without it the meter is invisible to a screen reader and the `AutomationProperties.Name` the page sets on it reaches nothing. Reported as an image rather than a progress bar: claiming a progress bar promises a range pattern and a value this has no meaning for.
+- **The level meter needed an automation peer to exist at all.** (Written of `WaveformView`; the control is now `LcdMeterView` — see the Record page display section below — and the finding carries over unchanged.) `FrameworkElement` creates none, so without it the meter is invisible to a screen reader and the `AutomationProperties.Name` the page sets on it reaches nothing. Reported as an image rather than a progress bar: claiming a progress bar promises a range pattern and a value this has no meaning for.
 - **The two defects PR 3 found are still open and still deliberately unfixed here** — AAC output is an m4a container written to a `.aac` filename (`RecordingSettings.MediaFormatExtension` against `EncodingProfiles.For`), and nothing calls `OffstreamSettings.CaptureRuntimeState`, so the in-session file counter never reaches the disk and numbering restarts every run. Both are pipeline behaviour with their own tests to write; neither belongs in a shell PR. **Both fixed on 2026-08-12** — see the metadata pipeline section below.
 
 ### Metadata pipeline — closing Phase 4's open end (2026-08-12) — ✅ **complete**
@@ -558,6 +558,61 @@ A session log showed Spotify tagging two tracks and skipping the one between the
 - **Four attempts rather than the reference's two**, because the budget is different: enrichment is bounded by `TrackEnricher.DefaultDeadline` (20s) and runs concurrently with a recording lasting minutes, so ~3s of chasing costs nothing. `SpotifyPollingOptions` carries the timings so tests exercise the retry without waiting them out.
 - **A momentary empty answer is the same race**, so a 204 is retried too — the reference retried that case as well. A podcast episode is not, and fails on the first look: no number of retries turns an episode into a track.
 - **The log line now says what Spotify answered.** "Spotify had no metadata for X" was true and useless; the mismatch is logged at debug with both titles, which is what would have answered this question from the log instead of from the source.
+
+#### Third follow-up: the Record page display (2026-08-13)
+
+Reported as a slow, laggy Record page whose elapsed counter ran behind Spotify, and a waveform
+that was "almost always peaked". Three separate causes, and the last one changed what the page
+looks like.
+
+- **The freeze was `SpotifyPoller.Start()` capturing the dispatcher, not the drawing.** Start is
+  called from a button click, so the WPF `SynchronizationContext` was current, and every `await`
+  in the poll loop without `ConfigureAwait(false)` resumed on the UI thread — window-title reads
+  fourteen times a second, and `StopCurrentRecorder`'s blocking wait on the capture buffer at
+  every track change. Proven by hashing the frames of a screen recording: 2.53 s and 2.33 s of
+  byte-identical frames, with the counter jumping 0:30 → 0:32 across one of them. The loops now
+  start on the pool via `Task.Run`, and `SpotifyPollerTests` pins it with a counting
+  `SynchronizationContext` that must never be posted to. **Three earlier diagnoses — geometry
+  batching, `DrawingVisual`, log filtering — were all wrong**; each made the page cheaper to draw
+  and none of them touched a blocked thread. The user's own read ("it's like it's waiting for
+  something") was the signal that it was a block rather than a cost.
+- **The counter drifted because it counted ticks instead of reading a clock.** `PeriodicTimer`
+  never makes up a tick it delivered late, so ten seconds that produced four ticks read as four
+  seconds and stayed four behind for the rest of the track. It now samples a monotonic clock
+  through `TimeProvider`, which is also what makes the drift testable without waiting.
+- **A waveform cannot work against a loudness-normalised source.** Peak over a 33 ms display
+  interval is at or near full scale for essentially all mastered music, so every bar came out the
+  same height and the control drew a solid block. Moving to RMS on a decibel scale fixed the
+  measurement, but Spotify normalises to about −14 dBFS and the remaining dynamic range is a few
+  decibels — not enough for a scroll to be worth the space.
+- **What replaced it is a field recorder's display.** `LcdMeterView` draws L and R segment bars
+  over a −50…0 dB scale with ticks at −50, −30, −20, −12, −6 and 0, and the held peak printed in
+  dBFS; the transport state, the counter, what is playing and the output format sit above it on
+  the same panel. The ruler is the part a progress bar cannot offer — it turns "about two-thirds
+  along" into "near −12 dB". `AudioLevelMeter` gained per-channel accumulation to feed it, and
+  drains through `LevelReading`, which carries the dBFS figure alongside the 0–1 level so the bars
+  and the printed numbers are one measurement rather than two scales that agree by accident.
+- **Unlit cells stay faintly visible, and that is the whole point of the control.** Everything
+  else on the page comes from Spotify's window title, which keeps changing whether or not a
+  sample reaches the encoder. A silent meter has to read as a working meter showing nothing
+  rather than as one that has stopped — the failure this page exists to make visible is a folder
+  of silent files discovered in the morning.
+- **The palette is fixed rather than themed**, because a physical LCD looks the same in a dark
+  room. The transport buttons stay in the app's own style, outside the panel: an LCD is not
+  clickable, and styling a button to look like one would be a lie about what can be pressed.
+- **The segment grid is a tiled mask over continuous bars**, one draw call at any width, with the
+  pitch derived from the width to hold about forty cells. At a fixed 5 px a wide panel came out as
+  a hundred hairlines that read as texture on a solid bar rather than as discrete steps.
+- **The log pane grew in two independent ways.** `LogLines` — the collection the `ListBox` binds
+  to — was never trimmed even though the backing buffer was, so an overnight session ended with a
+  pane holding far more lines than the sink retained. Separately, WPF-UI's
+  `NavigationViewContentPresenter` reads `ScrollViewer.GetCanContentScroll(page)` on navigation
+  and swaps in a template that wraps the page in a `DynamicScrollViewer` — and its static
+  constructor defaults that property to `True` for every `Page`. Inside that scroller the page is
+  measured with infinite height, so the star row resolved to its content's size instead of the
+  viewport and the card grew off the bottom of the window. `ScrollViewer.CanContentScroll="False"`
+  on the Record page opts out; Settings and Advanced keep the default because they are long forms
+  that genuinely want to scroll as a whole.
 
 ### Phase 7 — Windows integration polish (3–4 days)
 - **Raise the TFM to `net10.0-windows10.0.22621.0` first.** SMTC needs WinRT projections, which a bare `net10.0-windows` TFM does not provide. This is now free: Windows 11's floor is build 22000, so a versioned TFM costs no supported users. Expect the change to be mechanical (one property in `Directory.Build.props`) but verify the routing interop still binds afterwards — it is hand-rolled COM and the projections change what the compiler generates around WinRT types.

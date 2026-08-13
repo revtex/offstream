@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <!--
     User-facing strings, French. Must hold exactly the same key set as Strings.resx —
@@ -387,5 +387,14 @@
   </data>
   <data name="TrayWaiting" xml:space="preserve">
     <value>Offstream — en attente d'un titre</value>
+  </data>
+  <data name="RecordTransportRecording" xml:space="preserve">
+    <value>REC</value>
+  </data>
+  <data name="RecordTransportWaiting" xml:space="preserve">
+    <value>ATTE</value>
+  </data>
+  <data name="RecordTransportStopped" xml:space="preserve">
+    <value>STOP</value>
   </data>
 </root>

@@ -501,4 +501,16 @@
     <value>Offstream — waiting for a track</value>
     <comment>Tray tooltip while a session is running but nothing is playing yet.</comment>
   </data>
+  <data name="RecordTransportRecording" xml:space="preserve">
+    <value>REC</value>
+    <comment>Transport indicator on the display while audio is being written. A recorder marking; kept short and untranslated where that is the convention.</comment>
+  </data>
+  <data name="RecordTransportWaiting" xml:space="preserve">
+    <value>WAIT</value>
+    <comment>Transport indicator while the session is armed but between tracks.</comment>
+  </data>
+  <data name="RecordTransportStopped" xml:space="preserve">
+    <value>STOP</value>
+    <comment>Transport indicator while nothing is running.</comment>
+  </data>
 </root>

@@ -91,6 +91,26 @@ public sealed partial class RecordViewModel : ObservableObject
     [ObservableProperty]
     private AudioLevelMeter? _level;
 
+    /// <summary>The transport word on the display: <c>REC</c>, <c>WAIT</c> or <c>STOP</c>.</summary>
+    [ObservableProperty]
+    private string _transport = Strings.RecordTransportStopped;
+
+    /// <summary>
+    /// Whether audio is being written right now, as opposed to armed and waiting for a track.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="IsRecording"/>, which is true for both: the session is running
+    /// from the moment Start succeeds, but between tracks it is listening rather than capturing.
+    /// The display inverts its indicator block for one and outlines it for the other, which is
+    /// the distinction a recordist reads first and the one the buttons cannot show.
+    /// </remarks>
+    [ObservableProperty]
+    private bool _isCapturing;
+
+    /// <summary>What the output is, as the display prints it.</summary>
+    [ObservableProperty]
+    private string _formatText = string.Empty;
+
     [ObservableProperty]
     private LogFilter _filter = LogFilter.Activity;
 
@@ -111,6 +131,10 @@ public sealed partial class RecordViewModel : ObservableObject
 
         controller.Progress += OnProgress;
         controller.StateChanged += OnStateChanged;
+
+        // Seeds the format line, which describes what pressing Start would produce and so has
+        // something to say before anything is running.
+        Sync();
     }
 
     /// <summary>Lines currently shown, after <see cref="Filter"/>.</summary>
@@ -124,15 +148,23 @@ public sealed partial class RecordViewModel : ObservableObject
         new(LogFilter.All, Strings.RecordFilterAll),
     ];
 
-    /// <summary>Elapsed time on the current track, as the page shows it.</summary>
+    /// <summary>Elapsed time on the current track, as the display shows it.</summary>
     /// <remarks>
-    /// Minutes and seconds until a track passes an hour, because a leading <c>0:</c> on every
-    /// three-minute song is a column of noise. Tracks that long exist — live sets, mixes — so the
-    /// hour is not dropped, only omitted until it means something.
+    /// <para>
+    /// A fixed-width <c>00H03M42S</c> field, in the shape a field recorder prints it. This used
+    /// to drop the hours until a track had one, which reads better in prose and worse on an
+    /// instrument: the counter changed width partway through a session and the eye had to find it
+    /// again each time. Padding it costs two characters that are usually zero and buys a number
+    /// that never moves.
+    /// </para>
+    /// <para>
+    /// Built from <see cref="TimeSpan.TotalHours"/> rather than formatted with <c>hh</c>, which
+    /// counts hours within a day and would roll a very long session back to zero.
+    /// </para>
     /// </remarks>
-    public string ElapsedText => Elapsed.ToString(
-        Elapsed.TotalHours >= 1 ? @"h\:mm\:ss" : @"m\:ss",
-        CultureInfo.CurrentCulture);
+    public string ElapsedText => string.Create(
+        CultureInfo.CurrentCulture,
+        $"{(int)Elapsed.TotalHours:00}H{Elapsed.Minutes:00}M{Elapsed.Seconds:00}S");
 
     /// <summary>
     /// The inverse of <see cref="IsRecording"/>, so the two transport buttons can swap places
@@ -183,6 +215,8 @@ public sealed partial class RecordViewModel : ObservableObject
         Elapsed = TimeSpan.Zero;
         NowPlaying = Strings.RecordNothingPlaying;
         Status = Strings.RecordStatusIdle;
+        Transport = Strings.RecordTransportStopped;
+        IsCapturing = false;
 
         Sync();
     }
@@ -288,6 +322,14 @@ public sealed partial class RecordViewModel : ObservableObject
     {
         NowPlaying = progress.Track ?? Strings.RecordNothingPlaying;
         Elapsed = progress.Elapsed ?? TimeSpan.Zero;
+        IsCapturing = progress.Stage == RecordingStage.Recording;
+
+        Transport = progress.Stage switch
+        {
+            RecordingStage.Recording => Strings.RecordTransportRecording,
+            RecordingStage.WaitingForTrack => Strings.RecordTransportWaiting,
+            _ => Strings.RecordTransportStopped,
+        };
 
         if (IsBusy) return;
 
@@ -307,6 +349,7 @@ public sealed partial class RecordViewModel : ObservableObject
     {
         IsRecording = _controller.IsRunning;
         Level = _controller.Level;
+        FormatText = _controller.FormatSummary;
     }
 
     /// <summary>Runs an update on the UI thread; see <see cref="UiThread"/>.</summary>

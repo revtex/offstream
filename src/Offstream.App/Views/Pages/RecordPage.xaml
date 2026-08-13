@@ -1,4 +1,4 @@
-<Page x:Class="Offstream.App.Views.Pages.RecordPage"
+﻿<Page x:Class="Offstream.App.Views.Pages.RecordPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:controls="clr-namespace:Offstream.App.Views.Controls"
@@ -55,51 +55,167 @@
     <Grid Margin="{StaticResource OffstreamPagePadding}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <!--
-            Transport. The track name and the elapsed counter sit next to the button that governs
-            them, because together they answer the only question this page exists to answer: is it
-            recording, and what.
+            The display, and the buttons beside it.
+
+            One panel rather than two stacked cards: on the instrument this borrows from, the
+            transport state, the counter, what is being recorded and the meters are one piece of
+            glass, and splitting them into separate cards with a Fluent gap between undoes most of
+            what the borrowing is for. The two transport buttons stay outside it, as real controls
+            in the app's own style — an LCD is not clickable, and styling a button to look like
+            one would be a lie about what can be pressed.
         -->
         <ui:Card Grid.Row="0" Margin="{StaticResource OffstreamStackGap}">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                    <TextBlock AutomationProperties.AutomationId="RecordNowPlaying"
-                               Style="{StaticResource SubtitleTextBlockStyle}"
-                               Text="{Binding NowPlaying, Mode=OneWay}"
-                               TextTrimming="CharacterEllipsis"
-                               ToolTip="{Binding NowPlaying, Mode=OneWay}" />
-                    <TextBlock Margin="0,4,0,0"
-                               AutomationProperties.AutomationId="RecordStatus"
-                               Foreground="{StaticResource OffstreamIdleBrush}"
-                               Style="{StaticResource BodyTextBlockStyle}"
-                               Text="{Binding Status, Mode=OneWay}"
-                               TextWrapping="Wrap" />
-                </StackPanel>
+                <Border Grid.Column="0"
+                        Padding="0,10,0,0"
+                        Background="{StaticResource OffstreamLcdPanelBrush}"
+                        BorderBrush="{StaticResource OffstreamLcdBezelBrush}"
+                        BorderThickness="1"
+                        CornerRadius="3">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
 
-                <TextBlock Grid.Column="1"
-                           Margin="16,0"
-                           VerticalAlignment="Center"
-                           AutomationProperties.AutomationId="RecordElapsed"
-                           FontFamily="{StaticResource OffstreamMonoFontFamily}"
-                           Style="{StaticResource TitleTextBlockStyle}"
-                           Text="{Binding ElapsedText, Mode=OneWay}" />
+                        <!--
+                            Margin 10 on the left matches the meter's own internal padding below,
+                            so the indicator block and the L/R channel letters share an edge.
+                        -->
+                        <Grid Grid.Row="0" Margin="10,0,10,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <!--
+                                The indicator field. Inverted while audio is being written and
+                                outlined the rest of the time: the difference between armed and
+                                capturing is the first thing a recordist looks for, and it is the
+                                one thing the Start/Stop buttons cannot show, since both states
+                                are "running".
+                            -->
+                            <Border Grid.Row="0"
+                                    Grid.RowSpan="2"
+                                    Grid.Column="0"
+                                    MinWidth="46"
+                                    Margin="0,0,12,0"
+                                    Padding="6,3"
+                                    VerticalAlignment="Center"
+                                    BorderBrush="{StaticResource OffstreamLcdSegmentBrush}"
+                                    BorderThickness="1">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="Transparent" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsCapturing, Mode=OneWay}" Value="True">
+                                                <Setter Property="Background" Value="{StaticResource OffstreamLcdSegmentBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+
+                                <TextBlock HorizontalAlignment="Center"
+                                           AutomationProperties.AutomationId="RecordTransport"
+                                           FontFamily="{StaticResource OffstreamMonoFontFamily}"
+                                           FontSize="13"
+                                           FontWeight="Bold"
+                                           Text="{Binding Transport, Mode=OneWay}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource OffstreamLcdSegmentBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsCapturing, Mode=OneWay}" Value="True">
+                                                    <Setter Property="Foreground" Value="{StaticResource OffstreamLcdPanelBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Border>
+
+                            <TextBlock Grid.Row="0"
+                                       Grid.Column="1"
+                                       VerticalAlignment="Bottom"
+                                       AutomationProperties.AutomationId="RecordNowPlaying"
+                                       FontFamily="{StaticResource OffstreamMonoFontFamily}"
+                                       FontSize="15"
+                                       Foreground="{StaticResource OffstreamLcdSegmentBrush}"
+                                       Text="{Binding NowPlaying, Mode=OneWay}"
+                                       TextTrimming="CharacterEllipsis"
+                                       ToolTip="{Binding NowPlaying, Mode=OneWay}" />
+
+                            <TextBlock Grid.Row="1"
+                                       Grid.Column="1"
+                                       Margin="0,2,0,0"
+                                       AutomationProperties.AutomationId="RecordStatus"
+                                       FontFamily="{StaticResource OffstreamMonoFontFamily}"
+                                       FontSize="11"
+                                       Foreground="{StaticResource OffstreamLcdInkBrush}"
+                                       Text="{Binding Status, Mode=OneWay}"
+                                       TextTrimming="CharacterEllipsis"
+                                       ToolTip="{Binding Status, Mode=OneWay}" />
+
+                            <TextBlock Grid.Row="0"
+                                       Grid.Column="2"
+                                       Margin="16,0,0,0"
+                                       VerticalAlignment="Bottom"
+                                       AutomationProperties.AutomationId="RecordElapsed"
+                                       FontFamily="{StaticResource OffstreamMonoFontFamily}"
+                                       FontSize="22"
+                                       Foreground="{StaticResource OffstreamLcdSegmentBrush}"
+                                       Text="{Binding ElapsedText, Mode=OneWay}" />
+
+                            <TextBlock Grid.Row="1"
+                                       Grid.Column="2"
+                                       Margin="16,2,0,0"
+                                       HorizontalAlignment="Right"
+                                       AutomationProperties.AutomationId="RecordFormat"
+                                       FontFamily="{StaticResource OffstreamMonoFontFamily}"
+                                       FontSize="11"
+                                       Foreground="{StaticResource OffstreamLcdInkBrush}"
+                                       Text="{Binding FormatText, Mode=OneWay}" />
+                        </Grid>
+
+                        <!--
+                            The meter sizes itself: it holds the height its parts need to stay
+                            legible and takes whatever width is going. Its bezel is off because it
+                            is already inside one.
+                        -->
+                        <controls:LcdMeterView Grid.Row="1"
+                                               AutomationProperties.AutomationId="RecordLevelMeter"
+                                               AutomationProperties.Name="{x:Static res:Strings.RecordLevelLabel}"
+                                               BezelBrush="Transparent"
+                                               FontFamily="{StaticResource OffstreamMonoFontFamily}"
+                                               GhostBrush="{StaticResource OffstreamLcdGhostBrush}"
+                                               InkBrush="{StaticResource OffstreamLcdInkBrush}"
+                                               Level="{Binding Level, Mode=OneWay}"
+                                               PanelBrush="{StaticResource OffstreamLcdPanelBrush}"
+                                               SegmentBrush="{StaticResource OffstreamLcdSegmentBrush}" />
+                    </Grid>
+                </Border>
 
                 <!--
                     Two buttons in one cell rather than one that relabels itself: start and stop
                     are different actions, and a control that changes what it does under the
                     pointer is the classic way to stop a recording by accident.
                 -->
-                <Grid Grid.Column="2" VerticalAlignment="Center">
+                <Grid Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
                     <ui:Button Appearance="Primary"
                                AutomationProperties.AutomationId="RecordStartButton"
                                Command="{Binding StartCommand}"
@@ -116,25 +232,7 @@
             </Grid>
         </ui:Card>
 
-        <!--
-            The level meter, drawn as a recorder's LCD. It sizes itself: the display is an
-            instrument face rather than content, so it takes the width available and holds the
-            height its parts need to stay legible. Letting it take the slack in the layout instead
-            would push the activity log off a short window.
-        -->
-        <ui:Card Grid.Row="1" Margin="{StaticResource OffstreamStackGap}">
-            <controls:LcdMeterView AutomationProperties.AutomationId="RecordLevelMeter"
-                                   AutomationProperties.Name="{x:Static res:Strings.RecordLevelLabel}"
-                                   BezelBrush="{StaticResource OffstreamLcdBezelBrush}"
-                                   FontFamily="{StaticResource OffstreamMonoFontFamily}"
-                                   GhostBrush="{StaticResource OffstreamLcdGhostBrush}"
-                                   InkBrush="{StaticResource OffstreamLcdInkBrush}"
-                                   Level="{Binding Level, Mode=OneWay}"
-                                   PanelBrush="{StaticResource OffstreamLcdPanelBrush}"
-                                   SegmentBrush="{StaticResource OffstreamLcdSegmentBrush}" />
-        </ui:Card>
-
-        <Grid Grid.Row="2">
+        <Grid Grid.Row="1">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />

@@ -157,20 +157,40 @@ public sealed class RecordViewModelTests
         Assert.Equal(Strings.RecordNothingPlaying, ViewModelFor().NowPlaying);
 
     [Fact]
-    public void ElapsedText_StartsAtZero() => Assert.Equal("0:00", ViewModelFor().ElapsedText);
+    public void ElapsedText_StartsAtZero() => Assert.Equal("00H00M00S", ViewModelFor().ElapsedText);
 
+    /// <summary>
+    /// The counter is a fixed-width field on an instrument face, so every part is padded and
+    /// none is dropped - a number that changes width partway through a session is one the eye
+    /// has to find again.
+    /// </summary>
     [Theory]
-    [InlineData(0, 0, 7, "0:07")]
-    [InlineData(0, 3, 42, "3:42")]
-    [InlineData(0, 12, 5, "12:05")]
-    [InlineData(1, 4, 9, "1:04:09")]
-    public void ElapsedText_ShowsTheHourOnlyWhenThereIsOne(int hours, int minutes, int seconds, string expected)
+    [InlineData(0, 0, 7, "00H00M07S")]
+    [InlineData(0, 3, 42, "00H03M42S")]
+    [InlineData(0, 12, 5, "00H12M05S")]
+    [InlineData(1, 4, 9, "01H04M09S")]
+    public void ElapsedText_IsAlwaysTheSameWidth(int hours, int minutes, int seconds, string expected)
     {
         var viewModel = ViewModelFor();
 
         viewModel.Elapsed = new TimeSpan(hours, minutes, seconds);
 
         Assert.Equal(expected, viewModel.ElapsedText);
+    }
+
+    /// <summary>
+    /// Hours beyond a day keep counting. A <c>hh</c> format string counts hours within a day and
+    /// would roll a long session back to zero - unlikely on one track, but the counter is the
+    /// page's proof that time is passing and it must not lie.
+    /// </summary>
+    [Fact]
+    public void ElapsedText_PastADay_KeepsCounting()
+    {
+        var viewModel = ViewModelFor();
+
+        viewModel.Elapsed = new TimeSpan(26, 1, 2);
+
+        Assert.Equal("26H01M02S", viewModel.ElapsedText);
     }
 
     [Fact]
@@ -307,6 +327,66 @@ public sealed class RecordViewModelTests
 
         var entry = Assert.Single(viewModel.LogLines);
         Assert.Contains("Encoder failed", entry.Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The display's indicator field. "Running" and "writing audio" are different states and the
+    /// transport buttons cannot tell them apart - both show Stop.
+    /// </summary>
+    [Theory]
+    [InlineData(RecordingStage.Recording, true)]
+    [InlineData(RecordingStage.WaitingForTrack, false)]
+    [InlineData(RecordingStage.Idle, false)]
+    [InlineData(RecordingStage.Stopped, false)]
+    public async Task Progress_SetsTheTransportIndicator(RecordingStage stage, bool capturing)
+    {
+        var factory = new FakeSessionFactory();
+        var controller = ControllerFor(factory);
+        var viewModel = new RecordViewModel(new InMemoryLogSink(), controller);
+
+        await controller.StartAsync();
+        factory.Progress!.Report(new RecordingProgress(stage));
+
+        Assert.Equal(capturing, viewModel.IsCapturing);
+
+        var expected = stage switch
+        {
+            RecordingStage.Recording => Strings.RecordTransportRecording,
+            RecordingStage.WaitingForTrack => Strings.RecordTransportWaiting,
+            _ => Strings.RecordTransportStopped,
+        };
+
+        Assert.Equal(expected, viewModel.Transport);
+    }
+
+    [Fact]
+    public async Task StopCommand_ResetsTheTransportIndicator()
+    {
+        var factory = new FakeSessionFactory();
+        var controller = ControllerFor(factory);
+        var viewModel = new RecordViewModel(new InMemoryLogSink(), controller);
+
+        await viewModel.StartCommand.ExecuteAsync(null);
+        factory.Progress!.Report(new RecordingProgress(RecordingStage.Recording));
+
+        await viewModel.StopCommand.ExecuteAsync(null);
+
+        // A block left inverted after Stop says the app is still writing a file.
+        Assert.False(viewModel.IsCapturing);
+        Assert.Equal(Strings.RecordTransportStopped, viewModel.Transport);
+    }
+
+    /// <summary>
+    /// The format line describes what pressing Start would produce, so it has to say something
+    /// before anything is running - an empty field on an idle display reads as a fault.
+    /// </summary>
+    [Fact]
+    public void FormatText_IsPopulatedBeforeAnythingStarts()
+    {
+        var text = ViewModelFor().FormatText;
+
+        Assert.False(string.IsNullOrWhiteSpace(text));
+        Assert.Equal(text, text.ToUpperInvariant());
     }
 
     [Fact]
