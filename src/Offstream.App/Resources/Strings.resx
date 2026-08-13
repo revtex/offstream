@@ -293,6 +293,10 @@
     <value>Not signed in. Nothing will be tagged until you are.</value>
     <comment>Settings page: no Spotify refresh token is stored.</comment>
   </data>
+  <data name="SettingsSpotifyAttribution" xml:space="preserve">
+    <value>Track details and cover art are provided by Spotify.</value>
+    <comment>Settings page: Spotify Developer Terms require content from the API to be attributed to Spotify.</comment>
+  </data>
   <data name="AdvancedNamingSection" xml:space="preserve">
     <value>File names</value>
     <comment>Advanced page: heading over the filename template controls.</comment>

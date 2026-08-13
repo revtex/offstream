@@ -232,6 +232,9 @@
   <data name="SettingsSpotifyNotSignedIn" xml:space="preserve">
     <value>Non connecté. Rien ne sera étiqueté tant que ce n'est pas fait.</value>
   </data>
+  <data name="SettingsSpotifyAttribution" xml:space="preserve">
+    <value>Les détails des titres et les pochettes sont fournis par Spotify.</value>
+  </data>
   <data name="AdvancedNamingSection" xml:space="preserve">
     <value>Noms de fichiers</value>
   </data>

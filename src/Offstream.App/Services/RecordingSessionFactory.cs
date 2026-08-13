@@ -141,11 +141,39 @@ public sealed class RecordingSessionFactory(
                     return new NoMetadataProvider();
                 }
 
-                return new SpotifyMetadataProvider(client);
+                var provider = new SpotifyMetadataProvider(client);
+
+                provider.AuthorizationExpired += (_, _) => ClearExpiredRefreshToken();
+
+                return provider;
 
             case MetadataProvider.None:
             default:
                 return new NoMetadataProvider();
+        }
+    }
+
+    /// <summary>
+    /// Drops a refresh token Spotify has stopped honouring, so the user is asked to sign in again.
+    /// </summary>
+    /// <remarks>
+    /// A refresh token dies when it is revoked from the user's Spotify account page, when the
+    /// dashboard app is deleted, or when the granted scopes no longer cover what is asked for.
+    /// None of those recover on their own, so keeping the dead token would mean retrying it on
+    /// every track forever while the Settings page went on claiming the account was connected.
+    /// Clearing it raises <c>SettingsDocument.Changed</c>, which is what turns that page back to
+    /// its signed-out state and puts the sign-in button in front of the user.
+    /// </remarks>
+    private void ClearExpiredRefreshToken()
+    {
+        var problem = _settingsDocument.Update(current => current with
+        {
+            Metadata = current.Metadata with { SpotifyRefreshToken = null },
+        });
+
+        if (problem is not null)
+        {
+            Log.Warning("The expired Spotify token could not be cleared: {Problem}", problem);
         }
     }
 

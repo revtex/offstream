@@ -248,6 +248,17 @@
                             <TextBlock Style="{StaticResource OffstreamHintStyle}"
                                        Text="{x:Static res:Strings.SettingsSpotifySigningIn}"
                                        Visibility="{Binding IsSigningInToSpotify, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+
+                            <!--
+                                Attribution, which the Spotify Developer Terms require of anything
+                                displaying content from the API. It sits with the provider that
+                                supplies it rather than in an about box, so it is visible at the
+                                moment the user chooses to turn that provider on.
+                            -->
+                            <TextBlock Margin="0,10,0,0"
+                                       AutomationProperties.AutomationId="SettingsSpotifyAttribution"
+                                       Style="{StaticResource OffstreamHintStyle}"
+                                       Text="{x:Static res:Strings.SettingsSpotifyAttribution}" />
                         </StackPanel>
                     </Grid>
                 </Grid>

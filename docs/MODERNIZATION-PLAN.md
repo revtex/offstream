@@ -669,6 +669,65 @@ looks like.
   any more. The `LogLines` half stands, and the FlaUI test that pins the log inside the window is
   kept.***
 
+#### Fourth follow-up: conformance to the Spotify Web API rules (2026-08-13)
+
+The user set a written rule sheet for all Spotify Web API work — spec-derived endpoints, PKCE,
+loopback-literal redirect, minimum scopes, secure tokens with refresh, 429 backoff honouring
+`Retry-After`, no deprecated endpoints, per-status error handling, and the Developer Terms. An
+audit of what Phase 4 shipped found most of it already conformant and **two real gaps**, both
+invisible at compile time and both silent at runtime.
+
+- **`SpotifyClientConfig.CreateDefault()` attaches no retry handler at all.** Verified by
+  reflection, not assumed: `RetryHandler` is null. So a 429 threw `APITooManyRequestsException`,
+  fell through `TrackEnricher`'s catch-all, and the track recorded untagged — rate limiting is the
+  one API failure that is *supposed* to be recoverable, and it was the one being treated as fatal.
+  Worse, the provider's own boundary-race retry (4 attempts, fixed 1s) sits *inside* that, so a
+  throttled session would keep asking. `SpotifyRetryHandler` now honours `Retry-After` exactly for
+  429 and applies exponential backoff (1/2/4/8s, capped) to a 429 with no usable header and to the
+  5xx family. Nothing else is retried: a 404 asked five times is still a 404 and four wasted round
+  trips.
+- **`Retry-After` is obeyed, not negotiated.** Guessing shorter than Spotify asks is what gets an
+  application throttled harder. The handler needs no timeout of its own because enrichment already
+  runs under `TrackEnricher.DefaultDeadline` (20s) — a `Retry-After` longer than that cancels the
+  lookup and the recording continues untagged, which is the correct trade. Header lookup is
+  case-insensitive, because HTTP says the name is and the SDK hands over whatever casing the wire
+  used; an ordinal match would silently miss and fall back to guessing.
+- **Three scopes were requested and one was used.** `user-read-playback-state` and
+  `user-read-recently-played` were asked for on the assumption a later feature would want them;
+  nothing ever called `GetCurrentPlayback` or `GetRecentlyPlayed`. Offstream makes exactly two
+  calls — `/me/player/currently-playing`, which needs `user-read-currently-playing`, and
+  `/albums/{id}`, which needs no user scope. A scope requested ahead of its feature is a permission
+  the user grants for nothing, on a screen where the extra lines look identical to the load-bearing
+  one. `SpotifyAuthOptionsTests` pins the list so it cannot drift back.
+  **Existing sign-ins keep working** — a stored refresh token carries the grant it was issued with,
+  so narrowing what is *requested* costs nobody a re-authorisation; new sign-ins simply get the
+  smaller grant.
+- **A dead refresh token had no exit.** It dies when revoked from the account page, when the
+  dashboard app is deleted, or when the granted scopes stop covering the request — none of which
+  recover on their own. The 401 was logged like any other fault and retried on every subsequent
+  track, while the Settings page went on claiming the account was connected. `AuthorizationExpired`
+  now fires on exactly that status; the host clears the stored token, and because that runs through
+  `SettingsDocument.Update` it raises `Changed`, which is what flips the Settings page back to its
+  signed-out state and puts the sign-in button in front of the user. **Only a 401 does this** —
+  treating a rate limit or an outage as an expired token would sign the user out over a transient
+  fault, and there is a test for each.
+- **The API's own error message is the user-facing one.** Spotify sends a reason in the error body
+  and the SDK surfaces it as `Exception.Message`; that beats anything writable from a status code
+  alone. These land in the Record page's activity log, so the wording is the user's answer rather
+  than a stack trace. Every fault is still downgraded to "no metadata" — the status decides what
+  the user is told to do, never whether the recording survives.
+- **Attribution is on the Settings page, beside the provider that requires it**, not in an about
+  box: it is visible at the moment the user turns Spotify on. The Developer Terms' caching clause
+  was reviewed and **deliberately left alone at the user's direction (2026-08-13)** — writing tags
+  and cover art permanently into recorded files is what the app is for, and that is the user's call
+  to make, not a conformance defect to fix.
+- **No deprecated endpoint is in use**, and none of the rule sheet's named ones (`/playlists/{id}/tracks`,
+  the type-specific library endpoints) is reachable from anything Offstream does.
+
+**899 tests green** (731 core + 168 UI), up from 864: 21 for the retry schedule — asserted on the
+intervals it *produces*, with the delay function injected so no test spends one — plus the provider's
+error paths and the scope list.
+
 ### Phase 7 — Windows integration polish (3–4 days)
 - **Raise the TFM to `net10.0-windows10.0.22621.0` first.** SMTC needs WinRT projections, which a bare `net10.0-windows` TFM does not provide. This is now free: Windows 11's floor is build 22000, so a versioned TFM costs no supported users. Expect the change to be mechanical (one property in `Directory.Build.props`) but verify the routing interop still binds afterwards — it is hand-rolled COM and the projections change what the compiler generates around WinRT types.
 - SMTC (`Windows.Media.Control`) as primary track source with title polling as fallback — works when Spotify has no visible window.
