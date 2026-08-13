@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Automation.Peers;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Offstream.Core.Audio;
 
 namespace Offstream.App.Views.Controls;
@@ -66,13 +67,23 @@ public sealed class WaveformView : FrameworkElement
         new FrameworkPropertyMetadata(Brushes.Gray, FrameworkPropertyMetadataOptions.AffectsRender));
 
     private readonly float[] _bars = new float[Capacity];
+    private readonly DispatcherTimer _sampler;
 
     private int _head;
     private int _count;
-    private TimeSpan _lastSample = TimeSpan.MinValue;
     private bool _subscribed;
 
-    public WaveformView() => IsVisibleChanged += (_, _) => UpdateSubscription();
+    public WaveformView()
+    {
+        _sampler = new DispatcherTimer(DispatcherPriority.Render)
+        {
+            Interval = TimeSpan.FromSeconds(1d / SamplesPerSecond),
+        };
+
+        _sampler.Tick += OnSample;
+
+        IsVisibleChanged += (_, _) => UpdateSubscription();
+    }
 
     /// <summary>The meter to drain, or null when nothing is recording.</summary>
     public AudioLevelMeter? Level
@@ -114,16 +125,39 @@ public sealed class WaveformView : FrameworkElement
         var middle = height / 2;
         var visible = Math.Min(_count, (int)(width / BarPitch));
 
-        // Right-aligned: the newest bar sits against the right edge and older ones march left, so
-        // a part-filled control fills from where the eye is already looking.
-        for (var index = 0; index < visible; index++)
-        {
-            var peak = _bars[(_head - 1 - index + Capacity) % Capacity];
-            var half = Math.Max(peak * middle, SilenceHalfHeight);
-            var left = width - ((index + 1) * BarPitch);
+        // One geometry, one draw call. A DrawRectangle per bar meant several hundred drawing
+        // instructions rebuilt thirty times a second, which is what made the page lag while
+        // recording; the bars are a single figure set and the compositor treats them as one.
+        var geometry = new StreamGeometry();
 
-            drawingContext.DrawRectangle(Fill, pen: null, new Rect(left, middle - half, BarWidth, half * 2));
+        using (var figures = geometry.Open())
+        {
+            // Right-aligned: the newest bar sits against the right edge and older ones march left,
+            // so a part-filled control fills from where the eye is already looking.
+            for (var index = 0; index < visible; index++)
+            {
+                var peak = _bars[(_head - 1 - index + Capacity) % Capacity];
+                var half = Math.Max(peak * middle, SilenceHalfHeight);
+                var left = width - ((index + 1) * BarPitch);
+
+                figures.BeginFigure(new Point(left, middle - half), isFilled: true, isClosed: true);
+
+                figures.PolyLineTo(
+                    [
+                        new Point(left + BarWidth, middle - half),
+                        new Point(left + BarWidth, middle + half),
+                        new Point(left, middle + half),
+                    ],
+                    isStroked: false,
+                    isSmoothJoin: false);
+            }
         }
+
+        // Frozen so the render thread can take it without a copy, and it is discarded each frame
+        // anyway — nothing here ever mutates a geometry after building it.
+        geometry.Freeze();
+
+        drawingContext.DrawGeometry(Fill, pen: null, geometry);
     }
 
     private static void OnLevelChanged(DependencyObject sender, DependencyPropertyChangedEventArgs e)
@@ -134,19 +168,28 @@ public sealed class WaveformView : FrameworkElement
         // the previous one's tail.
         view._head = 0;
         view._count = 0;
-        view._lastSample = TimeSpan.MinValue;
 
         view.UpdateSubscription();
         view.InvalidateVisual();
     }
 
     /// <summary>
-    /// Runs the frame hook only while there is something to draw and somewhere to draw it.
+    /// Runs the sample timer only while there is something to draw and somewhere to draw it.
     /// </summary>
     /// <remarks>
-    /// <see cref="CompositionTarget.Rendering"/> is a static event, so a subscription outlives the
-    /// control that made it — a page kept alive by <c>NavigationCacheMode</c> would otherwise go
-    /// on sampling a stopped session from a tab nobody is looking at.
+    /// <para>
+    /// The timer is stopped rather than merely ignored when the control is hidden — a page kept
+    /// alive by <c>NavigationCacheMode</c> would otherwise go on sampling a stopped session from
+    /// a tab nobody is looking at.
+    /// </para>
+    /// <para>
+    /// <b>A timer, not <see cref="CompositionTarget.Rendering"/>.</b> That event fires once per
+    /// composed frame, so subscribing to it wakes the UI thread at the display's refresh rate —
+    /// 144 times a second on this machine — to decide 114 times out of 144 that it is not yet
+    /// time to sample. It also keeps WPF composing continuously instead of idling. Ticking at
+    /// exactly <see cref="SamplesPerSecond"/> costs a fifth of the wake-ups and gives the fixed
+    /// clock the scroll speed needs directly, rather than by filtering a variable one.
+    /// </para>
     /// </remarks>
     private void UpdateSubscription()
     {
@@ -154,27 +197,17 @@ public sealed class WaveformView : FrameworkElement
 
         if (wanted == _subscribed) return;
 
-        if (wanted) CompositionTarget.Rendering += OnFrame;
-        else CompositionTarget.Rendering -= OnFrame;
+        if (wanted) _sampler.Start();
+        else _sampler.Stop();
 
         _subscribed = wanted;
     }
 
-    private void OnFrame(object? sender, EventArgs e)
+    private void OnSample(object? sender, EventArgs e)
     {
         var meter = Level;
 
         if (meter is null) return;
-
-        // RenderingEventArgs carries the frame's own timestamp. Wall-clock time would drift
-        // against the compositor and show up as a stutter in the scroll.
-        if (e is not RenderingEventArgs args) return;
-
-        var interval = TimeSpan.FromSeconds(1d / SamplesPerSecond);
-
-        if (_lastSample != TimeSpan.MinValue && args.RenderingTime - _lastSample < interval) return;
-
-        _lastSample = args.RenderingTime;
 
         _bars[_head] = meter.Read();
         _head = (_head + 1) % Capacity;

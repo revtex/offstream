@@ -43,6 +43,7 @@ public sealed class SpotifyPoller : IAsyncDisposable
     public static readonly TimeSpan SongTickInterval = TimeSpan.FromSeconds(1);
 
     private readonly ITrackSource _trackSource;
+    private readonly TimeProvider _time;
     private readonly CancellationTokenSource _stopping = new();
 
     private Task? _pollLoop;
@@ -50,10 +51,18 @@ public sealed class SpotifyPoller : IAsyncDisposable
     private bool _playing;
     private bool _disposed;
 
-    public SpotifyPoller(ITrackSource trackSource)
+    /// <summary>Time played on the current track, up to the last pause.</summary>
+    private TimeSpan _played;
+
+    /// <summary>When the current unpaused stretch began, or null while paused.</summary>
+    private long? _playingSince;
+
+    public SpotifyPoller(ITrackSource trackSource, TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(trackSource);
+
         _trackSource = trackSource;
+        _time = timeProvider ?? TimeProvider.System;
     }
 
     /// <summary>The most recently observed track.</summary>
@@ -80,6 +89,7 @@ public sealed class SpotifyPoller : IAsyncDisposable
         if (_pollLoop is not null) return;
 
         CurrentTrack = new Track();
+        RestartClock();
         _pollLoop = RunPollLoopAsync(_stopping.Token);
         _songLoop = RunSongLoopAsync(_stopping.Token);
     }
@@ -100,6 +110,12 @@ public sealed class SpotifyPoller : IAsyncDisposable
             if (newest.Playing != previous.Playing)
             {
                 _playing = newest.Playing;
+
+                // The counter measures time played, so a pause has to stop the clock rather than
+                // merely stop being sampled — otherwise it resumes having counted the silence.
+                if (_playing) ResumeClock();
+                else PauseClock();
+
                 PlayStateChanged?.Invoke(this, new PlayStateChangedEventArgs(newest.Playing));
             }
 
@@ -108,29 +124,67 @@ public sealed class SpotifyPoller : IAsyncDisposable
             if (!isSameTrack)
             {
                 _playing = newest.Playing;
+                RestartClock();
                 TrackChanged?.Invoke(this, new TrackChangedEventArgs(previous, newest));
             }
 
             TrackTimeChanged?.Invoke(
-                this, new TrackTimeChangedEventArgs(isSameTrack ? previous.CurrentPosition ?? 0 : 0));
+                this, new TrackTimeChangedEventArgs(isSameTrack ? (int)PlayedSoFar().TotalSeconds : 0));
 
             // A continuing track keeps its elapsed count; a new one starts unmeasured.
-            newest.CurrentPosition = isSameTrack ? previous.CurrentPosition ?? 0 : null;
+            newest.CurrentPosition = isSameTrack ? (int)PlayedSoFar().TotalSeconds : null;
         }
         else
         {
             _playing = newest.Playing;
+            RestartClock();
         }
 
         CurrentTrack = newest;
     }
 
-    /// <summary>Advances the elapsed-time counter by one tick. Exposed for tests.</summary>
+    /// <summary>
+    /// Republishes the elapsed-time counter from the clock. Exposed for tests.
+    /// </summary>
+    /// <remarks>
+    /// <b>It samples a clock; it does not count ticks.</b> This used to do
+    /// <c>CurrentPosition += 1</c> on a one-second <see cref="PeriodicTimer"/>, which makes the
+    /// counter a tally of ticks that were observed rather than of time that passed —
+    /// <see cref="PeriodicTimer"/> schedules the next tick from when the previous one was
+    /// consumed and never makes up a late one. Every delayed tick therefore lost a second
+    /// permanently, so the counter drifted monotonically behind Spotify's own position and could
+    /// never catch up: it looked like the timer paused whenever the app was busy or in the
+    /// background. Reading a monotonic clock instead means a late tick reports the truth and the
+    /// drift corrects itself.
+    /// </remarks>
     public void AdvanceElapsed()
     {
         if (CurrentTrack is null || !_playing) return;
 
-        CurrentTrack.CurrentPosition = (CurrentTrack.CurrentPosition ?? 0) + 1;
+        CurrentTrack.CurrentPosition = (int)PlayedSoFar().TotalSeconds;
+    }
+
+    /// <summary>Time the current track has actually been playing, pauses excluded.</summary>
+    private TimeSpan PlayedSoFar() =>
+        _playingSince is { } since ? _played + _time.GetElapsedTime(since) : _played;
+
+    /// <summary>Starts the clock for a track, or resumes it after a pause.</summary>
+    private void ResumeClock() => _playingSince ??= _time.GetTimestamp();
+
+    /// <summary>Banks the current stretch and stops the clock.</summary>
+    private void PauseClock()
+    {
+        if (_playingSince is not { } since) return;
+
+        _played += _time.GetElapsedTime(since);
+        _playingSince = null;
+    }
+
+    /// <summary>Puts the clock back to zero, for a track that has just started.</summary>
+    private void RestartClock()
+    {
+        _played = TimeSpan.Zero;
+        _playingSince = _playing ? _time.GetTimestamp() : null;
     }
 
     private async Task RunPollLoopAsync(CancellationToken cancellationToken)

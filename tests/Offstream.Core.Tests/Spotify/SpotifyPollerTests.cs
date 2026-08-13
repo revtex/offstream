@@ -27,7 +27,29 @@ public sealed class SpotifyPollerTests
             .ReturnsAsync(() => queue.Count > 0 ? queue.Dequeue() : tracks[^1]);
     }
 
-    private SpotifyPoller Build() => new(_trackSource.Object);
+    private readonly TestClock _clock = new();
+
+    private SpotifyPoller Build() => new(_trackSource.Object, _clock);
+
+    /// <summary>
+    /// A clock that only moves when a test moves it.
+    /// </summary>
+    /// <remarks>
+    /// The elapsed counter reads a monotonic clock rather than counting ticks — a
+    /// <see cref="PeriodicTimer"/> never makes up a late tick, so counting them drifted behind
+    /// Spotify and never recovered. Driving the clock explicitly keeps these tests deterministic
+    /// and free of any real waiting.
+    /// </remarks>
+    private sealed class TestClock : TimeProvider
+    {
+        private long _timestamp;
+
+        public override long GetTimestamp() => _timestamp;
+
+        public override long TimestampFrequency => 1_000;
+
+        public void Advance(TimeSpan amount) => _timestamp += (long)(amount.TotalSeconds * TimestampFrequency);
+    }
 
     private static Track Playing(string artist, string title) =>
         new() { Artist = artist, Title = title, Playing = true };
@@ -143,7 +165,7 @@ public sealed class SpotifyPollerTests
         await using var poller = Build();
 
         await poller.PollOnceAsync();
-        poller.AdvanceElapsed();
+        _clock.Advance(TimeSpan.FromSeconds(2));
         poller.AdvanceElapsed();
         Assert.Equal(2, poller.CurrentTrack?.CurrentPosition);
 
@@ -159,6 +181,7 @@ public sealed class SpotifyPollerTests
         await using var poller = Build();
 
         await poller.PollOnceAsync();
+        _clock.Advance(TimeSpan.FromSeconds(1));
         poller.AdvanceElapsed();
 
         await poller.PollOnceAsync();
@@ -173,9 +196,61 @@ public sealed class SpotifyPollerTests
         await using var poller = Build();
 
         await poller.PollOnceAsync();
+        _clock.Advance(TimeSpan.FromSeconds(1));
         poller.AdvanceElapsed();
 
         Assert.Null(poller.CurrentTrack?.CurrentPosition);
+    }
+
+    /// <summary>
+    /// The drift this counter used to accumulate: it added one second per tick observed, and
+    /// <see cref="PeriodicTimer"/> never makes up a tick it delivered late.
+    /// </summary>
+    /// <remarks>
+    /// Ten seconds of real time delivering four ticks used to read as four seconds and stay four
+    /// behind for the rest of the track — which is why the counter sat visibly behind Spotify and
+    /// looked like it paused whenever the app was busy or in the background.
+    /// </remarks>
+    [Fact]
+    public async Task AdvanceElapsed_AfterLateTicks_ReportsTimeThatPassedNotTicksObserved()
+    {
+        Returns(Playing("Artist", "Title"));
+        await using var poller = Build();
+
+        await poller.PollOnceAsync();
+
+        // Ten seconds pass; the loop only gets to run four times.
+        for (var tick = 0; tick < 4; tick++)
+        {
+            _clock.Advance(TimeSpan.FromSeconds(2.5));
+            poller.AdvanceElapsed();
+        }
+
+        Assert.Equal(10, poller.CurrentTrack?.CurrentPosition);
+    }
+
+    /// <summary>A paused track must not accrue the time it spent paused.</summary>
+    [Fact]
+    public async Task AdvanceElapsed_AcrossAPause_CountsOnlyThePlayingStretches()
+    {
+        var paused = new Track { Artist = "Artist", Title = "Title", Playing = false };
+
+        Returns(Playing("Artist", "Title"), paused, Playing("Artist", "Title"));
+        await using var poller = Build();
+
+        await poller.PollOnceAsync();
+        _clock.Advance(TimeSpan.FromSeconds(5));
+
+        // Paused for a minute.
+        await poller.PollOnceAsync();
+        _clock.Advance(TimeSpan.FromSeconds(60));
+
+        // Playing again for three more seconds.
+        await poller.PollOnceAsync();
+        _clock.Advance(TimeSpan.FromSeconds(3));
+        poller.AdvanceElapsed();
+
+        Assert.Equal(8, poller.CurrentTrack?.CurrentPosition);
     }
 
     [Fact]
