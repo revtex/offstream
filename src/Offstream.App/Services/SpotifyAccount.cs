@@ -87,7 +87,10 @@ public sealed class SpotifyAccount(IHttpClientFactory httpClientFactory) : ISpot
             CreatedAt = DateTime.UtcNow.AddHours(-1),
         };
 
-        var authenticator = new PKCEAuthenticator(clientId, seed);
+        // Not the SDK's PKCEAuthenticator directly: it loses the refresh token whenever Spotify
+        // renews without returning a new one, which kills tagging exactly one hour into a session.
+        // See ResilientPkceAuthenticator.
+        var authenticator = new ResilientPkceAuthenticator(clientId, seed);
 
         authenticator.TokenRefreshed += (_, token) =>
         {
