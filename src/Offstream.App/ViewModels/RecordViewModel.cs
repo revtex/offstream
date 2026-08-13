@@ -168,11 +168,16 @@ public sealed partial class RecordViewModel : ObservableObject
     /// <summary>Elapsed time on the current track, as the display shows it.</summary>
     /// <remarks>
     /// <para>
-    /// A fixed-width <c>00H03M42S</c> field, in the shape a field recorder prints it. This used
-    /// to drop the hours until a track had one, which reads better in prose and worse on an
-    /// instrument: the counter changed width partway through a session and the eye had to find it
-    /// again each time. Padding it costs two characters that are usually zero and buys a number
-    /// that never moves.
+    /// A fixed-width <c>00:03:42</c> field. It carried unit letters — <c>00H03M42S</c> — until
+    /// they were seen at display size: nine glyphs of which three are letters reads as a word, and
+    /// the eye has to parse it before it can find the number. Colons are the separator every clock
+    /// uses, so the grouping is recognised rather than read, and the digits are then the only
+    /// things on the line with any weight.
+    /// </para>
+    /// <para>
+    /// Zero-padded rather than dropping the hours until a track has one: an instrument's counter
+    /// that changes width partway through a session has to be found again each time. Two leading
+    /// zeroes buy a number that never moves.
     /// </para>
     /// <para>
     /// Built from <see cref="TimeSpan.TotalHours"/> rather than formatted with <c>hh</c>, which
@@ -181,7 +186,7 @@ public sealed partial class RecordViewModel : ObservableObject
     /// </remarks>
     public string ElapsedText => string.Create(
         CultureInfo.CurrentCulture,
-        $"{(int)Elapsed.TotalHours:00}H{Elapsed.Minutes:00}M{Elapsed.Seconds:00}S");
+        $"{(int)Elapsed.TotalHours:00}:{Elapsed.Minutes:00}:{Elapsed.Seconds:00}");
 
     /// <summary>
     /// The inverse of <see cref="IsRecording"/>, so the two transport buttons can swap places

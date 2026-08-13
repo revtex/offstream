@@ -65,11 +65,17 @@
         -->
         <Border Grid.Row="1"
                 Margin="0,0,0,12"
-                Padding="0,12,0,8"
                 Background="{StaticResource OffstreamLcdGlassBrush}"
                 BorderBrush="{StaticResource OffstreamLcdBezelBrush}"
                 BorderThickness="1"
                 CornerRadius="4">
+            <!--
+                No Padding on the bezel: the breathing room is a Margin on the content instead.
+                Padding shrinks the area every child gets, including the scanline overlay, which
+                left the top and bottom strips of glass unscanned - two bands a shade lighter than
+                the panel, running the full width and reading exactly like mismatched borders.
+                Margin moves the content and leaves the overlay the whole face to cover.
+            -->
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -78,7 +84,7 @@
                 </Grid.RowDefinitions>
 
                 <!-- Margin 14 matches the meter's own internal padding, so every left edge lines up. -->
-                <Grid Grid.Row="0" Margin="14,0,14,0">
+                <Grid Grid.Row="0" Margin="14,12,14,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
@@ -203,6 +209,7 @@
                     because the format line above already carries the technical figures.
                 -->
                 <controls:LcdMeterView Grid.Row="2"
+                                       Margin="0,0,0,8"
                                        AutomationProperties.AutomationId="RecordLevelMeter"
                                        AutomationProperties.Name="{x:Static res:Strings.RecordLevelLabel}"
                                        BezelBrush="Transparent"
@@ -225,6 +232,7 @@
                 <Border Grid.Row="0"
                         Grid.RowSpan="3"
                         Background="{StaticResource OffstreamLcdScanlineBrush}"
+                        CornerRadius="3"
                         IsHitTestVisible="False" />
             </Grid>
         </Border>

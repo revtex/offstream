@@ -157,7 +157,7 @@ public sealed class RecordViewModelTests
         Assert.Equal(Strings.RecordNothingPlaying, ViewModelFor().NowPlaying);
 
     [Fact]
-    public void ElapsedText_StartsAtZero() => Assert.Equal("00H00M00S", ViewModelFor().ElapsedText);
+    public void ElapsedText_StartsAtZero() => Assert.Equal("00:00:00", ViewModelFor().ElapsedText);
 
     /// <summary>
     /// The counter is a fixed-width field on an instrument face, so every part is padded and
@@ -165,10 +165,10 @@ public sealed class RecordViewModelTests
     /// has to find again.
     /// </summary>
     [Theory]
-    [InlineData(0, 0, 7, "00H00M07S")]
-    [InlineData(0, 3, 42, "00H03M42S")]
-    [InlineData(0, 12, 5, "00H12M05S")]
-    [InlineData(1, 4, 9, "01H04M09S")]
+    [InlineData(0, 0, 7, "00:00:07")]
+    [InlineData(0, 3, 42, "00:03:42")]
+    [InlineData(0, 12, 5, "00:12:05")]
+    [InlineData(1, 4, 9, "01:04:09")]
     public void ElapsedText_IsAlwaysTheSameWidth(int hours, int minutes, int seconds, string expected)
     {
         var viewModel = ViewModelFor();
@@ -190,7 +190,7 @@ public sealed class RecordViewModelTests
 
         viewModel.Elapsed = new TimeSpan(26, 1, 2);
 
-        Assert.Equal("26H01M02S", viewModel.ElapsedText);
+        Assert.Equal("26:01:02", viewModel.ElapsedText);
     }
 
     [Fact]
