@@ -90,8 +90,16 @@ public sealed class SpotifyPoller : IAsyncDisposable
 
         CurrentTrack = new Track();
         RestartClock();
-        _pollLoop = RunPollLoopAsync(_stopping.Token);
-        _songLoop = RunSongLoopAsync(_stopping.Token);
+        // Task.Run, and it is load-bearing. Start() is called from a button click, so the WPF
+        // dispatcher is the current SynchronizationContext — and every await in these loops
+        // captures it, putting the continuation back on the UI thread. That meant reading
+        // Spotify's window title fourteen times a second on the UI thread, and running every
+        // handler these loops raise there too, including StopCurrentRecorder's blocking wait on
+        // the outgoing recorder. The window froze for seconds at a time at track changes.
+        // Starting on the pool leaves SynchronizationContext.Current null for the whole loop, so
+        // nothing inside it can find its way back to the UI thread.
+        _pollLoop = Task.Run(() => RunPollLoopAsync(_stopping.Token), CancellationToken.None);
+        _songLoop = Task.Run(() => RunSongLoopAsync(_stopping.Token), CancellationToken.None);
     }
 
     /// <summary>

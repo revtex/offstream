@@ -253,6 +253,70 @@ public sealed class SpotifyPollerTests
         Assert.Equal(8, poller.CurrentTrack?.CurrentPosition);
     }
 
+    /// <summary>
+    /// Starting from a thread with a synchronization context must not put the poll loop on it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This is the UI freeze.</b> <see cref="SpotifyPoller.Start"/> is called from a button
+    /// click, so the WPF dispatcher is the current context — and an <c>await</c> that captures it
+    /// resumes on the UI thread. The loop polls every 70&#160;ms and raises every recording
+    /// handler inline, including the one that blocks waiting for the outgoing recorder to release
+    /// the capture buffer, so all of that ran on the UI thread and the window froze for seconds
+    /// at a time at a track change.
+    /// </para>
+    /// <para>
+    /// A counting context stands in for the dispatcher: nothing the loop does may post to it.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task Start_FromAThreadWithASynchronizationContext_DoesNotRunTheLoopOnIt()
+    {
+        Returns(Playing("Artist", "Title"));
+
+        var context = new CountingSynchronizationContext();
+        var original = SynchronizationContext.Current;
+        var poller = Build();
+
+        // Only Start() runs under the context — this test's own awaits would post to it too,
+        // which would say nothing about the poller.
+        try
+        {
+            SynchronizationContext.SetSynchronizationContext(context);
+            poller.Start();
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(original);
+        }
+
+        // Long enough for many poll intervals, and for the one-second song tick.
+        await Task.Delay(TimeSpan.FromMilliseconds(1200));
+        await poller.DisposeAsync();
+
+        Assert.Equal(0, context.Posts);
+    }
+
+    /// <summary>A stand-in for the dispatcher that only records whether it was posted to.</summary>
+    private sealed class CountingSynchronizationContext : SynchronizationContext
+    {
+        private int _posts;
+
+        public int Posts => Volatile.Read(ref _posts);
+
+        public override void Post(SendOrPostCallback d, object? state)
+        {
+            Interlocked.Increment(ref _posts);
+            base.Post(d, state);
+        }
+
+        public override void Send(SendOrPostCallback d, object? state)
+        {
+            Interlocked.Increment(ref _posts);
+            base.Send(d, state);
+        }
+    }
+
     [Fact]
     public async Task Start_IsIdempotentAndDisposeStopsCleanly()
     {
