@@ -80,6 +80,30 @@ public sealed class RecordPageTests : IClassFixture<OffstreamApp>
         }
     }
 
+    /// <summary>
+    /// The log scrolls inside its box; it does not push the page taller than the window.
+    /// </summary>
+    /// <remarks>
+    /// This is the regression WPF-UI's <c>NavigationViewContentPresenter</c> causes by default:
+    /// it wraps a <see cref="System.Windows.Controls.Page"/> whose
+    /// <c>ScrollViewer.CanContentScroll</c> is true — which its own static constructor makes the
+    /// default — in a <c>DynamicScrollViewer</c>, and inside that the page is measured with
+    /// infinite height. The star row holding the log then resolves to its content's size rather
+    /// than the viewport, so the list lays out every retained line and runs off the bottom of the
+    /// window. Asserted against the window's own rectangle rather than a fixed pixel height, so
+    /// this holds however the window is sized.
+    /// </remarks>
+    [Fact]
+    public void TheActivityLogStaysInsideTheWindow()
+    {
+        var window = _app.Window.BoundingRectangle;
+        var log = _app.Find("RecordLogList").BoundingRectangle;
+
+        Assert.True(
+            log.Bottom <= window.Bottom,
+            $"The log ends at {log.Bottom} but the window at {window.Bottom} — the page is taller than its viewport.");
+    }
+
     [Fact]
     public void CopyingTheLogIsOffered() =>
         // Asserted rather than clicked: copying replaces whatever the developer has on their
