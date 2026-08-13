@@ -64,6 +64,7 @@ public sealed class TrackRecorder : IDisposable
     private readonly IFileSystem _fileSystem;
     private readonly OutputPaths _paths;
     private readonly Track _track;
+    private readonly Task<TrackEnrichment>? _enrichment;
 
     private readonly CancellationTokenSource _stopping = new();
     private readonly TaskCompletionSource _bufferDrained =
@@ -72,12 +73,24 @@ public sealed class TrackRecorder : IDisposable
     private long _bytesWritten;
     private bool _primed;
 
+    /// <param name="buffer">The shared capture buffer this recording drains.</param>
+    /// <param name="settings">The session's settings.</param>
+    /// <param name="track">The track being recorded. Enrichment writes onto this instance.</param>
+    /// <param name="paths">Temp-file and destination-name resolution.</param>
+    /// <param name="fileSystem">Injected so the WAV writing is testable.</param>
+    /// <param name="enrichment">
+    /// The metadata lookup for this track, already running. Started by the caller at the instant
+    /// the track changed so it overlaps the recording instead of following it, and joined here
+    /// just before the encode request is built — the last moment at which album, track number and
+    /// cover art can still reach the file.
+    /// </param>
     public TrackRecorder(
         AudioCaptureBuffer buffer,
         RecordingSettings settings,
         Track track,
         OutputPaths paths,
-        IFileSystem fileSystem)
+        IFileSystem fileSystem,
+        Task<TrackEnrichment>? enrichment = null)
     {
         ArgumentNullException.ThrowIfNull(buffer);
         ArgumentNullException.ThrowIfNull(settings);
@@ -90,6 +103,7 @@ public sealed class TrackRecorder : IDisposable
         _track = track;
         _paths = paths;
         _fileSystem = fileSystem;
+        _enrichment = enrichment;
     }
 
     /// <summary>The track this recorder is capturing.</summary>
@@ -205,7 +219,7 @@ public sealed class TrackRecorder : IDisposable
             return new TrackRecording(RecordingOutcome.Cancelled, _track, Elapsed);
         }
 
-        return Finalise(tempWavePath);
+        return await FinaliseAsync(tempWavePath);
     }
 
     /// <summary>Releases the stop signal. Recording itself ends with <see cref="Stop"/>.</summary>
@@ -250,7 +264,14 @@ public sealed class TrackRecorder : IDisposable
     /// Decides what the captured file is worth, and hands back an encode when it is worth
     /// anything.
     /// </summary>
-    private TrackRecording Finalise(string tempWavePath)
+    /// <remarks>
+    /// The metadata lookup is joined here and nowhere earlier. Everything it writes — album,
+    /// track number, disc, year, genre, album artists, and the cover art file — has to be on the
+    /// track before the <see cref="EncodeRequest"/> is built, because that request is the whole
+    /// of what ffmpeg is told about the recording. A recording that is discarded as too short or
+    /// silent never waits on it.
+    /// </remarks>
+    private async Task<TrackRecording> FinaliseAsync(string tempWavePath)
     {
         var duration = Elapsed;
 
@@ -268,6 +289,8 @@ public sealed class TrackRecorder : IDisposable
             return new TrackRecording(RecordingOutcome.TooShort, _track, duration);
         }
 
+        var enrichment = await AwaitEnrichmentAsync();
+
         // Encode to a temp file with the right extension. The destination name is claimed at
         // rename time, not now: encoding is queued behind other tracks, and a name reserved
         // minutes early can be taken by the recording that finishes first.
@@ -279,8 +302,34 @@ public sealed class TrackRecorder : IDisposable
             tempEncodePath,
             _settings.MediaFormat,
             _settings.BitrateKbps,
-            _track);
+            _track,
+            enrichment.CoverArtPath,
+            _settings.OrderNumberAsTag);
 
         return new TrackRecording(RecordingOutcome.Captured, _track, duration, encode);
+    }
+
+    /// <summary>
+    /// Joins the metadata lookup started when this track began.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="ITrackEnricher"/> promises never to throw, and this is the belt to that
+    /// braces: a provider that breaks the promise must still not cost the user the recording
+    /// that is already on disk.
+    /// </remarks>
+    private async Task<TrackEnrichment> AwaitEnrichmentAsync()
+    {
+        if (_enrichment is null) return TrackEnrichment.None;
+
+        try
+        {
+            return await _enrichment;
+        }
+#pragma warning disable CA1031 // Deliberate: see the remarks above.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            return TrackEnrichment.None;
+        }
     }
 }

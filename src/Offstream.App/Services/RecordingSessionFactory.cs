@@ -1,12 +1,16 @@
 using System.IO.Abstractions;
+using System.Net.Http;
 using Offstream.Core;
 using Offstream.Core.Audio;
 using Offstream.Core.Diagnostics;
 using Offstream.Core.Encoding;
 using Offstream.Core.Interop;
+using Offstream.Core.Metadata;
+using Offstream.Core.Metadata.Providers;
 using Offstream.Core.Recording;
 using Offstream.Core.Settings;
 using Offstream.Core.Spotify;
+using Serilog;
 
 namespace Offstream.App.Services;
 
@@ -27,13 +31,39 @@ public interface IRecordingSessionFactory
 }
 
 /// <summary>Builds the real thing: WASAPI loopback, window-title detection, ffmpeg.</summary>
-public sealed class RecordingSessionFactory(IFileSystem fileSystem, IProcessManager processManager)
+public sealed class RecordingSessionFactory(
+    IFileSystem fileSystem,
+    IProcessManager processManager,
+    IHttpClientFactory httpClientFactory,
+    ISpotifyAccount spotifyAccount,
+    SettingsDocument settingsDocument)
     : IRecordingSessionFactory
 {
+    /// <summary>
+    /// The named client metadata lookups and cover-art fetches share.
+    /// </summary>
+    /// <remarks>
+    /// Named rather than default so it can carry a short timeout of its own: a provider that has
+    /// stopped answering must not hold a finished recording for the default hundred seconds.
+    /// </remarks>
+    public const string MetadataHttpClient = "Offstream.Metadata";
+
+    /// <summary>How long a single metadata or cover-art request gets.</summary>
+    public static readonly TimeSpan MetadataRequestTimeout = TimeSpan.FromSeconds(10);
+
     private readonly IFileSystem _fileSystem = fileSystem ?? throw new ArgumentNullException(nameof(fileSystem));
 
     private readonly IProcessManager _processManager =
         processManager ?? throw new ArgumentNullException(nameof(processManager));
+
+    private readonly IHttpClientFactory _httpClientFactory =
+        httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
+
+    private readonly ISpotifyAccount _spotifyAccount =
+        spotifyAccount ?? throw new ArgumentNullException(nameof(spotifyAccount));
+
+    private readonly SettingsDocument _settingsDocument =
+        settingsDocument ?? throw new ArgumentNullException(nameof(settingsDocument));
 
     /// <inheritdoc />
     public RecordingSession Create(OffstreamSettings settings, IProgress<RecordingProgress> progress)
@@ -50,7 +80,84 @@ public sealed class RecordingSessionFactory(IFileSystem fileSystem, IProcessMana
             settings.ToRecordingSettings(),
             CreateEncoder(settings),
             _fileSystem,
+            CreateEnricher(settings),
             progress);
+    }
+
+    /// <summary>
+    /// Builds the metadata lookup for this session, from the provider the user chose.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A provider that is selected but not usable — Last.fm with no API key, Spotify with nobody
+    /// signed in — degrades to no enrichment and says so, rather than refusing to record. Tags
+    /// are worth having; they are not worth the session.
+    /// </para>
+    /// <para>
+    /// Built per session, like the encoder and for the same reason: a user who signs in to
+    /// Spotify or pastes an API key while the app is open gets a working session on the next
+    /// start rather than after a restart.
+    /// </para>
+    /// </remarks>
+    private TrackEnricher CreateEnricher(OffstreamSettings settings)
+    {
+        var httpClient = _httpClientFactory.CreateClient(MetadataHttpClient);
+
+        return new TrackEnricher(
+            CreateProvider(settings, httpClient),
+            new CoverArtFetcher(httpClient, _fileSystem));
+    }
+
+    private IMetadataProvider CreateProvider(OffstreamSettings settings, HttpClient httpClient)
+    {
+        switch (settings.Metadata.Provider)
+        {
+            case MetadataProvider.LastFm:
+                var apiKey = settings.Metadata.LastFmApiKey;
+
+                if (string.IsNullOrWhiteSpace(apiKey))
+                {
+                    Log.Warning(
+                        "Last.fm is selected but no API key is set, so nothing will be tagged. "
+                        + "Add one on the Settings page.");
+
+                    return new NoMetadataProvider();
+                }
+
+                return new LastFmMetadataProvider(httpClient, apiKey);
+
+            case MetadataProvider.Spotify:
+                var client = _spotifyAccount.CreateClient(
+                    settings.Metadata.SpotifyClientId,
+                    settings.Metadata.SpotifyRefreshToken,
+                    StoreRotatedRefreshToken);
+
+                if (client is null)
+                {
+                    Log.Warning(
+                        "Spotify is selected but nobody is signed in, so nothing will be tagged. "
+                        + "Sign in on the Settings page.");
+
+                    return new NoMetadataProvider();
+                }
+
+                return new SpotifyMetadataProvider(client);
+
+            case MetadataProvider.None:
+            default:
+                return new NoMetadataProvider();
+        }
+    }
+
+    /// <summary>Persists the replacement Spotify hands back every time it renews a token.</summary>
+    private void StoreRotatedRefreshToken(string refreshToken)
+    {
+        var problem = _settingsDocument.Update(current => current with
+        {
+            Metadata = current.Metadata with { SpotifyRefreshToken = refreshToken },
+        });
+
+        if (problem is not null) Log.Warning("The renewed Spotify token could not be saved: {Problem}", problem);
     }
 
     /// <summary>

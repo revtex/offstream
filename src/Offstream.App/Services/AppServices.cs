@@ -72,6 +72,7 @@ public static class AppServices
         // the app's - starting one from a page and finding it gone when the tab is switched away
         // would be a recording lost to navigation.
         services.AddSingleton<IRecordingSessionFactory, RecordingSessionFactory>();
+        services.AddSingleton<ISpotifyAccount, SpotifyAccount>();
         services.AddSingleton<IProcessManager, ProcessManager>();
         services.AddSingleton<RecordingController>();
 
@@ -89,53 +90,38 @@ public static class AppServices
         return services;
     }
 
-    /// <summary>
-    /// Registers the Spotify auth pieces from <see cref="Offstream.Core.Spotify.Auth"/>, when a
-    /// Client ID is configured.
-    /// </summary>
+    /// <summary>Registers the HTTP clients the metadata layer runs on.</summary>
     /// <remarks>
     /// <para>
-    /// Nothing resolves <see cref="SpotifyAuthenticator"/> from the container yet. The Settings
-    /// page offers the Client ID field, but not the browser sign-in: no recording path consumes
-    /// <c>SpotifyMetadataProvider</c> yet, so a refresh token obtained here would be read by
-    /// nothing. This is the infrastructure that sign-in builds on — an
-    /// <see cref="IHttpClientFactory"/>-routed <see cref="ISpotifyOAuthClient"/> instead of the
-    /// SDK's own bare <c>new HttpClient()</c>, and the options-pattern binding plan §10 Phase 4
-    /// asks for. <c>tools/Offstream.SpotifyAuthProbe</c> is what actually exercises the PKCE
-    /// flow end to end today.
+    /// <b>The Spotify auth objects are deliberately not registered here.</b> They were, keyed off
+    /// a <c>Spotify:ClientId</c> configuration value, back when nothing consumed them. They have
+    /// a consumer now — <see cref="ISpotifyAccount"/> — and it builds them per call, because the
+    /// Client ID is the user's own and lives in <see cref="MetadataSettings.SpotifyClientId"/>,
+    /// where it changes without an app restart. A singleton
+    /// <see cref="Offstream.Core.Spotify.Auth.SpotifyAuthOptions"/> captured at startup would
+    /// sign the user in with whatever Client ID was on disk when the window opened.
     /// </para>
     /// <para>
-    /// The Client ID still comes from configuration — <c>appsettings.json</c>, user secrets or
-    /// the <c>Spotify__ClientId</c> environment variable — rather than from
-    /// <see cref="MetadataSettings.SpotifyClientId"/>. Reading the settings value instead would
-    /// mean these registrations had to become unconditional and re-read after every edit, which
-    /// is work for the sign-in change to do rather than this one.
+    /// <paramref name="configuration"/> is still taken because
+    /// <c>tools/Offstream.SpotifyAuthProbe</c> and the appsettings file document the same key,
+    /// and because host configuration is where an override would go if one is ever wanted.
     /// </para>
     /// </remarks>
     private static void AddSpotify(IServiceCollection services, IConfiguration configuration)
     {
+        // The SDK's token requests share this one, so they use the app's handler pool rather than
+        // the bare `new HttpClient()` SpotifyAPI.Web would otherwise construct per client.
         services.AddHttpClient();
 
-        var clientId = configuration["Spotify:ClientId"];
-        if (string.IsNullOrWhiteSpace(clientId)) return;
-
-        services.AddSingleton(new SpotifyAuthOptions { ClientId = clientId });
-        services.AddSingleton<IBrowserLauncher, BrowserLauncher>();
-
-        services.AddTransient<ISpotifyOAuthClient>(provider =>
-        {
-            var httpClient = provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(Offstream));
-            var config = SpotifyClientConfig.CreateDefault().WithHTTPClient(new NetHttpClient(httpClient));
-
-            return new SpotifyOAuthClient(config);
-        });
-
-        services.AddTransient<SpotifyPkceFlow>();
-
-        services.AddTransient(provider => new SpotifyAuthenticator(
-            provider.GetRequiredService<SpotifyAuthOptions>(),
-            provider.GetRequiredService<SpotifyPkceFlow>(),
-            provider.GetRequiredService<IBrowserLauncher>(),
-            redirectUri => new SpotifyLoopbackListener(redirectUri)));
+        // Metadata lookups and cover-art fetches get a client of their own, with a short timeout:
+        // the default hundred seconds is far longer than a finished recording should ever wait on
+        // a provider that has stopped answering.
+        services.AddHttpClient(
+            RecordingSessionFactory.MetadataHttpClient,
+            client =>
+            {
+                client.Timeout = RecordingSessionFactory.MetadataRequestTimeout;
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("Offstream/1.0");
+            });
     }
 }

@@ -66,6 +66,7 @@ public sealed class SettingsStoreTests
         Metadata = new MetadataSettings
         {
             Provider = MetadataProvider.Spotify,
+            LastFmApiKey = "last-fm-api-key",
             SpotifyClientId = "client-id",
             SpotifyRefreshToken = "the-refresh-token",
             WriteCounterToTrackNumber = true,

@@ -6,7 +6,23 @@
       xmlns:serilog="clr-namespace:Serilog.Events;assembly=Serilog"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       xmlns:vm="clr-namespace:Offstream.App.ViewModels"
+      ScrollViewer.CanContentScroll="False"
       Title="Record">
+
+    <!--
+        ScrollViewer.CanContentScroll="False" is load-bearing, and is not about this page's own
+        scrolling. WPF-UI's NavigationViewContentPresenter reads it on navigation
+        (IsDynamicScrollViewerEnabled = ScrollViewer.GetCanContentScroll(page)) and swaps its
+        template to one that wraps the page in a DynamicScrollViewer — and its static constructor
+        defaults the property to True for every Page. Inside that scroller the page is measured
+        with infinite height, so the star row below resolves to its content's size instead of the
+        viewport: the log ListBox lays out every retained line and the card grows off the bottom
+        of the window. Opting out selects the plain ContentPresenter template, the star row gets
+        the real viewport height back, and the log scrolls inside its own box at a fixed size.
+
+        The Settings and Advanced pages deliberately keep the default — they are long forms that
+        genuinely want to scroll as a whole.
+    -->
 
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibility" />

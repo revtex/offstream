@@ -3,6 +3,7 @@ using Offstream.App.Services;
 using Offstream.App.ViewModels;
 using Offstream.Core.Audio;
 using Offstream.Core.Settings;
+using SpotifyAPI.Web;
 
 namespace Offstream.UI.Tests;
 
@@ -40,8 +41,13 @@ internal static class SettingsFakes
     public static SettingsViewModel Settings(
         SettingsDocument document,
         IAudioDeviceCatalog? catalog = null,
-        IFolderPicker? folderPicker = null) =>
-        new(document, catalog ?? new FakeDeviceCatalog(), folderPicker ?? new FakeFolderPicker());
+        IFolderPicker? folderPicker = null,
+        ISpotifyAccount? spotifyAccount = null) =>
+        new(
+            document,
+            catalog ?? new FakeDeviceCatalog(),
+            folderPicker ?? new FakeFolderPicker(),
+            spotifyAccount ?? new FakeSpotifyAccount());
 }
 
 /// <summary>A device list a test can rearrange between calls.</summary>
@@ -70,4 +76,35 @@ internal sealed class FakeFolderPicker : IFolderPicker
 
         return Result;
     }
+}
+
+/// <summary>
+/// A Spotify account that signs in without a browser.
+/// </summary>
+/// <remarks>
+/// The real one opens the user's browser and waits on a loopback listener for up to five
+/// minutes, which is neither testable nor survivable on a build agent.
+/// </remarks>
+internal sealed class FakeSpotifyAccount : ISpotifyAccount
+{
+    /// <summary>The refresh token <see cref="SignInAsync"/> hands back.</summary>
+    public string RefreshToken { get; set; } = "refresh-token";
+
+    /// <summary>Thrown instead of signing in, for the declined and timed-out cases.</summary>
+    public Exception? SignInFailure { get; set; }
+
+    /// <summary>The Client ID the sign-in was asked for, to prove the page's value reaches it.</summary>
+    public string? SignedInWith { get; private set; }
+
+    public Task<string> SignInAsync(string clientId, CancellationToken cancellationToken = default)
+    {
+        SignedInWith = clientId;
+
+        return SignInFailure is not null
+            ? Task.FromException<string>(SignInFailure)
+            : Task.FromResult(RefreshToken);
+    }
+
+    public ISpotifyClient? CreateClient(
+        string? clientId, string? refreshToken, Action<string> onRefreshTokenRotated) => null;
 }

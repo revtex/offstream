@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using Offstream.Core.Spotify;
 using SpotifyAPI.Web;
 
@@ -22,8 +23,12 @@ namespace Offstream.Core.Metadata.Providers;
 /// exactly the same way regardless of which source supplied the title.
 /// </para>
 /// </remarks>
-public static class SpotifyTrackMapper
+public static partial class SpotifyTrackMapper
 {
+    /// <summary>The three release-date precisions Spotify documents, and nothing else.</summary>
+    [GeneratedRegex(@"^\d{4}(-\d{2}(-\d{2})?)?$")]
+    private static partial Regex IsoDate { get; }
+
     /// <summary>Copies title, artist and track/disc position from a Spotify track.</summary>
     /// <remarks>
     /// <see cref="FullTrack.TrackNumber"/> and <see cref="FullTrack.DiscNumber"/> are plain
@@ -66,6 +71,43 @@ public static class SpotifyTrackMapper
         track.Genres = spotifyAlbum.Genres?.ToArray() ?? [];
         track.Year = ParseReleaseYear(spotifyAlbum.ReleaseDate);
         track.AlbumArtUrl = ChooseCoverUrl(spotifyAlbum.Images);
+
+        // Kept at Spotify's own precision for the tag, while Year stays an integer for the
+        // {year} filename token. A release Spotify knows to the day was being truncated.
+        track.ReleaseDate = NormalizeReleaseDate(spotifyAlbum.ReleaseDate);
+
+        track.AlbumTrackCount = PositiveOrNull(spotifyAlbum.TotalTracks);
+        track.Copyright = ChooseCopyright(spotifyAlbum.Copyrights);
+    }
+
+    /// <summary>
+    /// The release date, if it is one of the three shapes Spotify documents.
+    /// </summary>
+    /// <remarks>
+    /// Passed through rather than reformatted: <c>2010</c>, <c>2010-10</c> and <c>2010-10-10</c>
+    /// are all valid tag values and all say something true about the precision. Anything else is
+    /// dropped rather than written, since a malformed date in a tag is worse than none — and the
+    /// shape is matched rather than merely parsed, so a locale-shaped <c>10/10/2010</c> that
+    /// <see cref="DateTime.TryParse(string?, out DateTime)"/> would happily accept does not reach
+    /// the file as a date no tag reader agrees on.
+    /// </remarks>
+    private static string? NormalizeReleaseDate(string? releaseDate) =>
+        releaseDate is not null && IsoDate.IsMatch(releaseDate) && ParseReleaseYear(releaseDate) is not null
+            ? releaseDate
+            : null;
+
+    /// <summary>
+    /// The copyright line, preferring the recording's (<c>P</c>) over the composition's (<c>C</c>).
+    /// </summary>
+    /// <remarks>
+    /// Offstream records audio, so the phonogram line is the one that describes what is in the
+    /// file. Spotify returns both on most albums.
+    /// </remarks>
+    private static string? ChooseCopyright(IEnumerable<Copyright>? copyrights)
+    {
+        var all = copyrights?.Where(c => !string.IsNullOrWhiteSpace(c.Text)).ToArray() ?? [];
+
+        return (all.FirstOrDefault(c => c.Type == "P") ?? all.FirstOrDefault())?.Text;
     }
 
     /// <summary>

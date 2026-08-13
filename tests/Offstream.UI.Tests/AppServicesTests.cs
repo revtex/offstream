@@ -118,28 +118,31 @@ public sealed class AppServicesTests
     }
 
     /// <summary>
-    /// Spotify registration is gated on a configured Client ID. Nothing signs in yet (PR 3), and
-    /// an unconfigured build must not register a client that would throw the moment it is used.
+    /// The Spotify auth objects are built per sign-in, not registered at startup.
     /// </summary>
-    [Fact]
-    public void AddOffstream_WithoutAClientId_SkipsSpotify()
+    /// <remarks>
+    /// They used to be registered here, keyed off a configured Client ID, back when nothing
+    /// consumed them. The Client ID is the user's own and lives in settings, where it changes
+    /// without an app restart, so a singleton captured at startup would sign the user in with a
+    /// stale one. <see cref="ISpotifyAccount"/> is the seam now, and it is registered
+    /// unconditionally because it reads the Client ID at the moment it is used.
+    /// </remarks>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AddOffstream_RegistersTheAccountAndNotStartupAuthOptions(bool withConfiguredClientId)
     {
-        var services = Build();
+        var configuration = withConfiguredClientId
+            ? Configuration(("Spotify:ClientId", "0123456789abcdef"))
+            : Configuration();
+
+        var services = new ServiceCollection().AddOffstream(configuration, new InMemoryLogSink());
 
         Assert.DoesNotContain(
             services,
             descriptor => descriptor.ServiceType == typeof(Offstream.Core.Spotify.Auth.SpotifyAuthOptions));
-    }
 
-    [Fact]
-    public void AddOffstream_WithAClientId_RegistersSpotify()
-    {
-        var services = new ServiceCollection()
-            .AddOffstream(Configuration(("Spotify:ClientId", "0123456789abcdef")), new InMemoryLogSink());
-
-        Assert.Contains(
-            services,
-            descriptor => descriptor.ServiceType == typeof(Offstream.Core.Spotify.Auth.SpotifyAuthOptions));
+        Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(ISpotifyAccount));
     }
 
     private static IServiceCollection Build() =>

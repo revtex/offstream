@@ -247,12 +247,30 @@ public sealed partial class RecordViewModel : ObservableObject
     private static LogEntry Format(LogLine line) =>
         new(line.Level, $"{line.Timestamp:HH:mm:ss} [{line.Level}] {line.Message}");
 
+    /// <summary>
+    /// Appends one line, dropping the oldest once the buffer is full so the pane scrolls
+    /// rather than grows.
+    /// </summary>
+    /// <remarks>
+    /// <b>Both collections have to be trimmed, not just the backing one.</b> Trimming
+    /// <see cref="_received"/> alone left <see cref="LogLines"/> — the collection the ListBox is
+    /// actually bound to — growing for the life of the session, so a long recording night ended
+    /// with a pane holding far more lines than the sink had retained and a scrollbar that kept
+    /// shrinking. <see cref="LogLines"/> is a filtered projection of <see cref="_received"/> in
+    /// the same order, so the line falling out of the buffer is its first entry whenever that
+    /// line was shown at all.
+    /// </remarks>
     private void OnLineWritten(object? sender, LogLine line) => Dispatch(() =>
     {
         _received.Add(line);
 
-        // Match the sink's own trimming, or the pane grows without bound while the sink does not.
-        if (_received.Count > InMemoryLogSink.Capacity) _received.RemoveAt(0);
+        if (_received.Count > InMemoryLogSink.Capacity)
+        {
+            var dropped = _received[0];
+            _received.RemoveAt(0);
+
+            if (Passes(dropped) && LogLines.Count > 0) LogLines.RemoveAt(0);
+        }
 
         if (Passes(line)) LogLines.Add(Format(line));
     });

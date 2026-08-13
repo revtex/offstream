@@ -6,17 +6,17 @@ Offstream succeeds **Spytify**, the .NET Framework 4.6.1 / WinForms application 
 
 ## Status
 
-**Phases 0–6 complete.** The app records: pick a folder and a format, press Start, and tracks land on disk with their tags written. Phase 7 (SMTC track detection, device hot-plug, long paths) is next.
+**Phases 0–6 complete.** The app records: pick a folder and a format, press Start, and tracks land on disk. Add a Last.fm API key or sign in to Spotify on the Settings page and they land tagged, with cover art. Phase 7 (SMTC track detection, device hot-plug, long paths) is next.
 
 ```powershell
-.\build.ps1 -Clean -Test -IncludeDesktop     # 771/771 green
+.\build.ps1 -Clean -Test -IncludeDesktop     # 811/811 green
 dotnet run --project src/Offstream.App
 ```
 
 - **Phase 0** — the retarget spike: 8/8 checks green on Windows 11 build 26200, unelevated. Endpoint enumeration, `IAudioPolicyConfig` binding, routing a process to an endpoint and back, session mute, and 30 s of WASAPI loopback capture verified non-silent.
 - **Phase 1** — six projects, CI, analyzers as errors, Serilog, and a WPF-UI Fluent shell that launches and is driven by a FlaUI test.
 - **Phases 2–3** — the reference suite green on .NET 10, then the recording pipeline: capture, track detection, and ffmpeg encoding to MP3/WAV/FLAC/AAC/Ogg/Opus with tags and cover art.
-- **Phase 4** — Spotify Web API metadata over PKCE, with the refresh token protected by DPAPI.
+- **Phase 4** — Spotify Web API metadata over PKCE, with the refresh token protected by DPAPI. Browser sign-in and the Last.fm provider that sits beside it landed later, once there was a Settings page to configure them from.
 - **Phase 5** — settings at `%APPDATA%\Offstream\settings.json`: grouped schema, atomic writes, no importer for the predecessor's file.
 - **Phase 6** — the shell: Record, Settings and Advanced tabs, inline validation, en/fr resources, a live waveform so silence is visible while it is happening, tray icon and single-instance guard.
 

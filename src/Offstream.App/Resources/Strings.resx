@@ -258,12 +258,40 @@
     <comment>Settings page: label for the Spotify application id.</comment>
   </data>
   <data name="SettingsClientIdHint" xml:space="preserve">
-    <value>From your own app on the Spotify Developer Dashboard. Signing in arrives with the metadata pipeline.</value>
-    <comment>Explains where the Client ID comes from, and that it is not yet used for a sign-in.</comment>
+    <value>From your own app on the Spotify Developer Dashboard. Register http://127.0.0.1:4002/callback as its redirect URI, then sign in below.</value>
+    <comment>Explains where the Client ID comes from and what has to be registered alongside it.</comment>
   </data>
   <data name="SettingsClientIdRequired" xml:space="preserve">
     <value>Enter a Client ID, or choose another source above.</value>
     <comment>Inline validation: Spotify is the chosen provider but no Client ID is set.</comment>
+  </data>
+  <data name="SettingsLastFmApiKeyLabel" xml:space="preserve">
+    <value>Last.fm API key</value>
+    <comment>Settings page: label for the user's own Last.fm API key.</comment>
+  </data>
+  <data name="SettingsLastFmApiKeyHint" xml:space="preserve">
+    <value>Create one at last.fm/api/account/create. It takes a minute and is free.</value>
+    <comment>Explains where the Last.fm API key comes from.</comment>
+  </data>
+  <data name="SettingsLastFmApiKeyRequired" xml:space="preserve">
+    <value>Without a key, nothing will be tagged. Enter one, or choose another source above.</value>
+    <comment>Inline warning: Last.fm is the chosen provider but no API key is set.</comment>
+  </data>
+  <data name="SettingsSpotifySignIn" xml:space="preserve">
+    <value>Sign in to Spotify</value>
+    <comment>Settings page: button that starts the browser sign-in.</comment>
+  </data>
+  <data name="SettingsSpotifySigningIn" xml:space="preserve">
+    <value>Waiting for the browser…</value>
+    <comment>Settings page: shown while the browser sign-in is open.</comment>
+  </data>
+  <data name="SettingsSpotifySignedIn" xml:space="preserve">
+    <value>Signed in. Recordings will be tagged from Spotify.</value>
+    <comment>Settings page: a Spotify refresh token is stored.</comment>
+  </data>
+  <data name="SettingsSpotifyNotSignedIn" xml:space="preserve">
+    <value>Not signed in. Nothing will be tagged until you are.</value>
+    <comment>Settings page: no Spotify refresh token is stored.</comment>
   </data>
   <data name="AdvancedNamingSection" xml:space="preserve">
     <value>File names</value>

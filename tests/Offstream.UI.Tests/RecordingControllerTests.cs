@@ -1,3 +1,4 @@
+using System.IO.Abstractions.TestingHelpers;
 using Offstream.App.Resources;
 using Offstream.App.Services;
 using Offstream.Core.Diagnostics;
@@ -20,7 +21,7 @@ public sealed class RecordingControllerTests
     public async Task StartAsync_BuildsASessionAndRuns()
     {
         var factory = new FakeSessionFactory();
-        await using var controller = new RecordingController(factory, RecordingFakes.Store());
+        await using var controller = new RecordingController(factory, RecordingFakes.Document());
 
         var refusal = await controller.StartAsync();
 
@@ -33,7 +34,7 @@ public sealed class RecordingControllerTests
     public async Task StartAsync_ExposesTheSessionsLevelMeter()
     {
         var factory = new FakeSessionFactory();
-        await using var controller = new RecordingController(factory, RecordingFakes.Store());
+        await using var controller = new RecordingController(factory, RecordingFakes.Document());
 
         Assert.Null(controller.Level);
 
@@ -48,7 +49,7 @@ public sealed class RecordingControllerTests
     public async Task StartAsync_RaisesStateChanged()
     {
         var factory = new FakeSessionFactory();
-        await using var controller = new RecordingController(factory, RecordingFakes.Store());
+        await using var controller = new RecordingController(factory, RecordingFakes.Document());
 
         var raised = 0;
         controller.StateChanged += (_, _) => raised++;
@@ -62,7 +63,7 @@ public sealed class RecordingControllerTests
     public async Task StartAsync_WhileRunning_DoesNotBuildASecondSession()
     {
         var factory = new FakeSessionFactory();
-        await using var controller = new RecordingController(factory, RecordingFakes.Store());
+        await using var controller = new RecordingController(factory, RecordingFakes.Document());
 
         await controller.StartAsync();
         var refusal = await controller.StartAsync();
@@ -77,7 +78,7 @@ public sealed class RecordingControllerTests
     public async Task StartAsync_WithUnreadableSettings_RefusesWithoutTouchingTheFactory()
     {
         var factory = new FakeSessionFactory();
-        await using var controller = new RecordingController(factory, RecordingFakes.StoreWithBrokenFile());
+        await using var controller = new RecordingController(factory, RecordingFakes.DocumentWithBrokenFile());
 
         var refusal = await controller.StartAsync();
 
@@ -92,7 +93,7 @@ public sealed class RecordingControllerTests
     public async Task StartAsync_WithoutFfmpeg_SaysSo()
     {
         var factory = new FakeSessionFactory { Failure = new FFmpegNotFoundException("nowhere") };
-        await using var controller = new RecordingController(factory, RecordingFakes.Store());
+        await using var controller = new RecordingController(factory, RecordingFakes.Document());
 
         Assert.Equal(Strings.RecordCannotStartFfmpeg, await controller.StartAsync());
         Assert.False(controller.IsRunning);
@@ -103,7 +104,7 @@ public sealed class RecordingControllerTests
     {
         // What a device unplugged since the settings page listed it looks like from here.
         var factory = new FakeSessionFactory { Failure = new InvalidOperationException("device gone") };
-        await using var controller = new RecordingController(factory, RecordingFakes.Store());
+        await using var controller = new RecordingController(factory, RecordingFakes.Document());
 
         Assert.Equal(Strings.RecordCannotStartAudioDevice, await controller.StartAsync());
         Assert.False(controller.IsRunning);
@@ -113,7 +114,7 @@ public sealed class RecordingControllerTests
     public async Task StartAsync_AfterARefusal_CanStillStart()
     {
         var factory = new FakeSessionFactory { Failure = new FFmpegNotFoundException("nowhere") };
-        await using var controller = new RecordingController(factory, RecordingFakes.Store());
+        await using var controller = new RecordingController(factory, RecordingFakes.Document());
 
         await controller.StartAsync();
 
@@ -129,7 +130,7 @@ public sealed class RecordingControllerTests
     public async Task StopAsync_EndsTheSession()
     {
         var factory = new FakeSessionFactory();
-        await using var controller = new RecordingController(factory, RecordingFakes.Store());
+        await using var controller = new RecordingController(factory, RecordingFakes.Document());
 
         await controller.StartAsync();
         await controller.StopAsync();
@@ -142,7 +143,7 @@ public sealed class RecordingControllerTests
     public async Task StopAsync_WithNothingRunning_DoesNothing()
     {
         var factory = new FakeSessionFactory();
-        await using var controller = new RecordingController(factory, RecordingFakes.Store());
+        await using var controller = new RecordingController(factory, RecordingFakes.Document());
 
         var raised = 0;
         controller.StateChanged += (_, _) => raised++;
@@ -157,7 +158,7 @@ public sealed class RecordingControllerTests
     public async Task StartAsync_AfterStop_BuildsAFreshSession()
     {
         var factory = new FakeSessionFactory();
-        await using var controller = new RecordingController(factory, RecordingFakes.Store());
+        await using var controller = new RecordingController(factory, RecordingFakes.Document());
 
         await controller.StartAsync();
         var first = factory.Last;
@@ -181,7 +182,7 @@ public sealed class RecordingControllerTests
     public async Task Progress_FromTheSession_ReachesSubscribers()
     {
         var factory = new FakeSessionFactory();
-        await using var controller = new RecordingController(factory, RecordingFakes.Store());
+        await using var controller = new RecordingController(factory, RecordingFakes.Document());
 
         var received = new TaskCompletionSource<RecordingProgress>(TaskCreationOptions.RunContinuationsAsynchronously);
         controller.Progress += (_, report) => received.TrySetResult(report);
@@ -198,7 +199,7 @@ public sealed class RecordingControllerTests
     public async Task DisposeAsync_StopsARunningSession()
     {
         var factory = new FakeSessionFactory();
-        var controller = new RecordingController(factory, RecordingFakes.Store());
+        var controller = new RecordingController(factory, RecordingFakes.Document());
 
         await controller.StartAsync();
         await controller.DisposeAsync();
@@ -209,16 +210,67 @@ public sealed class RecordingControllerTests
     [Fact]
     public async Task StartAsync_AfterDispose_Throws()
     {
-        var controller = new RecordingController(new FakeSessionFactory(), RecordingFakes.Store());
+        var controller = new RecordingController(new FakeSessionFactory(), RecordingFakes.Document());
         await controller.DisposeAsync();
 
         await Assert.ThrowsAsync<ObjectDisposedException>(controller.StartAsync);
     }
 
+    /// <summary>
+    /// The counter the session increments has to survive the session, or numbering restarts at 1
+    /// on the next run and every night lands on the previous night's file names.
+    /// </summary>
+    [Fact]
+    public async Task StopAsync_WritesTheFileCounterBackToTheSettingsFile()
+    {
+        var fileSystem = new MockFileSystem();
+        var document = RecordingFakes.Document(fileSystem);
+        var factory = new FakeSessionFactory();
+
+        await using var controller = new RecordingController(factory, document);
+
+        await controller.StartAsync();
+
+        // What the session does as recordings land.
+        factory.Last!.Settings.InternalOrderNumber = 9;
+
+        await controller.StopAsync();
+
+        Assert.Equal(9, document.Current.Output.CurrentFileCounter);
+        Assert.Equal(9, SettingsFakes.Reload(fileSystem).Output.CurrentFileCounter);
+    }
+
+    /// <summary>Stopping must not undo a settings edit made while the session was running.</summary>
+    [Fact]
+    public async Task StopAsync_KeepsSettingsChangedDuringTheSession()
+    {
+        var fileSystem = new MockFileSystem();
+        var document = RecordingFakes.Document(fileSystem);
+        var factory = new FakeSessionFactory();
+
+        await using var controller = new RecordingController(factory, document);
+
+        await controller.StartAsync();
+
+        document.Update(settings => settings with
+        {
+            Output = settings.Output with { Path = @"E:\Captures" },
+        });
+
+        factory.Last!.Settings.InternalOrderNumber = 4;
+
+        await controller.StopAsync();
+
+        var saved = SettingsFakes.Reload(fileSystem).Output;
+
+        Assert.Equal(@"E:\Captures", saved.Path);
+        Assert.Equal(4, saved.CurrentFileCounter);
+    }
+
     [Fact]
     public void Constructor_RejectsNulls()
     {
-        Assert.Throws<ArgumentNullException>(() => new RecordingController(null!, RecordingFakes.Store()));
+        Assert.Throws<ArgumentNullException>(() => new RecordingController(null!, RecordingFakes.Document()));
         Assert.Throws<ArgumentNullException>(() => new RecordingController(new FakeSessionFactory(), null!));
     }
 }

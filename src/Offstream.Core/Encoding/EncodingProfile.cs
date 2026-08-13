@@ -12,12 +12,21 @@ namespace Offstream.Core.Encoding;
 /// </param>
 /// <param name="SupportsBitrate">Whether the bitrate setting means anything for this format.</param>
 /// <param name="CoverArt">How, or whether, ffmpeg can attach cover art to this container.</param>
+/// <param name="ContainerArguments">
+/// Muxer flags, applied after the codec flags. Separate from <paramref name="CodecArguments"/>
+/// because they configure the file being written rather than the audio going into it.
+/// </param>
 public sealed record EncodingProfile(
     MediaFormat Format,
     string Extension,
     IReadOnlyList<string> CodecArguments,
     bool SupportsBitrate,
-    CoverArtSupport CoverArt);
+    CoverArtSupport CoverArt,
+    IReadOnlyList<string>? ContainerArguments = null)
+{
+    /// <inheritdoc cref="ContainerArguments"/>
+    public IReadOnlyList<string> ContainerArguments { get; init; } = ContainerArguments ?? [];
+}
 
 /// <summary>How a container takes embedded cover art.</summary>
 public enum CoverArtSupport
@@ -50,7 +59,15 @@ public static class EncodingProfiles
             "mp3",
             ["-c:a", "libmp3lame", "-b:a", "{rate}k"],
             SupportsBitrate: true,
-            CoverArtSupport.AttachedPicture),
+            CoverArtSupport.AttachedPicture,
+
+            // ID3v2.3, not ffmpeg's default of 2.4. Windows Explorer's thumbnail handler and
+            // Windows Media Player have never read v2.4 properly: the APIC picture is in the
+            // file and neither shows it, which is exactly the "art works in VLC and nowhere
+            // else" report. The predecessor tagged with TagLib#, which writes v2.3, so this is
+            // also what restores parity. Nothing is lost by it — the full date and "4/12"
+            // track numbers both survive, verified with ffprobe.
+            ContainerArguments: ["-id3v2_version", "3"]),
 
         [MediaFormat.Wav] = new(
             MediaFormat.Wav,

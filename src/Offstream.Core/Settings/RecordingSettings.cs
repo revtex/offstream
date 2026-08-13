@@ -1,4 +1,5 @@
 using System.Globalization;
+using Offstream.Core.Encoding;
 using Offstream.Core.Metadata;
 using Offstream.Core.Naming;
 
@@ -101,5 +102,11 @@ public sealed class RecordingSettings
     public int? OrderNumberAsTag => OrderNumberInMediaTagEnabled ? InternalOrderNumber : null;
 
     /// <summary>File extension for <see cref="MediaFormat"/>, without the dot.</summary>
-    public string MediaFormatExtension => MediaFormat.ToString().ToLowerInvariant();
+    /// <remarks>
+    /// Taken from the encoding profile rather than from the enum name, because for AAC the two
+    /// disagree: the profile encodes into an MP4 container, so the file is an <c>.m4a</c> and
+    /// naming it <c>.aac</c> — which lower-casing the enum member did — produced a file Windows
+    /// and most players refused to open.
+    /// </remarks>
+    public string MediaFormatExtension => EncodingProfiles.For(MediaFormat).Extension;
 }

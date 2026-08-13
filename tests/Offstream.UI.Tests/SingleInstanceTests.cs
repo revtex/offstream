@@ -65,23 +65,31 @@ public sealed class SingleInstanceTests
         Assert.NotNull(next);
     }
 
+    /// <summary>
+    /// The wait is registered with <c>executeOnlyOnce: false</c>. Getting that wrong would
+    /// surface the window on the second launch and silently ignore every launch after it.
+    /// </summary>
+    /// <remarks>
+    /// <b>Each signal is waited for before the next is sent, and that is not incidental.</b> The
+    /// activation handle is <see cref="EventResetMode.AutoReset"/>, so a second <c>Set</c> that
+    /// lands before the pool has run the callback for the first one is a no-op on an
+    /// already-signalled event — the two collapse into one activation. That is the behaviour
+    /// anyone would want (two launches racing each other should surface one window, not two),
+    /// but it means "signal twice, expect two callbacks" is only true when the machine happens to
+    /// schedule the callback in between. It did locally and did not on CI.
+    /// </remarks>
     [Fact]
     public void TryAcquire_SignalsRepeatedly()
     {
         var name = UniqueName();
-        var count = 0;
-        using var twice = new CountdownEvent(2);
-        using var first = SingleInstance.TryAcquire(
-            () => { Interlocked.Increment(ref count); twice.Signal(); },
-            name);
+        using var signalled = new SemaphoreSlim(0);
+        using var first = SingleInstance.TryAcquire(() => signalled.Release(), name);
 
         _ = SingleInstance.TryAcquire(() => { }, name);
-        _ = SingleInstance.TryAcquire(() => { }, name);
+        Assert.True(signalled.Wait(TimeSpan.FromSeconds(10)), "the first launch to be signalled");
 
-        // The wait is registered with executeOnlyOnce: false. Getting that wrong would surface
-        // the window on the second launch and silently ignore every launch after it.
-        Assert.True(twice.Wait(TimeSpan.FromSeconds(10)));
-        Assert.Equal(2, count);
+        _ = SingleInstance.TryAcquire(() => { }, name);
+        Assert.True(signalled.Wait(TimeSpan.FromSeconds(10)), "the second launch to be signalled");
     }
 
     [Fact]

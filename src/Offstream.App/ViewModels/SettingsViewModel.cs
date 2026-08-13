@@ -10,6 +10,8 @@ using Offstream.App.Services;
 using Offstream.Core.Audio;
 using Offstream.Core.Encoding;
 using Offstream.Core.Metadata;
+using Offstream.Core.Spotify.Auth;
+using Serilog;
 
 namespace Offstream.App.ViewModels;
 
@@ -66,6 +68,7 @@ public sealed partial class SettingsViewModel : ObservableValidator
     private readonly SettingsDocument _document;
     private readonly IAudioDeviceCatalog _catalog;
     private readonly IFolderPicker _folderPicker;
+    private readonly ISpotifyAccount _spotifyAccount;
 
     /// <summary>Suppresses saving while the page is being filled from the document.</summary>
     private bool _loading;
@@ -92,12 +95,30 @@ public sealed partial class SettingsViewModel : ObservableValidator
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsSpotifyProvider))]
+    [NotifyPropertyChangedFor(nameof(IsLastFmProvider))]
+    [NotifyPropertyChangedFor(nameof(NeedsLastFmApiKey))]
+    [NotifyCanExecuteChangedFor(nameof(SignInToSpotifyCommand))]
     private MetadataProvider _provider;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NeedsLastFmApiKey))]
+    private string _lastFmApiKey = string.Empty;
 
     [ObservableProperty]
     [NotifyDataErrorInfo]
     [CustomValidation(typeof(SettingsViewModel), nameof(ValidateSpotifyClientId))]
+    [NotifyCanExecuteChangedFor(nameof(SignInToSpotifyCommand))]
     private string _spotifyClientId = string.Empty;
+
+    /// <summary>Whether a Spotify refresh token is on file, i.e. whether sign-in has happened.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SpotifyAccountStatus))]
+    private bool _isSignedInToSpotify;
+
+    /// <summary>Set while the browser sign-in is open, so the button cannot be pressed twice.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SignInToSpotifyCommand))]
+    private bool _isSigningInToSpotify;
 
     /// <summary>Why the last save was refused, or null. Shown as an inline bar, not a dialog.</summary>
     [ObservableProperty]
@@ -107,15 +128,18 @@ public sealed partial class SettingsViewModel : ObservableValidator
     public SettingsViewModel(
         SettingsDocument document,
         IAudioDeviceCatalog catalog,
-        IFolderPicker folderPicker)
+        IFolderPicker folderPicker,
+        ISpotifyAccount spotifyAccount)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(folderPicker);
+        ArgumentNullException.ThrowIfNull(spotifyAccount);
 
         _document = document;
         _catalog = catalog;
         _folderPicker = folderPicker;
+        _spotifyAccount = spotifyAccount;
 
         Formats =
         [
@@ -160,6 +184,26 @@ public sealed partial class SettingsViewModel : ObservableValidator
     /// <summary>Whether the Spotify-specific fields apply.</summary>
     public bool IsSpotifyProvider => Provider == MetadataProvider.Spotify;
 
+    /// <summary>Whether the Last.fm-specific fields apply.</summary>
+    public bool IsLastFmProvider => Provider == MetadataProvider.LastFm;
+
+    /// <summary>
+    /// Last.fm is chosen but has no key, so nothing will be tagged.
+    /// </summary>
+    /// <remarks>
+    /// A warning rather than a validation error, unlike the Spotify Client ID next to it, and the
+    /// difference is not an oversight. Last.fm is the default provider, so a fresh install has
+    /// this state before the user has touched anything — and because <see cref="Persist"/>
+    /// refuses the whole document when any field is in error, making it an error would mean a
+    /// first run could not save its output folder until an unrelated API key was pasted in.
+    /// Spotify is only ever reached by choosing it.
+    /// </remarks>
+    public bool NeedsLastFmApiKey => IsLastFmProvider && string.IsNullOrWhiteSpace(LastFmApiKey);
+
+    /// <summary>Signed in, or not — the one thing about the account worth showing.</summary>
+    public string SpotifyAccountStatus =>
+        IsSignedInToSpotify ? Strings.SettingsSpotifySignedIn : Strings.SettingsSpotifyNotSignedIn;
+
     /// <summary>Whether <see cref="SaveProblem"/> has anything worth showing.</summary>
     public bool HasSaveProblem => !string.IsNullOrWhiteSpace(SaveProblem);
 
@@ -176,7 +220,9 @@ public sealed partial class SettingsViewModel : ObservableValidator
             Format = settings.Output.Format;
             MinimumLengthSeconds = settings.Recording.MinimumLengthSeconds.ToString(CultureInfo.CurrentCulture);
             Provider = settings.Metadata.Provider;
+            LastFmApiKey = settings.Metadata.LastFmApiKey ?? string.Empty;
             SpotifyClientId = settings.Metadata.SpotifyClientId ?? string.Empty;
+            IsSignedInToSpotify = !string.IsNullOrWhiteSpace(settings.Metadata.SpotifyRefreshToken);
 
             LoadBitrates(settings.Output.BitrateKbps);
             LoadDevices(settings.Recording.AudioEndpointDeviceId);
@@ -272,7 +318,62 @@ public sealed partial class SettingsViewModel : ObservableValidator
 
     partial void OnProviderChanged(MetadataProvider value) => Persist();
 
+    partial void OnLastFmApiKeyChanged(string value) => Persist();
+
     partial void OnSpotifyClientIdChanged(string value) => Persist();
+
+    /// <summary>Whether a browser sign-in can be started right now.</summary>
+    private bool CanSignInToSpotify() =>
+        IsSpotifyProvider && !IsSigningInToSpotify && !string.IsNullOrWhiteSpace(SpotifyClientId);
+
+    /// <summary>
+    /// Runs the PKCE sign-in in the user's browser and stores the refresh token it produces.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is what makes the Spotify provider work at all. The Client ID field alone identifies
+    /// an app; it grants nothing. Until this has run there is no token for the recording session
+    /// to present, so Spotify was selectable but could never tag anything.
+    /// </para>
+    /// <para>
+    /// The token is handed straight to <see cref="SettingsDocument"/>, which runs it through
+    /// DPAPI on the way to disk — it is never held in a property, because a property is bindable
+    /// and a bindable secret ends up on screen sooner or later.
+    /// </para>
+    /// </remarks>
+    [RelayCommand(CanExecute = nameof(CanSignInToSpotify))]
+    private async Task SignInToSpotifyAsync(CancellationToken cancellationToken)
+    {
+        IsSigningInToSpotify = true;
+        SaveProblem = null;
+
+        try
+        {
+            var refreshToken = await _spotifyAccount.SignInAsync(SpotifyClientId.Trim(), cancellationToken);
+
+            SaveProblem = _document.Update(settings => settings with
+            {
+                Metadata = settings.Metadata with { SpotifyRefreshToken = refreshToken },
+            });
+
+            IsSignedInToSpotify = SaveProblem is null;
+        }
+        catch (SpotifyAuthException ex)
+        {
+            // Shown on the page rather than logged and forgotten: the user is standing at the
+            // browser waiting to find out whether it worked.
+            Log.Warning(ex, "Signing in to Spotify did not complete.");
+            SaveProblem = ex.Message;
+        }
+        catch (OperationCanceledException)
+        {
+            // Navigating away or closing the window while the browser is open.
+        }
+        finally
+        {
+            IsSigningInToSpotify = false;
+        }
+    }
 
     /// <summary>Writes the page's fields back, when every one of them is usable.</summary>
     /// <remarks>
@@ -313,6 +414,7 @@ public sealed partial class SettingsViewModel : ObservableValidator
             Metadata = settings.Metadata with
             {
                 Provider = Provider,
+                LastFmApiKey = Trimmed(LastFmApiKey),
                 SpotifyClientId = Trimmed(SpotifyClientId),
             },
         });
@@ -369,4 +471,5 @@ public sealed partial class SettingsViewModel : ObservableValidator
             ? ValidationResult.Success
             : new ValidationResult(Strings.SettingsClientIdRequired);
     }
+
 }

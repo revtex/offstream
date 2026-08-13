@@ -91,7 +91,23 @@ phase plan these entries follow.
 - **A single-instance guard that surfaces the running window** instead of exiting silently. The
   claim is per logon session and per data directory, so a second Windows user gets their own
   Offstream, and `OFFSTREAM_HOME` relocates settings for portable use and for the UI suite.
-- **771 tests**, 13 of which drive the real window through FlaUI and are excluded from CI.
+- **Metadata actually reaches the file.** A `Last.fm` provider (`LastFmMetadataProvider`) and the
+  existing Spotify one are selected from the settings, run against each track as it starts
+  recording, and joined immediately before the encode is queued — so album, track number, disc,
+  year, genre and album artists reach ffmpeg's `-metadata` arguments, and the cover art is fetched
+  to a temp file and embedded. Enrichment overlaps the recording rather than following it, is
+  bounded by a deadline, and can never fail a recording.
+- **Spotify sign-in, on the Settings page.** The Client ID identifies an app and grants nothing;
+  this is what produces the refresh token a recording session presents. Spotify rotates that token
+  on every renewal, and the replacement is written back.
+- **A Last.fm API key setting** (`metadata.lastFmApiKey`), the user's own. The predecessor shipped
+  three of its own keys hard-coded in its source and picked one at random per run.
+- **Tags the predecessor never wrote.** Genres from Last.fm's top tags (the three most-applied,
+  since the tail of a tag cloud is listener bookkeeping rather than genre); the release date at
+  Spotify's own precision, alongside the year the `{year}` token needs; the album's track total,
+  so the track tag reads `4/12` and a player can tell a partial rip from a complete album; and
+  the album's copyright line, preferring the recording's over the composition's.
+- **860 tests**, 14 of which drive the real window through FlaUI and are excluded from CI.
 
 ### Changed
 
@@ -172,6 +188,59 @@ phase plan these entries follow.
 - **The last chunk of a recording could be lost on a fast track change.** Two recorders share one
   capture buffer across a change, and the incoming one discarded its contents without waiting for
   the outgoing one to finish reading its own tail out of it.
+- **No metadata was written to any recording.** The provider dropdown was read, validated and
+  saved, and then consulted by nobody: the recorder built its encode request straight from the
+  `Track` scraped from the Spotify window title, so every file carried an artist and a title and
+  nothing else. `SpotifyMetadataProvider` existed but nothing resolved it, no Last.fm provider
+  class existed at all, and the cover-art path was always null because nothing fetched the art.
+- **The Spotify provider could never have worked**, whatever was configured. Nothing resolved
+  `SpotifyAuthenticator`, so no refresh token was ever obtained, so a session had nothing to
+  present to the API.
+- **AAC output was named `.aac` but was an m4a file.** The file name came from the lower-cased
+  enum member while the encoding profile writes an MP4 container, producing a file Windows and
+  most players refuse to open. The extension now comes from the profile.
+- **The file counter restarted at 1 on every run.** The session increments it as recordings land,
+  on its own working copy of the settings, and nothing wrote it back — so each night's recordings
+  landed on the previous night's names and the "have I already recorded this?" check answered for
+  the wrong file.
+- **Album art was invisible everywhere except VLC.** MP3s were tagged as ID3v2.4, ffmpeg's
+  default; Windows Explorer's thumbnail handler and Windows Media Player have never read v2.4
+  cover art, so the picture was in the file and neither showed it. The predecessor tagged with
+  TagLib#, which writes v2.3 — hence the regression. MP3 output now pins `-id3v2_version 3`.
+  Nothing is lost by it: the full release date and `4/12` track numbers both survive.
+- **The `artist` tag repeated the album artist and dropped featured performers.** It was built
+  from `Track.Artists`, which returns the album artists whenever a provider has supplied them —
+  so `artist` and `album_artist` were identical on every enriched file. It now credits the
+  track's own performers, as the predecessor's TPE1/TPE2 split did. File names are unaffected;
+  the `{artist}` template token still renders from `Track.Artists`.
+- **Spotify tagged nothing on tracks whose boundary caught its backend mid-change.** The window
+  title advances the instant the desktop client does, while `/v1/me/player/currently-playing` is
+  served from player state that trails it by a second or more — so asking once at the boundary
+  returns the *previous* track, the title-match guard correctly refuses it, and the recording is
+  saved bare. The predecessor waited before its first poll and retried a second later; the port
+  kept the guard and dropped the retry. Both are back, with a momentary empty answer treated as
+  the same race rather than as "nothing is playing". A podcast episode still fails immediately —
+  retrying could not change that answer.
+- **The Record page grew taller than its window, so the log never scrolled.** WPF-UI's
+  `NavigationViewContentPresenter` wraps a page in a `DynamicScrollViewer` whenever its
+  `ScrollViewer.CanContentScroll` is true — which that control's own static constructor makes the
+  default — and inside it the page is measured with infinite height. The log's star row resolved
+  to its content's size instead of the viewport, so the list realised every retained line and ran
+  off the bottom of the window, with tail-following silently doing nothing.
+- **The activity log grew for the life of the session instead of scrolling.** The in-memory sink
+  keeps the last 2000 lines and the page's backing buffer trimmed with it, but the collection
+  actually bound to the list never dropped its oldest entry — so an overnight session ended with
+  a pane holding far more lines than had been retained. Both now trim in lockstep, and a line the
+  filter hides no longer evicts one it shows.
+- **A single day's log file had no size ceiling.** The daily roll bounds the file count, not the
+  size of any one file. It now rolls at 16 MB as well, which caps the log directory at seven
+  files rather than seven days of unbounded writing.
+- **Nothing tagged from Last.fm ever carried a genre.** The mapper hard-coded an empty array and
+  never read the `toptags` node. Since Spotify has also stopped returning album genres for most
+  of its catalogue, the genre tag was empty whichever provider was chosen.
+- **The "write the counter to the track number" setting did nothing.** It is now applied to the
+  tag, without disturbing the `{track}` filename token, which keeps meaning the position within
+  the album.
 
 ### Security
 

@@ -28,7 +28,19 @@ public sealed class SpotifyMetadataProviderTests
             Client.SetupGet(x => x.Albums).Returns(Albums.Object);
         }
 
-        public SpotifyMetadataProvider Provider => new(Client.Object);
+        /// <summary>Real behaviour, test timings: the delays are the only thing shortened.</summary>
+        public SpotifyMetadataProvider Provider =>
+            new(Client.Object, new SpotifyPollingOptions(TimeSpan.Zero, TimeSpan.Zero, MaximumAttempts: 4));
+
+        /// <summary>Answers with each playback in turn, repeating the last one thereafter.</summary>
+        public void ReturnsPlaybackInTurn(params CurrentlyPlaying?[] answers)
+        {
+            var call = 0;
+
+            Player
+                .Setup(x => x.GetCurrentlyPlaying(It.IsAny<PlayerCurrentlyPlayingRequest>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(() => answers[Math.Min(call++, answers.Length - 1)]!);
+        }
 
         public void ReturnsPlayback(CurrentlyPlaying? playback) =>
             Player
@@ -47,6 +59,7 @@ public sealed class SpotifyMetadataProviderTests
         TrackNumber = 4,
     };
 
+    /// <summary>Nothing playing at all — as opposed to the momentary gap covered further down.</summary>
     [Fact]
     public async Task EnrichAsync_WithNothingPlaying_ReturnsFalseAndLeavesTheTrackAlone()
     {
@@ -54,37 +67,6 @@ public sealed class SpotifyMetadataProviderTests
         harness.ReturnsPlayback(null); // 204 No Content deserializes to null.
 
         var track = DetectedTrack();
-        var enriched = await harness.Provider.EnrichAsync(track);
-
-        Assert.False(enriched);
-        Assert.Equal("Title", track.Title);
-        Assert.Null(track.AlbumPosition);
-    }
-
-    /// <summary><see cref="CurrentlyPlaying.Item"/> can be an episode; only tracks are mapped.</summary>
-    [Fact]
-    public async Task EnrichAsync_WhenAPodcastEpisodeIsPlaying_ReturnsFalse()
-    {
-        var harness = new Harness();
-        harness.ReturnsPlayback(new CurrentlyPlaying { IsPlaying = true, Item = new FullEpisode { Name = "Episode" } });
-
-        var enriched = await harness.Provider.EnrichAsync(DetectedTrack());
-
-        Assert.False(enriched);
-    }
-
-    /// <summary>
-    /// Detection and this enrichment race independently: by the time this call returns, the
-    /// window title may already have moved on. Mapping mismatched metadata onto the wrong
-    /// track would be worse than mapping nothing.
-    /// </summary>
-    [Fact]
-    public async Task EnrichAsync_WhenSpotifyReportsADifferentTrack_ReturnsFalseAndLeavesTheTrackAlone()
-    {
-        var harness = new Harness();
-        harness.ReturnsPlayback(new CurrentlyPlaying { IsPlaying = true, Item = PlayingTrack("A Different Song") });
-
-        var track = DetectedTrack("Title");
         var enriched = await harness.Provider.EnrichAsync(track);
 
         Assert.False(enriched);
@@ -130,6 +112,91 @@ public sealed class SpotifyMetadataProviderTests
         Assert.Equal(4, track.AlbumPosition);
         Assert.Equal("Album Name", track.Album);
         Assert.Equal(2020, track.Year);
+    }
+
+    /// <summary>
+    /// The bug this retry exists for: at a track boundary the window title has already advanced
+    /// while <c>currently-playing</c> is still serving the previous track, so the first answer is
+    /// the wrong one and the guard rejects it.
+    /// </summary>
+    /// <remarks>
+    /// Asking once meant every track whose boundary landed inside that lag was saved bare — the
+    /// reference retried a second later for exactly this reason and the port dropped it.
+    /// </remarks>
+    [Fact]
+    public async Task EnrichAsync_WhenSpotifyIsStillOnThePreviousTrack_AsksAgainAndTags()
+    {
+        var harness = new Harness();
+
+        harness.ReturnsPlaybackInTurn(
+            new CurrentlyPlaying { IsPlaying = true, Item = PlayingTrack("The Previous Song") },
+            new CurrentlyPlaying { IsPlaying = true, Item = PlayingTrack("Title") });
+
+        harness.ReturnsAlbum("album-1", new FullAlbum
+        {
+            Name = "Album Name",
+            Artists = [],
+            Genres = [],
+            Images = [],
+            ReleaseDate = "2020",
+        });
+
+        var track = DetectedTrack();
+        var enriched = await harness.Provider.EnrichAsync(track);
+
+        Assert.True(enriched);
+        Assert.Equal("Album Name", track.Album);
+        Assert.Equal(4, track.AlbumPosition);
+    }
+
+    /// <summary>A 204 at the boundary is the same race, not an answer of "nothing is playing".</summary>
+    [Fact]
+    public async Task EnrichAsync_WhenPlaybackIsMomentarilyEmpty_AsksAgainAndTags()
+    {
+        var harness = new Harness();
+
+        harness.ReturnsPlaybackInTurn(
+            null,
+            new CurrentlyPlaying { IsPlaying = true, Item = PlayingTrack("Title", albumId: "") });
+
+        var enriched = await harness.Provider.EnrichAsync(DetectedTrack());
+
+        Assert.True(enriched);
+    }
+
+    /// <summary>The chase is bounded — a genuinely different track must not be waited on forever.</summary>
+    [Fact]
+    public async Task EnrichAsync_WhenTheMismatchPersists_GivesUpAfterTheAttemptBudget()
+    {
+        var harness = new Harness();
+        harness.ReturnsPlayback(new CurrentlyPlaying { IsPlaying = true, Item = PlayingTrack("A Different Song") });
+
+        var track = DetectedTrack("Title");
+        var enriched = await harness.Provider.EnrichAsync(track);
+
+        Assert.False(enriched);
+        Assert.Equal("Title", track.Title);
+        Assert.Null(track.AlbumPosition);
+
+        harness.Player.Verify(
+            x => x.GetCurrentlyPlaying(It.IsAny<PlayerCurrentlyPlayingRequest>(), It.IsAny<CancellationToken>()),
+            Times.Exactly(4));
+    }
+
+    /// <summary>
+    /// A podcast episode is not a track and never will be, so retrying only wastes the deadline.
+    /// </summary>
+    [Fact]
+    public async Task EnrichAsync_WhenAPodcastEpisodeIsPlaying_DoesNotRetry()
+    {
+        var harness = new Harness();
+        harness.ReturnsPlayback(new CurrentlyPlaying { IsPlaying = true, Item = new FullEpisode { Name = "Episode" } });
+
+        Assert.False(await harness.Provider.EnrichAsync(DetectedTrack()));
+
+        harness.Player.Verify(
+            x => x.GetCurrentlyPlaying(It.IsAny<PlayerCurrentlyPlayingRequest>(), It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]

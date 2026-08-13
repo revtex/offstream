@@ -1,20 +1,44 @@
 using Offstream.Core.Spotify;
+using Serilog;
 using SpotifyAPI.Web;
 
 namespace Offstream.Core.Metadata.Providers;
 
 /// <summary>Fetches the currently-playing track and its album from Spotify, and maps them onto a <see cref="Track"/>.</summary>
-public interface ISpotifyMetadataProvider
+/// <remarks>
+/// <para>
+/// Narrower than <see cref="IMetadataProvider"/> on purpose: it names the Spotify provider
+/// specifically, for anything that needs that one rather than whichever one is configured.
+/// </para>
+/// <para>
+/// <see cref="IMetadataProvider.EnrichAsync"/> returns false here for every case that is not an
+/// error — nothing is playing, what is playing is a podcast episode rather than a track, or what
+/// Spotify reports no longer matches the track that was detected from the window title.
+/// </para>
+/// </remarks>
+public interface ISpotifyMetadataProvider : IMetadataProvider;
+
+/// <summary>How hard to chase Spotify's player state at a track boundary.</summary>
+/// <param name="SettleDelay">How long the backend gets before the first poll.</param>
+/// <param name="RetryDelay">How long to wait before asking again after a mismatch.</param>
+/// <param name="MaximumAttempts">Polls in total, counting the first.</param>
+/// <remarks>
+/// Injectable so tests can exercise the retry without waiting out the real delays; the recording
+/// pipeline always takes <see cref="Default"/>.
+/// </remarks>
+public sealed record SpotifyPollingOptions(TimeSpan SettleDelay, TimeSpan RetryDelay, int MaximumAttempts)
 {
     /// <summary>
-    /// Enriches <paramref name="track"/> in place.
+    /// The reference's timings, with a longer tail.
     /// </summary>
-    /// <returns>
-    /// Whether anything was written. False covers every case that is not an error — nothing is
-    /// playing, what is playing is a podcast episode rather than a track, or what Spotify
-    /// reports no longer matches the track that was detected from the window title.
-    /// </returns>
-    Task<bool> EnrichAsync(Track track, CancellationToken cancellationToken = default);
+    /// <remarks>
+    /// It waited 100ms before the first poll and retried once a second later. Four attempts here
+    /// because the whole thing is bounded by <see cref="TrackEnricher.DefaultDeadline"/> and runs
+    /// concurrently with a recording that lasts minutes — roughly three seconds of chasing costs
+    /// nothing and covers a backend that is slower than usual to advance.
+    /// </remarks>
+    public static SpotifyPollingOptions Default { get; } =
+        new(TimeSpan.FromMilliseconds(100), TimeSpan.FromSeconds(1), MaximumAttempts: 4);
 }
 
 /// <summary>
@@ -23,36 +47,76 @@ public interface ISpotifyMetadataProvider
 /// </summary>
 /// <remarks>
 /// <para>
-/// Deliberately narrower than the original. That method also retried on a delay, fell back to
-/// Last.fm and reopened the auth dialog after repeated failures — orchestration that belongs
-/// with whatever in the recording pipeline actually calls this, not in the HTTP-fetch-and-map
-/// step itself. It is not wired into <c>RecordingSession</c> yet; that is provider-selection
-/// work for Phase 5 (settings) and Phase 6 (the shell), once there is a UI to choose Spotify
-/// over Last.fm in the first place.
+/// Narrower than the original, which also fell back to Last.fm and reopened the auth dialog after
+/// repeated failures — orchestration that belongs with the caller, not with the fetch-and-map step.
 /// </para>
 /// <para>
-/// <b>The title-match guard is kept.</b> Detection and this enrichment race independently: by
-/// the time this call returns, the window title may have already moved to the next track. The
-/// reference's <c>IsPlaybackTrackDetectedTrack</c> check — does what Spotify just reported
-/// still match what was detected? — stops that race from tagging one track with another's
-/// metadata, and is reproduced exactly.
+/// <b>The title-match guard is kept, and so is the retry that makes it usable.</b> Detection and
+/// this enrichment race independently, and they race against Spotify's own backend: the window
+/// title changes the instant the desktop client advances, while
+/// <c>/v1/me/player/currently-playing</c> is served from player state that trails it by a second
+/// or more. Asking once at the track boundary therefore gets the *previous* track back, the guard
+/// correctly refuses to tag the new recording with it, and the track is saved bare. The reference
+/// handled this with a settle delay before the first poll and one retry a second later; both are
+/// reproduced here, with the retry allowed a few attempts because
+/// <see cref="TrackEnricher.DefaultDeadline"/> gives it far more room than the reference had.
+/// </para>
+/// <para>
+/// The same race produces a 204 with no body when the boundary is caught mid-swap, so that answer
+/// is retried too rather than taken as "nothing is playing".
 /// </para>
 /// </remarks>
-public sealed class SpotifyMetadataProvider(ISpotifyClient client) : ISpotifyMetadataProvider
+public sealed class SpotifyMetadataProvider(ISpotifyClient client, SpotifyPollingOptions? polling = null)
+    : ISpotifyMetadataProvider
 {
+    private readonly SpotifyPollingOptions _polling = polling ?? SpotifyPollingOptions.Default;
+
+    /// <inheritdoc />
+    public MetadataProvider Kind => MetadataProvider.Spotify;
+
     /// <inheritdoc />
     public async Task<bool> EnrichAsync(Track track, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(track);
 
-        var playback = await client.Player.GetCurrentlyPlaying(
-            new PlayerCurrentlyPlayingRequest(), cancellationToken);
+        await Task.Delay(_polling.SettleDelay, cancellationToken);
 
-        // A 204 with no body — nothing is playing — deserializes to null rather than throwing.
-        if (playback?.Item is not FullTrack spotifyTrack) return false;
+        for (var attempt = 1; ; attempt++)
+        {
+            var playback = await client.Player.GetCurrentlyPlaying(
+                new PlayerCurrentlyPlayingRequest(), cancellationToken);
 
-        if (!MatchesDetectedTrack(track, spotifyTrack)) return false;
+            // A 204 with no body — nothing is playing — deserializes to null rather than throwing.
+            var reported = playback?.Item as FullTrack;
 
+            if (reported is not null && MatchesDetectedTrack(track, reported))
+                return await ApplyAsync(track, reported, cancellationToken);
+
+            // A podcast episode is not a track and never will be, whatever we ask again.
+            if (playback?.Item is not null && reported is null) return false;
+
+            if (attempt >= _polling.MaximumAttempts)
+            {
+                Log.Debug(
+                    "Spotify still reported {Reported} for {Track} after {Attempts} attempts.",
+                    Describe(reported),
+                    track,
+                    attempt);
+
+                return false;
+            }
+
+            Log.Debug(
+                "Spotify reported {Reported} while {Track} was detected; asking again.",
+                Describe(reported),
+                track);
+
+            await Task.Delay(_polling.RetryDelay, cancellationToken);
+        }
+    }
+
+    private async Task<bool> ApplyAsync(Track track, FullTrack spotifyTrack, CancellationToken cancellationToken)
+    {
         SpotifyTrackMapper.Apply(track, spotifyTrack);
 
         var albumId = spotifyTrack.Album?.Id;
@@ -75,4 +139,7 @@ public sealed class SpotifyMetadataProvider(ISpotifyClient client) : ISpotifyMet
 
         return SpotifyTitleParser.TagAt(titleTags, 1) == track.Title;
     }
+
+    /// <summary>What Spotify answered, for a log line that can actually be diagnosed.</summary>
+    private static string Describe(FullTrack? reported) => reported?.Name ?? "nothing playing";
 }

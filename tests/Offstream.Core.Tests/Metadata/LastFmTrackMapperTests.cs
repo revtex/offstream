@@ -166,4 +166,39 @@ public sealed class LastFmTrackMapperTests
     [InlineData("7", 7)]
     public void TrackPosition_ParsesLeniently(string? position, int? expected) =>
         Assert.Equal(expected, new LastFmAlbum { Position = position }.TrackPosition);
+
+    /// <summary>
+    /// The reference never read <c>toptags</c> and hard-coded an empty genre array, so nothing
+    /// tagged from Last.fm ever carried a genre.
+    /// </summary>
+    [Fact]
+    public void Apply_TakesGenresFromTheTopTags()
+    {
+        var track = WindowTitleTrack();
+
+        LastFmTrackMapper.Apply(track, new LastFmTrack { TopTags = Tags("Rock", "Indie") });
+
+        Assert.Equal(["Rock", "Indie"], track.Genres!);
+    }
+
+    /// <summary>
+    /// Last.fm tags are a folksonomy, so the tail of the cloud is listener bookkeeping
+    /// ("seen live", "favourites") rather than genre. Only the most-applied few are written.
+    /// </summary>
+    [Fact]
+    public void ChooseGenres_KeepsOnlyTheMostAppliedThree() =>
+        Assert.Equal(
+            ["Rock", "Indie", "90s"],
+            LastFmTrackMapper.ChooseGenres(Tags("Rock", "Indie", "90s", "seen live", "favourites")));
+
+    [Fact]
+    public void ChooseGenres_TrimsAndDropsBlankTags() =>
+        Assert.Equal(["Rock", "Indie"], LastFmTrackMapper.ChooseGenres(Tags("  Rock ", "", "   ", "Indie")));
+
+    [Fact]
+    public void ChooseGenres_WithNoTopTagsNode_IsEmpty() =>
+        Assert.Empty(LastFmTrackMapper.ChooseGenres(null));
+
+    private static LastFmTopTags Tags(params string[] names) =>
+        new() { Tags = [.. names.Select(name => new LastFmTag { Name = name })] };
 }
