@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Automation.Peers;
 using System.Windows.Media;
 using Offstream.Core.Audio;
 
@@ -87,6 +88,18 @@ public sealed class WaveformView : FrameworkElement
         set => SetValue(FillProperty, value);
     }
 
+    /// <summary>
+    /// Puts the control in the automation tree, which a bare element is not.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="FrameworkElement"/> creates no peer of its own, so without this the meter is
+    /// invisible to assistive technology and to the UI suite alike — and the
+    /// <c>AutomationProperties.Name</c> the page sets on it would never reach anything. Reported
+    /// as an image rather than a progress bar: it is a picture of the signal, and claiming a
+    /// progress bar would promise a range pattern and a value that this has no meaning for.
+    /// </remarks>
+    protected override AutomationPeer OnCreateAutomationPeer() => new WaveformViewAutomationPeer(this);
+
     protected override void OnRender(DrawingContext drawingContext)
     {
         ArgumentNullException.ThrowIfNull(drawingContext);
@@ -168,5 +181,17 @@ public sealed class WaveformView : FrameworkElement
         _count = Math.Min(_count + 1, Capacity);
 
         InvalidateVisual();
+    }
+
+    /// <summary>Reports the meter to automation clients as a named image.</summary>
+    private sealed class WaveformViewAutomationPeer(WaveformView owner) : FrameworkElementAutomationPeer(owner)
+    {
+        protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.Image;
+
+        protected override string GetClassNameCore() => nameof(WaveformView);
+
+        // Without this the peer is treated as scenery and never surfaces in the control view,
+        // which is the tree both a screen reader and the UI suite walk.
+        protected override bool IsContentElementCore() => true;
     }
 }

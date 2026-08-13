@@ -44,9 +44,8 @@ phase plan these entries follow.
   `METADATA_BLOCK_PICTURE` support is unreliable.
 - **Filename templates** with folder levels, a counter, and 260-character path budgeting.
 - **Last.fm metadata mapping**, driven by fixtures rather than the live API.
-- **475 tests**, including ffmpeg argument golden tests and encode-integration tests that
-  assert with `ffprobe`, and a naming-hygiene test that fails the build on an identifier
-  inherited from the predecessor.
+- **ffmpeg argument golden tests and encode-integration tests** that assert with `ffprobe`, plus
+  a naming-hygiene test that fails the build on an identifier inherited from the predecessor.
 - **Spotify Web API metadata, on PKCE.** `SpotifyTrackMapper` maps `FullTrack`/`FullAlbum` onto
   a `Track`; `SpotifyMetadataProvider` fetches the currently-playing track and its album and
   applies the mapping, guarded by the same title-match check the predecessor used to stop a
@@ -70,6 +69,29 @@ phase plan these entries follow.
 - **DPAPI protection for the Spotify refresh token** (`CurrentUser` scope) before it reaches
   disk. A token that will not decrypt — a copied file, a different Windows user — is treated as
   "sign in again" rather than as a corrupt settings file, so every other preference survives.
+- **The WPF shell** — a Fluent `NavigationView` with Record, Settings and Advanced tabs, pages
+  and ViewModels resolved from the DI container, dark mode following the system theme, and
+  high-contrast schemes mapped rather than flattened to light.
+- **A live waveform on the Record page.** Nothing else on that page proves audio is arriving:
+  status, track and elapsed all come from Spotify's window title, which keeps changing whether
+  or not a sample reaches the encoder. The meter is drained by the UI at a fixed 30 Hz rather
+  than pushed from capture, so a decoration costs the capture thread nothing.
+- **An activity log on the Record page** with a level filter and copy-what-you-see, replayed
+  from the in-memory sink so it is populated before the page is first shown.
+- **Settings and Advanced pages** covering output folder, device, format, bitrate, minimum
+  length, metadata provider, filename template with a token reference and a live preview
+  rendered by the recorder's own naming code, existing-file policy, counter, detection options,
+  tag options, timer, language and the ffmpeg path.
+- **Inline validation via `INotifyDataErrorInfo`, and no OK button.** A valid edit is saved when
+  the field commits; an invalid one is refused next to the field and never reaches the disk.
+- **English and French resources** with a key-parity test, and a test that fails the build if a
+  resource key carries an identifier inherited from the predecessor.
+- **A tray icon with a menu**, shown only while the window is hidden there, coloured red while a
+  recording is running — the one state the user cannot otherwise see.
+- **A single-instance guard that surfaces the running window** instead of exiting silently. The
+  claim is per logon session and per data directory, so a second Windows user gets their own
+  Offstream, and `OFFSTREAM_HOME` relocates settings for portable use and for the UI suite.
+- **771 tests**, 13 of which drive the real window through FlaUI and are excluded from CI.
 
 ### Changed
 

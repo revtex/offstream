@@ -45,6 +45,7 @@
         <StackPanel Grid.IsSharedSizeScope="True" Margin="{StaticResource OffstreamPagePadding}">
 
             <ui:InfoBar Margin="{StaticResource OffstreamStackGap}"
+                        AutomationProperties.AutomationId="AdvancedSaveProblem"
                         IsClosable="False"
                         IsOpen="{Binding HasSaveProblem, Mode=OneWay}"
                         Message="{Binding SaveProblem, Mode=OneWay}"
@@ -81,13 +82,18 @@
                             is a preview of the previous template.
                         -->
                         <ui:TextBox x:Name="TemplateBox"
+                                    AutomationProperties.AutomationId="AdvancedTemplate"
+                                    AutomationProperties.Name="{x:Static res:Strings.AdvancedTemplateLabel}"
                                     FontFamily="{StaticResource OffstreamMonoFontFamily}"
                                     Text="{Binding Template, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" />
                         <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=TemplateBox, Path=(Validation.Errors)/ErrorContent}" />
 
                         <StackPanel Margin="0,8,0,0" Orientation="Horizontal">
-                            <ui:Button Command="{Binding ResetTemplateCommand}" Content="{x:Static res:Strings.AdvancedTemplateDefault}" />
+                            <ui:Button AutomationProperties.AutomationId="AdvancedTemplateDefaultButton"
+                                       Command="{Binding ResetTemplateCommand}"
+                                       Content="{x:Static res:Strings.AdvancedTemplateDefault}" />
                             <ui:Button Margin="8,0,0,0"
+                                       AutomationProperties.AutomationId="AdvancedTemplateGroupedButton"
                                        Command="{Binding UseGroupedTemplateCommand}"
                                        Content="{x:Static res:Strings.AdvancedTemplateGrouped}" />
                         </StackPanel>
@@ -110,6 +116,7 @@
                                Width="360"
                                Margin="0,16,0,0"
                                VerticalAlignment="Center"
+                               AutomationProperties.AutomationId="AdvancedTemplatePreview"
                                FontFamily="{StaticResource OffstreamMonoFontFamily}"
                                FontSize="{StaticResource OffstreamMonoFontSize}"
                                Text="{Binding TemplatePreview, Mode=OneWay}"
@@ -148,6 +155,8 @@
                         <ui:TextBox x:Name="CounterBox"
                                     Width="120"
                                     HorizontalAlignment="Left"
+                                    AutomationProperties.AutomationId="AdvancedFileCounter"
+                                    AutomationProperties.Name="{x:Static res:Strings.AdvancedCounterLabel}"
                                     Text="{Binding FileCounter, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
                         <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=CounterBox, Path=(Validation.Errors)/ErrorContent}" />
                         <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.AdvancedCounterHint}" />
@@ -165,6 +174,8 @@
                               Grid.Column="1"
                               Width="360"
                               Margin="0,16,0,0"
+                              AutomationProperties.AutomationId="AdvancedExistingFilePolicy"
+                              AutomationProperties.Name="{x:Static res:Strings.AdvancedExistingLabel}"
                               DisplayMemberPath="Name"
                               ItemsSource="{Binding Policies, Mode=OneTime}"
                               SelectedValue="{Binding ExistingFilePolicy, Mode=TwoWay}"
@@ -197,6 +208,7 @@
 
                     <ui:ToggleSwitch Grid.Row="0"
                                      Grid.Column="1"
+                                     AutomationProperties.AutomationId="AdvancedMuteAds"
                                      AutomationProperties.Name="{x:Static res:Strings.AdvancedMuteAds}"
                                      IsChecked="{Binding MuteAds, Mode=TwoWay}" />
 
@@ -212,6 +224,7 @@
                                      Grid.Column="1"
                                      Margin="0,16,0,0"
                                      VerticalAlignment="Center"
+                                     AutomationProperties.AutomationId="AdvancedRecordEverything"
                                      AutomationProperties.Name="{x:Static res:Strings.AdvancedRecordEverything}"
                                      IsChecked="{Binding RecordEverything, Mode=TwoWay}" />
 
@@ -232,6 +245,7 @@
                     <ui:ToggleSwitch Grid.Row="2"
                                      Grid.Column="1"
                                      Margin="0,16,0,0"
+                                     AutomationProperties.AutomationId="AdvancedRecordAds"
                                      AutomationProperties.Name="{x:Static res:Strings.AdvancedRecordAds}"
                                      IsChecked="{Binding RecordAds, Mode=TwoWay}"
                                      IsEnabled="{Binding CanRecordAds, Mode=OneWay}" />
@@ -250,12 +264,15 @@
                                 Margin="0,16,0,0">
                         <StackPanel Orientation="Horizontal">
                             <ui:ToggleSwitch VerticalAlignment="Center"
+                                             AutomationProperties.AutomationId="AdvancedTimerEnabled"
                                              AutomationProperties.Name="{x:Static res:Strings.AdvancedTimerEnabled}"
                                              IsChecked="{Binding IsTimerEnabled, Mode=TwoWay}" />
                             <ui:TextBox x:Name="TimerBox"
                                         Width="120"
                                         Margin="8,0,0,0"
                                         VerticalAlignment="Center"
+                                        AutomationProperties.AutomationId="AdvancedTimer"
+                                        AutomationProperties.Name="{x:Static res:Strings.AdvancedTimerEnabled}"
                                         FontFamily="{StaticResource OffstreamMonoFontFamily}"
                                         IsEnabled="{Binding IsTimerEnabled, Mode=OneWay}"
                                         Text="{Binding Timer, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
@@ -281,6 +298,7 @@
 
                     <ui:ToggleSwitch Grid.Column="1"
                                      VerticalAlignment="Center"
+                                     AutomationProperties.AutomationId="AdvancedWriteCounter"
                                      AutomationProperties.Name="{x:Static res:Strings.AdvancedWriteCounter}"
                                      IsChecked="{Binding WriteCounterToTrackNumber, Mode=TwoWay}" />
                 </Grid>
@@ -310,6 +328,7 @@
 
                     <ui:ToggleSwitch Grid.Row="0"
                                      Grid.Column="1"
+                                     AutomationProperties.AutomationId="AdvancedMinimizeToTray"
                                      AutomationProperties.Name="{x:Static res:Strings.AdvancedMinimizeToTray}"
                                      IsChecked="{Binding MinimizeToTray, Mode=TwoWay}" />
 
@@ -325,7 +344,9 @@
                                 Grid.Column="1"
                                 Width="360"
                                 Margin="0,16,0,0">
-                        <ComboBox DisplayMemberPath="Name"
+                        <ComboBox AutomationProperties.AutomationId="AdvancedLanguage"
+                                  AutomationProperties.Name="{x:Static res:Strings.AdvancedLanguageLabel}"
+                                  DisplayMemberPath="Name"
                                   ItemsSource="{Binding Languages, Mode=OneTime}"
                                   SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}" />
                         <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.AdvancedLanguageRestart}" />
@@ -343,7 +364,10 @@
                                 Grid.Column="1"
                                 Width="360"
                                 Margin="0,16,0,0">
-                        <ui:TextBox x:Name="FfmpegBox" Text="{Binding FfmpegPath, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
+                        <ui:TextBox x:Name="FfmpegBox"
+                                    AutomationProperties.AutomationId="AdvancedFfmpegPath"
+                                    AutomationProperties.Name="{x:Static res:Strings.AdvancedFfmpegLabel}"
+                                    Text="{Binding FfmpegPath, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
                         <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=FfmpegBox, Path=(Validation.Errors)/ErrorContent}" />
 
                         <!-- Which ffmpeg an empty box resolves to, since that is the usual case. -->

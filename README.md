@@ -6,15 +6,20 @@ Offstream succeeds **Spytify**, the .NET Framework 4.6.1 / WinForms application 
 
 ## Status
 
-**Phases 0 and 1 complete**, with one gap carried forward. The solution builds and runs; the recording pipeline arrives in Phase 2.
+**Phases 0–6 complete.** The app records: pick a folder and a format, press Start, and tracks land on disk with their tags written. Phase 7 (SMTC track detection, device hot-plug, long paths) is next.
 
 ```powershell
-.\build.ps1 -Clean -Test -IncludeDesktop     # 14/14 green
-dotnet run --project spike/Offstream.Spike -- accept --seconds 30
+.\build.ps1 -Clean -Test -IncludeDesktop     # 771/771 green
+dotnet run --project src/Offstream.App
 ```
 
 - **Phase 0** — the retarget spike: 8/8 checks green on Windows 11 build 26200, unelevated. Endpoint enumeration, `IAudioPolicyConfig` binding, routing a process to an endpoint and back, session mute, and 30 s of WASAPI loopback capture verified non-silent.
 - **Phase 1** — six projects, CI, analyzers as errors, Serilog, and a WPF-UI Fluent shell that launches and is driven by a FlaUI test.
+- **Phases 2–3** — the reference suite green on .NET 10, then the recording pipeline: capture, track detection, and ffmpeg encoding to MP3/WAV/FLAC/AAC/Ogg/Opus with tags and cover art.
+- **Phase 4** — Spotify Web API metadata over PKCE, with the refresh token protected by DPAPI.
+- **Phase 5** — settings at `%APPDATA%\Offstream\settings.json`: grouped schema, atomic writes, no importer for the predecessor's file.
+- **Phase 6** — the shell: Record, Settings and Advanced tabs, inline validation, en/fr resources, a live waveform so silence is visible while it is happening, tray icon and single-instance guard.
+
 **Offstream targets Windows 11 only.** Windows 10 left support in October 2025 and is out of scope.
 
 Read in order: **[`docs/MODERNIZATION-PLAN.md`](docs/MODERNIZATION-PLAN.md)** for architecture, parity matrix and the ten phases; then **[DR-0001](docs/decisions/0001-phase-0-retarget-spike.md)**, which invalidates one of the plan's original assumptions and records what replaced it; then **[DR-0002](docs/decisions/0002-phase-1-solution-scaffold.md)**.
@@ -137,9 +142,7 @@ From the repo root:
 dotnet --info
 ```
 
-Expect an **SDK** section listing 10.x, not just runtimes. Once Phase 1 has scaffolded the projects, `dotnet build` and `dotnet test` complete the check.
-
-(The repo has no git remote yet, so there is nothing to clone — work in place.)
+Expect an **SDK** section listing 10.x, not just runtimes. Then `dotnet build` and `dotnet test` complete the check.
 
 ### Setup troubleshooting
 
@@ -163,7 +166,7 @@ Open the folder; VS Code will prompt for the recommended extensions in `.vscode/
 - **XAML Styler** (`ms-dotnettools.xaml`) — XAML formatting and IntelliSense
 - **EditorConfig** — honours the repo's `.editorconfig`
 
-`.vscode/tasks.json` and `.vscode/launch.json` are committed, so `Ctrl+Shift+B` builds and `F5` debugs the WPF app once Phase 1 has scaffolded the projects.
+`.vscode/tasks.json` and `.vscode/launch.json` are committed, so `Ctrl+Shift+B` builds and `F5` debugs the WPF app.
 
 **One real limitation to plan around:** *VS Code has no WPF visual designer.* That is Visual Studio only. In practice this matters less than it sounds — MVVM means the XAML is declarative markup, and plenty of WPF work is done without the designer. Two things make it comfortable:
 
@@ -244,11 +247,13 @@ The suite is the safety net for the whole port, so it should be fast and offline
 ```powershell
 dotnet test                                        # all
 dotnet test tests/Offstream.Core.Tests             # unit + golden + integration
-dotnet test tests/Offstream.UI.Tests               # FlaUI, needs a desktop session
+dotnet test tests/Offstream.UI.Tests               # ViewModels, resources, and the FlaUI suite
+dotnet test --filter "Category!=Desktop"           # what CI runs
 ```
 
 - **Integration tests shell out to real ffmpeg** and assert results with `ffprobe`, so both must be on `PATH`.
 - **No test may hit the network.** Spotify and Last.fm are covered by recorded fixtures.
+- **`Category=Desktop` tests launch the real window** and drive it with FlaUI, so they need an interactive session and cannot share a machine with someone using the keyboard. CI and `build.ps1` exclude them unless you pass `-IncludeDesktop`. They point the app at a throwaway `OFFSTREAM_HOME`, so a run never touches your own settings.
 - CI runs the same commands on `windows-latest` with analyzers as errors.
 
 ### Referencing the app being retired

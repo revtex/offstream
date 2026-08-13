@@ -19,6 +19,9 @@ public partial class App : Application
 {
     private readonly IHost _host;
 
+    /// <summary>Held for the life of the process; see <see cref="SingleInstance"/>.</summary>
+    private SingleInstance? _instance;
+
     /// <summary>The in-app log sink, shared with the activity log on the Record page.</summary>
     public static InMemoryLogSink LogSink { get; } = new();
 
@@ -50,6 +53,18 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // Before anything else touches the settings file: two instances sharing one file both
+        // write the whole document, so the second to save silently reverts the first.
+        _instance = SingleInstance.TryAcquire(OnActivationRequested);
+
+        if (_instance is null)
+        {
+            // The running instance has been asked to show itself. Shutdown() rather than
+            // returning, or this process would sit there with a host it never started.
+            Shutdown();
+            return;
+        }
+
         await _host.StartAsync();
 
         Log.Information("Offstream starting. Settings: {Settings}", OffstreamPaths.SettingsFile);
@@ -65,6 +80,21 @@ public partial class App : Application
         var shell = _host.Services.GetRequiredService<ShellWindow>();
         _host.Services.GetRequiredService<ShellViewModel>().StartupWarning = problem;
         shell.Show();
+    }
+
+    /// <summary>
+    /// Shows the window because someone launched Offstream again.
+    /// </summary>
+    /// <remarks>
+    /// Arrives on a thread-pool thread, so it goes through the ViewModel's command rather than
+    /// touching the window directly — <see cref="ShellViewModel.Show"/> marshals to the
+    /// dispatcher, which is the same path the tray icon's own click takes.
+    /// </remarks>
+    private void OnActivationRequested()
+    {
+        Log.Information("Another launch asked for the window.");
+
+        _host.Services.GetRequiredService<ShellViewModel>().Show();
     }
 
     /// <summary>
@@ -117,6 +147,11 @@ public partial class App : Application
     protected override async void OnExit(ExitEventArgs e)
     {
         Log.Information("Offstream exiting.");
+
+        // Released before the host stops, so the next launch is never told "already running"
+        // by a process that is on its way out.
+        _instance?.Dispose();
+        _instance = null;
 
         using (_host)
         {

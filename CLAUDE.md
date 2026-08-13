@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 The two names are not interchangeable. "Offstream" is what is being built here; "Spytify" only ever means the app being retired.
 
-**Current state: pre-implementation.** Only planning documents exist. `docs/MODERNIZATION-PLAN.md` is authoritative for architecture, phases, and acceptance criteria — read it before proposing work, and keep it updated when decisions change.
+**Current state: phases 0–6 are done** — recording pipeline, Spotify Web API metadata, settings persistence, and the WPF shell (Record / Settings / Advanced tabs, tray, single-instance guard). Phase 7 (Windows integration polish) is next. `docs/MODERNIZATION-PLAN.md` is authoritative for architecture, phases, and acceptance criteria — read it before proposing work, and keep it updated when decisions change. Each phase's **findings** blocks there record what was learned building it, and are usually the fastest way to understand why something is the way it is.
 
 ## Offstream owns every name — this is the rule that gets broken by accident
 

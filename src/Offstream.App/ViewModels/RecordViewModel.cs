@@ -291,24 +291,6 @@ public sealed partial class RecordViewModel : ObservableObject
         Level = _controller.Level;
     }
 
-    /// <summary>
-    /// Runs an update on the UI thread.
-    /// </summary>
-    /// <remarks>
-    /// Serilog writes from whichever thread logged, and progress can arrive from the poller. With
-    /// no <see cref="Application"/> at all — which is how the tests run — the update happens
-    /// inline, exercising the same path a call already on the UI thread takes.
-    /// </remarks>
-    private static void Dispatch(Action update)
-    {
-        var dispatcher = Application.Current?.Dispatcher;
-
-        if (dispatcher is null || dispatcher.CheckAccess())
-        {
-            update();
-            return;
-        }
-
-        dispatcher.BeginInvoke(update);
-    }
+    /// <summary>Runs an update on the UI thread; see <see cref="UiThread"/>.</summary>
+    private static void Dispatch(Action update) => UiThread.Dispatch(update);
 }
