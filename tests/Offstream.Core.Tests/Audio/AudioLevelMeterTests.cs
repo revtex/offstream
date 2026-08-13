@@ -35,7 +35,7 @@ public sealed class AudioLevelMeterTests
 
     [Fact]
     public void Read_WithNothingWritten_IsSilent() =>
-        Assert.Equal(0f, new AudioLevelMeter(Float32).Read());
+        Assert.Equal(0f, new AudioLevelMeter(Float32).Read().Level);
 
     [Fact]
     public void Write_Float32FullScale_ReadsOne()
@@ -44,7 +44,7 @@ public sealed class AudioLevelMeterTests
 
         meter.Write(BitConverter.GetBytes(1.0f));
 
-        Assert.Equal(1f, meter.Read(), precision: 5);
+        Assert.Equal(1f, meter.Read().Level, precision: 5);
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public sealed class AudioLevelMeterTests
 
         meter.Write(BitConverter.GetBytes(-0.75f));
 
-        Assert.Equal(ExpectedLevel(0.75), meter.Read(), precision: 5);
+        Assert.Equal(ExpectedLevel(0.75), meter.Read().Level, precision: 5);
     }
 
     /// <summary>
@@ -68,7 +68,7 @@ public sealed class AudioLevelMeterTests
 
         meter.Write(BitConverter.GetBytes(2.5f));
 
-        Assert.Equal(1f, meter.Read(), precision: 5);
+        Assert.Equal(1f, meter.Read().Level, precision: 5);
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public sealed class AudioLevelMeterTests
 
         meter.Write(BitConverter.GetBytes((short)16384));
 
-        Assert.Equal(ExpectedLevel(0.5), meter.Read(), precision: 4);
+        Assert.Equal(ExpectedLevel(0.5), meter.Read().Level, precision: 4);
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public sealed class AudioLevelMeterTests
         // 0x400000 is half of 24-bit full scale, little-endian.
         meter.Write([0x00, 0x00, 0x40]);
 
-        Assert.Equal(ExpectedLevel(0.5), meter.Read(), precision: 4);
+        Assert.Equal(ExpectedLevel(0.5), meter.Read().Level, precision: 4);
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public sealed class AudioLevelMeterTests
         // 0xC00000 is -half of 24-bit full scale: the sign extension is the part worth pinning.
         meter.Write([0x00, 0x00, 0xC0]);
 
-        Assert.Equal(ExpectedLevel(0.5), meter.Read(), precision: 4);
+        Assert.Equal(ExpectedLevel(0.5), meter.Read().Level, precision: 4);
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public sealed class AudioLevelMeterTests
 
         meter.Write(BitConverter.GetBytes(1 << 30));
 
-        Assert.Equal(ExpectedLevel(0.5), meter.Read(), precision: 4);
+        Assert.Equal(ExpectedLevel(0.5), meter.Read().Level, precision: 4);
     }
 
     /// <summary>The point of the interval: one read covers everything written since the last.</summary>
@@ -123,7 +123,7 @@ public sealed class AudioLevelMeterTests
         meter.Write(BitConverter.GetBytes(0.9f));
         meter.Write(BitConverter.GetBytes(0.2f));
 
-        Assert.Equal(ExpectedLevel(0.1, 0.9, 0.2), meter.Read(), precision: 5);
+        Assert.Equal(ExpectedLevel(0.1, 0.9, 0.2), meter.Read().Level, precision: 5);
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public sealed class AudioLevelMeterTests
 
         // Without the reset the bar would never fall: every later read would return the loudest
         // moment of the whole session.
-        Assert.Equal(0f, meter.Read());
+        Assert.Equal(0f, meter.Read().Level);
     }
 
     [Fact]
@@ -147,7 +147,7 @@ public sealed class AudioLevelMeterTests
         meter.Write(BitConverter.GetBytes(0.9f));
         meter.Reset();
 
-        Assert.Equal(0f, meter.Read());
+        Assert.Equal(0f, meter.Read().Level);
     }
 
     [Fact]
@@ -163,7 +163,7 @@ public sealed class AudioLevelMeterTests
 
         meter.Write(buffer);
 
-        Assert.Equal(ExpectedLevel(0.2, 0.4, 0.8, 0.3), meter.Read(), precision: 5);
+        Assert.Equal(ExpectedLevel(0.2, 0.4, 0.8, 0.3), meter.Read().Level, precision: 5);
     }
 
     /// <summary>
@@ -183,7 +183,7 @@ public sealed class AudioLevelMeterTests
         meter.Write(buffer);
 
         // Only the whole sample counts; the two stray bytes are not a second one.
-        Assert.Equal(ExpectedLevel(0.25), meter.Read(), precision: 5);
+        Assert.Equal(ExpectedLevel(0.25), meter.Read().Level, precision: 5);
     }
 
     [Fact]
@@ -193,7 +193,7 @@ public sealed class AudioLevelMeterTests
 
         meter.Write([]);
 
-        Assert.Equal(0f, meter.Read());
+        Assert.Equal(0f, meter.Read().Level);
     }
 
     /// <summary>
@@ -210,7 +210,7 @@ public sealed class AudioLevelMeterTests
 
         meter.Write(BitConverter.GetBytes(0.5f));
 
-        Assert.Equal(ExpectedLevel(0.5), meter.Read(), precision: 5);
+        Assert.Equal(ExpectedLevel(0.5), meter.Read().Level, precision: 5);
     }
 
     /// <summary>
@@ -226,7 +226,7 @@ public sealed class AudioLevelMeterTests
 
         meter.Write([0xFF, 0x7F, 0x00, 0x80]);
 
-        Assert.Equal(0f, meter.Read());
+        Assert.Equal(0f, meter.Read().Level);
     }
 
     /// <summary>
@@ -240,7 +240,7 @@ public sealed class AudioLevelMeterTests
         // -80 dBFS, two decades below the floor the scale starts at.
         meter.Write(BitConverter.GetBytes(0.0001f));
 
-        Assert.Equal(0f, meter.Read());
+        Assert.Equal(0f, meter.Read().Level);
     }
 
     /// <summary>
@@ -256,12 +256,111 @@ public sealed class AudioLevelMeterTests
         quieter.Write(BitConverter.GetBytes(0.25f));
         louder.Write(BitConverter.GetBytes(0.9f));
 
-        var quietLevel = quieter.Read();
-        var loudLevel = louder.Read();
+        var quietLevel = quieter.Read().Level;
+        var loudLevel = louder.Read().Level;
 
         Assert.True(
             loudLevel - quietLevel > 0.15f,
             $"levels {quietLevel} and {loudLevel} to be visibly apart");
+    }
+
+    /// <summary>
+    /// Interleaved samples have to land in the channel they belong to. Getting the stride wrong
+    /// gives two bars that move together and mean nothing — the failure looks like a working
+    /// meter, which is why it is pinned rather than eyeballed.
+    /// </summary>
+    [Fact]
+    public void Read_SplitsInterleavedSamplesByChannel()
+    {
+        var meter = new AudioLevelMeter(Float32);
+        var buffer = new byte[4 * 4];
+
+        // L R L R: left is loud, right is quiet.
+        BitConverter.GetBytes(0.8f).CopyTo(buffer, 0);
+        BitConverter.GetBytes(0.1f).CopyTo(buffer, 4);
+        BitConverter.GetBytes(0.8f).CopyTo(buffer, 8);
+        BitConverter.GetBytes(0.1f).CopyTo(buffer, 12);
+
+        meter.Write(buffer);
+
+        Span<LevelReading> channels = stackalloc LevelReading[2];
+        var combined = meter.Read(channels);
+
+        Assert.Equal(ExpectedLevel(0.8), channels[0].Level, precision: 5);
+        Assert.Equal(ExpectedLevel(0.1), channels[1].Level, precision: 5);
+        Assert.Equal(ExpectedLevel(0.8, 0.1, 0.8, 0.1), combined.Level, precision: 5);
+    }
+
+    /// <summary>
+    /// Buffers arrive frame-aligned, so every write starts on the left. Carrying a channel index
+    /// across writes would swap the two bars over on any buffer with an odd sample count.
+    /// </summary>
+    [Fact]
+    public void Read_KeepsChannelsInPlaceAcrossWrites()
+    {
+        var meter = new AudioLevelMeter(Float32);
+
+        for (var frame = 0; frame < 3; frame++)
+        {
+            var buffer = new byte[8];
+            BitConverter.GetBytes(0.8f).CopyTo(buffer, 0);
+            BitConverter.GetBytes(0.1f).CopyTo(buffer, 4);
+            meter.Write(buffer);
+        }
+
+        Span<LevelReading> channels = stackalloc LevelReading[2];
+        meter.Read(channels);
+
+        Assert.Equal(ExpectedLevel(0.8), channels[0].Level, precision: 5);
+        Assert.Equal(ExpectedLevel(0.1), channels[1].Level, precision: 5);
+    }
+
+    /// <summary>
+    /// A ruler printed in decibels needs the decibel figure the reading was built from, not one
+    /// recovered from a clamped 0–1 level.
+    /// </summary>
+    [Fact]
+    public void Read_ReportsDecibelsAlongsideTheLevel()
+    {
+        var meter = new AudioLevelMeter(Float32);
+
+        // Half scale is -6.02 dBFS.
+        meter.Write(BitConverter.GetBytes(0.5f));
+
+        Assert.Equal(-6.0206, meter.Read().Decibels, precision: 3);
+    }
+
+    [Fact]
+    public void Read_WithNothingWritten_ReportsSilence()
+    {
+        var reading = new AudioLevelMeter(Float32).Read();
+
+        Assert.Equal(LevelReading.Silent, reading);
+        Assert.Equal(double.NegativeInfinity, reading.Decibels);
+    }
+
+    /// <summary>A span shorter than the format's channel count fills what it can.</summary>
+    [Fact]
+    public void Read_WithAShortSpan_FillsWhatFits()
+    {
+        var meter = new AudioLevelMeter(Float32);
+        var buffer = new byte[8];
+
+        BitConverter.GetBytes(0.8f).CopyTo(buffer, 0);
+        BitConverter.GetBytes(0.1f).CopyTo(buffer, 4);
+        meter.Write(buffer);
+
+        Span<LevelReading> channels = stackalloc LevelReading[1];
+        meter.Read(channels);
+
+        Assert.Equal(ExpectedLevel(0.8), channels[0].Level, precision: 5);
+    }
+
+    [Fact]
+    public void ChannelCount_FollowsTheFormat()
+    {
+        Assert.Equal(2, new AudioLevelMeter(Float32).ChannelCount);
+        Assert.Equal(1, new AudioLevelMeter(WaveFormat.CreateIeeeFloatWaveFormat(48000, 1)).ChannelCount);
     }
 
     [Fact]

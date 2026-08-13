@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <!--
     User-facing strings, English (the neutral culture).
@@ -111,7 +111,7 @@
   </data>
   <data name="RecordLevelLabel" xml:space="preserve">
     <value>Output level</value>
-    <comment>Accessible name for the waveform. Screen readers get this; sighted users get the bars.</comment>
+    <comment>Accessible name for the level meter. Screen readers get this; sighted users get the bars.</comment>
   </data>
   <data name="RecordCannotStartSettings" xml:space="preserve">
     <value>Settings could not be read, so recording did not start. Fix or delete the settings file and try again.</value>

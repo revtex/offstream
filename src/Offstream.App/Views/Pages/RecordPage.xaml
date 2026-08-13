@@ -117,17 +117,21 @@
         </ui:Card>
 
         <!--
-            The level meter. Fixed height: it is a signal, not content, and letting it take the
-            slack in the layout would push the activity log off a short window.
+            The level meter, drawn as a recorder's LCD. It sizes itself: the display is an
+            instrument face rather than content, so it takes the width available and holds the
+            height its parts need to stay legible. Letting it take the slack in the layout instead
+            would push the activity log off a short window.
         -->
         <ui:Card Grid.Row="1" Margin="{StaticResource OffstreamStackGap}">
-            <controls:LevelMeterView Height="20"
-                                     AutomationProperties.AutomationId="RecordLevelMeter"
-                                     AutomationProperties.Name="{x:Static res:Strings.RecordLevelLabel}"
-                                     Fill="{StaticResource OffstreamRecordingBrush}"
-                                     Level="{Binding Level, Mode=OneWay}"
-                                     PeakBrush="{DynamicResource TextFillColorPrimaryBrush}"
-                                     TrackBrush="{DynamicResource ControlAltFillColorTertiaryBrush}" />
+            <controls:LcdMeterView AutomationProperties.AutomationId="RecordLevelMeter"
+                                   AutomationProperties.Name="{x:Static res:Strings.RecordLevelLabel}"
+                                   BezelBrush="{StaticResource OffstreamLcdBezelBrush}"
+                                   FontFamily="{StaticResource OffstreamMonoFontFamily}"
+                                   GhostBrush="{StaticResource OffstreamLcdGhostBrush}"
+                                   InkBrush="{StaticResource OffstreamLcdInkBrush}"
+                                   Level="{Binding Level, Mode=OneWay}"
+                                   PanelBrush="{StaticResource OffstreamLcdPanelBrush}"
+                                   SegmentBrush="{StaticResource OffstreamLcdSegmentBrush}" />
         </ui:Card>
 
         <Grid Grid.Row="2">

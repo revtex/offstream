@@ -45,6 +45,26 @@
     <SolidColorBrush x:Key="OffstreamIdleBrush" Color="{DynamicResource TextFillColorSecondary}" />
 
     <!--
+        The level meter's LCD palette.
+
+        Fixed rather than themed, and deliberately so: the meter is drawn as the segment display
+        of a field recorder, and a physical LCD looks the same in a dark room as a bright one.
+        Following the app theme would make it a rectangle that happens to have bars in it. Holding
+        one palette makes it read as an instrument set into the window - which is the point, since
+        this is the one control on the page that reports on the audio rather than on Spotify.
+
+        The ghost colour is the load-bearing one. Unlit cells on a real LCD are never invisible;
+        keeping them faintly present is what makes a silent meter look like a working meter
+        showing nothing, rather than a meter that has stopped.
+    -->
+    <Color x:Key="OffstreamLcdPanelColor">#A9B49B</Color>
+    <SolidColorBrush x:Key="OffstreamLcdPanelBrush" Color="{StaticResource OffstreamLcdPanelColor}" />
+    <SolidColorBrush x:Key="OffstreamLcdGhostBrush" Color="#98A489" />
+    <SolidColorBrush x:Key="OffstreamLcdSegmentBrush" Color="#20261A" />
+    <SolidColorBrush x:Key="OffstreamLcdInkBrush" Color="#4A5340" />
+    <SolidColorBrush x:Key="OffstreamLcdBezelBrush" Color="#2C312A" />
+
+    <!--
         The three text roles the settings pages repeat: a group heading, the explanatory line
         under a control, and the message a failed validation puts beneath the field it belongs
         to. Defined once because two pages use them on nearly every row, and because the
