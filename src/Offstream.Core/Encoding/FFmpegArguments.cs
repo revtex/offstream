@@ -79,6 +79,8 @@ public static class FFmpegArguments
                 StringComparison.Ordinal));
         }
 
+        args.AddRange(profile.ContainerArguments);
+
         if (request.Track is not null)
             args.AddRange(MetadataArguments(request.Track, request.TrackNumberOverride));
 
@@ -97,7 +99,8 @@ public static class FFmpegArguments
     /// <param name="track">The track to tag.</param>
     /// <param name="trackNumberOverride">
     /// Takes the place of <see cref="Track.AlbumPosition"/> in the track-number tag when the
-    /// "number the files" setting is on.
+    /// "number the files" setting is on. Suppresses the album's track total with it: a counter
+    /// of 42 is not the forty-second of anything.
     /// </param>
     public static IReadOnlyList<string> MetadataArguments(Track track, int? trackNumberOverride = null)
     {
@@ -106,13 +109,18 @@ public static class FFmpegArguments
         var args = new List<string>();
 
         Add("title", track.ToTitleString());
-        Add("artist", track.Artists);
+        Add("artist", PerformerCredit(track));
         Add("album", track.Album);
-        Add("album_artist", track.AlbumArtists is { Length: > 0 } ? string.Join(", ", track.AlbumArtists) : null);
-        Add("genre", track.Genres is { Length: > 0 } ? string.Join(", ", track.Genres) : null);
-        Add("date", track.Year?.ToString(CultureInfo.InvariantCulture));
-        Add("track", (trackNumberOverride ?? track.AlbumPosition)?.ToString(CultureInfo.InvariantCulture));
+        Add("album_artist", Join(track.AlbumArtists));
+        Add("genre", Join(track.Genres));
+
+        // The full date when the provider knows one, the bare year otherwise. Every container
+        // Offstream writes stores either; ID3v2.3 splits it into TYER and TDAT itself.
+        Add("date", track.ReleaseDate ?? track.Year?.ToString(CultureInfo.InvariantCulture));
+
+        Add("track", TrackNumber(track, trackNumberOverride));
         Add("disc", track.Disc?.ToString(CultureInfo.InvariantCulture));
+        Add("copyright", track.Copyright);
 
         return args;
 
@@ -125,4 +133,39 @@ public static class FFmpegArguments
             args.AddRange(["-metadata", $"{key}={value}"]);
         }
     }
+
+    /// <summary>
+    /// Who the <c>artist</c> tag credits.
+    /// </summary>
+    /// <remarks>
+    /// <b>The track's own performers, not the album's artists.</b> <see cref="Track.Artists"/>
+    /// returns the album artists whenever they are known, which is almost always once a provider
+    /// has run — so using it here wrote the album artist into <c>artist</c>, made it identical to
+    /// <c>album_artist</c> on every file, and dropped featured artists entirely. The predecessor
+    /// wrote the two to separate frames (TPE1 from <c>Performers</c>, TPE2 from
+    /// <c>AlbumArtists</c>), and this restores that. The <c>{artist}</c> filename token still
+    /// renders from <see cref="Track.Artists"/>, so names on disk are unaffected.
+    /// </remarks>
+    private static string? PerformerCredit(Track track) => Join(track.Performers) ?? track.Artists;
+
+    /// <summary>
+    /// The track number, as "4/12" when the album's length is known.
+    /// </summary>
+    /// <remarks>
+    /// The "of how many" form is what players use to tell a partial rip from a complete one, and
+    /// it costs nothing — the album call that supplies it is one Offstream already makes.
+    /// </remarks>
+    private static string? TrackNumber(Track track, int? trackNumberOverride)
+    {
+        if (trackNumberOverride is { } counter) return counter.ToString(CultureInfo.InvariantCulture);
+
+        if (track.AlbumPosition is not { } position) return null;
+
+        return track.AlbumTrackCount is { } total && total >= position
+            ? string.Create(CultureInfo.InvariantCulture, $"{position}/{total}")
+            : position.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static string? Join(string[]? values) =>
+        values is { Length: > 0 } ? string.Join(", ", values.Where(v => !string.IsNullOrWhiteSpace(v))) : null;
 }

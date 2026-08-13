@@ -102,7 +102,12 @@ phase plan these entries follow.
   on every renewal, and the replacement is written back.
 - **A Last.fm API key setting** (`metadata.lastFmApiKey`), the user's own. The predecessor shipped
   three of its own keys hard-coded in its source and picked one at random per run.
-- **811 tests**, 13 of which drive the real window through FlaUI and are excluded from CI.
+- **Tags the predecessor never wrote.** Genres from Last.fm's top tags (the three most-applied,
+  since the tail of a tag cloud is listener bookkeeping rather than genre); the release date at
+  Spotify's own precision, alongside the year the `{year}` token needs; the album's track total,
+  so the track tag reads `4/12` and a player can tell a partial rip from a complete album; and
+  the album's copyright line, preferring the recording's over the composition's.
+- **855 tests**, 13 of which drive the real window through FlaUI and are excluded from CI.
 
 ### Changed
 
@@ -198,6 +203,19 @@ phase plan these entries follow.
   on its own working copy of the settings, and nothing wrote it back — so each night's recordings
   landed on the previous night's names and the "have I already recorded this?" check answered for
   the wrong file.
+- **Album art was invisible everywhere except VLC.** MP3s were tagged as ID3v2.4, ffmpeg's
+  default; Windows Explorer's thumbnail handler and Windows Media Player have never read v2.4
+  cover art, so the picture was in the file and neither showed it. The predecessor tagged with
+  TagLib#, which writes v2.3 — hence the regression. MP3 output now pins `-id3v2_version 3`.
+  Nothing is lost by it: the full release date and `4/12` track numbers both survive.
+- **The `artist` tag repeated the album artist and dropped featured performers.** It was built
+  from `Track.Artists`, which returns the album artists whenever a provider has supplied them —
+  so `artist` and `album_artist` were identical on every enriched file. It now credits the
+  track's own performers, as the predecessor's TPE1/TPE2 split did. File names are unaffected;
+  the `{artist}` template token still renders from `Track.Artists`.
+- **Nothing tagged from Last.fm ever carried a genre.** The mapper hard-coded an empty array and
+  never read the `toptags` node. Since Spotify has also stopped returning album genres for most
+  of its catalogue, the genre tag was empty whichever provider was chosen.
 - **The "write the counter to the track number" setting did nothing.** It is now applied to the
   tag, without disturbing the `{track}` filename token, which keeps meaning the position within
   the album.

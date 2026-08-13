@@ -53,6 +53,22 @@ public sealed class LastFmArtist
     public string? Name { get; set; }
 }
 
+/// <summary>One of Last.fm's community tags.</summary>
+[XmlRoot(ElementName = "tag")]
+public sealed class LastFmTag
+{
+    [XmlElement(ElementName = "name")]
+    public string? Name { get; set; }
+}
+
+/// <summary>The tag cloud a Last.fm track carries, most-applied first.</summary>
+[XmlRoot(ElementName = "toptags")]
+public sealed class LastFmTopTags
+{
+    [XmlElement(ElementName = "tag")]
+    public List<LastFmTag> Tags { get; set; } = [];
+}
+
 /// <summary>The track node of a Last.fm response.</summary>
 [XmlRoot(ElementName = "track")]
 public sealed class LastFmTrack
@@ -68,6 +84,9 @@ public sealed class LastFmTrack
 
     [XmlElement(ElementName = "album")]
     public LastFmAlbum? Album { get; set; }
+
+    [XmlElement(ElementName = "toptags")]
+    public LastFmTopTags? TopTags { get; set; }
 }
 
 /// <summary>

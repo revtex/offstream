@@ -20,6 +20,9 @@ public static partial class LastFmTrackMapper
     [GeneratedRegex(@"\/300x300\/|\/300s\/")]
     private static partial Regex PreferredCoverSize { get; }
 
+    /// <summary>How many of Last.fm's community tags are trustworthy enough to write.</summary>
+    private const int MaximumGenres = 3;
+
     /// <summary>Copies album, duration, cover art and performers onto <paramref name="track"/>.</summary>
     /// <remarks>
     /// Only fields Last.fm actually supplies are written. The window title stays the source
@@ -35,7 +38,7 @@ public static partial class LastFmTrackMapper
 
         // Last.fm reports milliseconds; everything downstream works in seconds.
         track.Length = response.Duration is > 0 ? response.Duration / 1000 : null;
-        track.Genres = [];
+        track.Genres = ChooseGenres(response.TopTags);
         track.AlbumArtUrl = ChooseCoverUrl(response.Album);
 
         // An artist-less track yields an empty array rather than a one-element array of null:
@@ -45,6 +48,32 @@ public static partial class LastFmTrackMapper
         track.Performers = [.. albumArtists.Concat(track.ToString().ToPerformers())];
         track.AlbumArtists = albumArtists;
     }
+
+    /// <summary>
+    /// The track's most-applied community tags, as genres.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The reference set genres to an empty array here and never looked at the <c>toptags</c>
+    /// node, so a Last.fm-tagged library had no genre on anything. Spotify has since stopped
+    /// returning album genres for most of its catalogue, which left the genre tag empty
+    /// regardless of which provider was chosen.
+    /// </para>
+    /// <para>
+    /// <b>Only the top few, because these are a folksonomy rather than a taxonomy.</b> Last.fm's
+    /// tags are whatever listeners typed, so the tail of the list is personal
+    /// ("favourites", "seen live") far more often than it is a genre. The most-applied ones are
+    /// reliably genre-like; taking the whole cloud would put someone else's listening habits in
+    /// the file.
+    /// </para>
+    /// </remarks>
+    public static string[] ChooseGenres(LastFmTopTags? topTags) =>
+    [
+        .. (topTags?.Tags ?? [])
+            .Select(tag => tag.Name?.Trim())
+            .Where(name => !string.IsNullOrEmpty(name))
+            .Take(MaximumGenres)!,
+    ];
 
     /// <summary>Prefers a 300px cover, falling back to the largest available.</summary>
     public static string? ChooseCoverUrl(LastFmAlbum? album)

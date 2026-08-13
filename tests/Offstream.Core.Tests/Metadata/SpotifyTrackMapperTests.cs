@@ -224,6 +224,117 @@ public sealed class SpotifyTrackMapperTests
         Assert.Null(track.Year);
     }
 
+    /// <summary>
+    /// The tag keeps Spotify's own precision even though <see cref="Track.Year"/> flattens it.
+    /// </summary>
+    [Theory]
+    [InlineData("1987", "1987")]
+    [InlineData("2010-10", "2010-10")]
+    [InlineData("2010-10-10", "2010-10-10")]
+    public void ApplyAlbum_KeepsTheReleaseDateAtFullPrecision(string releaseDate, string expected)
+    {
+        var fullAlbum = new FullAlbum { Artists = [], Name = "Album", Genres = [], Images = [], ReleaseDate = releaseDate };
+
+        var track = WindowTitleTrack();
+        SpotifyTrackMapper.Apply(track, fullAlbum);
+
+        Assert.Equal(expected, track.ReleaseDate);
+    }
+
+    /// <summary>A malformed date is worse in a tag than no date, so it is dropped.</summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("soon")]
+    [InlineData("2010-13-40")]
+    [InlineData("10/10/2010")]
+    public void ApplyAlbum_DropsAReleaseDateItDoesNotRecognise(string releaseDate)
+    {
+        var fullAlbum = new FullAlbum { Artists = [], Name = "Album", Genres = [], Images = [], ReleaseDate = releaseDate };
+
+        var track = WindowTitleTrack();
+        SpotifyTrackMapper.Apply(track, fullAlbum);
+
+        Assert.Null(track.ReleaseDate);
+    }
+
+    [Theory]
+    [InlineData(12, 12)]
+    [InlineData(1, 1)]
+
+    // Non-nullable on the SDK model, so an unpopulated album reads as zero tracks.
+    [InlineData(0, null)]
+    public void ApplyAlbum_MapsTheTrackTotal(int totalTracks, int? expected)
+    {
+        var fullAlbum = new FullAlbum
+        {
+            Artists = [],
+            Name = "Album",
+            Genres = [],
+            Images = [],
+            ReleaseDate = "2010",
+            TotalTracks = totalTracks,
+        };
+
+        var track = WindowTitleTrack();
+        SpotifyTrackMapper.Apply(track, fullAlbum);
+
+        Assert.Equal(expected, track.AlbumTrackCount);
+    }
+
+    /// <summary>
+    /// Offstream records audio, so the phonogram line describes what is actually in the file.
+    /// </summary>
+    [Fact]
+    public void ApplyAlbum_PrefersThePhonogramCopyrightOverTheComposition()
+    {
+        var fullAlbum = Album([
+            new Copyright { Type = "C", Text = "1997 Composition Ltd" },
+            new Copyright { Type = "P", Text = "1997 Recording Ltd" },
+        ]);
+
+        var track = WindowTitleTrack();
+        SpotifyTrackMapper.Apply(track, fullAlbum);
+
+        Assert.Equal("1997 Recording Ltd", track.Copyright);
+    }
+
+    [Fact]
+    public void ApplyAlbum_FallsBackToWhicheverCopyrightLineExists()
+    {
+        var track = WindowTitleTrack();
+        SpotifyTrackMapper.Apply(track, Album([new Copyright { Type = "C", Text = "1997 Composition Ltd" }]));
+
+        Assert.Equal("1997 Composition Ltd", track.Copyright);
+    }
+
+    [Fact]
+    public void ApplyAlbum_IgnoresBlankCopyrightLines()
+    {
+        var track = WindowTitleTrack();
+        SpotifyTrackMapper.Apply(track, Album([new Copyright { Type = "P", Text = "   " }]));
+
+        Assert.Null(track.Copyright);
+    }
+
+    [Fact]
+    public void ApplyAlbum_WithNoCopyrights_LeavesItNull()
+    {
+        var track = WindowTitleTrack();
+        SpotifyTrackMapper.Apply(track, Album([]));
+
+        Assert.Null(track.Copyright);
+    }
+
+    private static FullAlbum Album(List<Copyright> copyrights) => new()
+    {
+        Artists = [],
+        Name = "Album",
+        Genres = [],
+        Images = [],
+        ReleaseDate = "1997",
+        Copyrights = copyrights,
+    };
+
     [Fact]
     public void ChooseCoverUrl_WithNoImageAtOrUnder300px_ReturnsNull() =>
         Assert.Null(SpotifyTrackMapper.ChooseCoverUrl([Cover(640, "http://640.img"), Cover(1024, "http://1024.img")]));

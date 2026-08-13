@@ -51,6 +51,9 @@ public sealed class Track
         Disc = track.Disc;
         AlbumArtists = track.AlbumArtists;
         Year = track.Year;
+        ReleaseDate = track.ReleaseDate;
+        AlbumTrackCount = track.AlbumTrackCount;
+        Copyright = track.Copyright;
 
         AlbumArtUrl = track.AlbumArtUrl;
         AlbumArtImage = track.AlbumArtImage;
@@ -102,6 +105,31 @@ public sealed class Track
     public int? Disc { get; set; }
     public string[]? AlbumArtists { get; set; }
     public int? Year { get; set; }
+
+    /// <summary>
+    /// The release date at whatever precision the provider knows it, as an ISO-8601 string.
+    /// </summary>
+    /// <remarks>
+    /// Kept alongside <see cref="Year"/> rather than replacing it. Spotify's <c>release_date</c>
+    /// is often a full date, and every container Offstream writes stores one happily — but the
+    /// <c>{year}</c> filename token is an integer and folder names should not suddenly gain a
+    /// month and a day. So the tag gets the precise value and the file name keeps the year.
+    /// </remarks>
+    public string? ReleaseDate { get; set; }
+
+    /// <summary>How many tracks the album has, for the "4 of 12" form of the track tag.</summary>
+    public int? AlbumTrackCount { get; set; }
+
+    /// <summary>
+    /// The copyright line, as the provider states it.
+    /// </summary>
+    /// <remarks>
+    /// There is deliberately no ISRC or label alongside this. Both would be worth writing and
+    /// neither is available: Spotify removed <c>external_ids</c> and <c>label</c> from its API,
+    /// and <c>SpotifyAPI.Web</c> marks both obsolete with "field has been removed". Last.fm never
+    /// supplied either. Adding the properties back means adding them with nothing to fill them.
+    /// </remarks>
+    public string? Copyright { get; set; }
 
     public string? AlbumArtUrl { get; set; }
     public byte[]? AlbumArtImage { get; set; }
