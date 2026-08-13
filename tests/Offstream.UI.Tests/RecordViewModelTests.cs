@@ -262,6 +262,53 @@ public sealed class RecordViewModelTests
             Enum.GetValues<LogFilter>().Order(),
             ViewModelFor().FilterOptions.Select(option => option.Value).Order());
 
+    /// <summary>
+    /// The pane scrolls; it does not grow. Trimming the backing buffer alone left the bound
+    /// collection growing for the life of the session.
+    /// </summary>
+    [Fact]
+    public void LineWritten_PastCapacity_DropsTheOldestShownLine()
+    {
+        var sink = new InMemoryLogSink();
+        using var logger = LoggerFor(sink);
+        var viewModel = ViewModelFor(sink);
+
+        for (var index = 0; index < InMemoryLogSink.Capacity + 50; index++)
+            logger.Information("Line {Index}", index);
+
+        Assert.Equal(InMemoryLogSink.Capacity, viewModel.LogLines.Count);
+
+        // The window slid: the first fifty lines are gone and the newest is the last written.
+        Assert.Contains("Line 50", viewModel.LogLines[0].Text, StringComparison.Ordinal);
+        Assert.Contains("Line 2049", viewModel.LogLines[^1].Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The bound collection is a filtered projection, so a dropped line it never showed must not
+    /// evict a line it did.
+    /// </summary>
+    [Fact]
+    public void LineWritten_PastCapacity_DoesNotEvictOnBehalfOfAFilteredLine()
+    {
+        var sink = new InMemoryLogSink();
+        using var logger = LoggerFor(sink);
+        var viewModel = ViewModelFor(sink);
+
+        viewModel.Filter = LogFilter.Problems;
+
+        // Fill the buffer with traffic the Problems filter hides, then log the one thing it shows.
+        for (var index = 0; index < InMemoryLogSink.Capacity; index++)
+            logger.Debug("Chatter {Index}", index);
+
+        logger.Error("Encoder failed");
+
+        // Every further line evicts a hidden one, so the error must stay put.
+        for (var index = 0; index < 100; index++) logger.Debug("More chatter {Index}", index);
+
+        var entry = Assert.Single(viewModel.LogLines);
+        Assert.Contains("Encoder failed", entry.Text, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Constructor_RejectsNulls()
     {

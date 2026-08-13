@@ -39,6 +39,14 @@ public partial class App : Application
                 formatProvider: CultureInfo.InvariantCulture,
                 rollingInterval: Serilog.RollingInterval.Day,
                 retainedFileCountLimit: 7,
+
+                // A daily roll bounds the file count but not the size of any one file, and an
+                // overnight session is exactly the case that produces a large one. Rolling on
+                // size as well puts a real ceiling on the directory: seven files of 16 MB.
+                // Serilog's default is to stop writing at the size limit rather than roll, which
+                // would lose the end of the session — the part worth reading after a failure.
+                fileSizeLimitBytes: 16L * 1024 * 1024,
+                rollOnFileSizeLimit: true,
                 shared: true)
             .CreateLogger();
 

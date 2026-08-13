@@ -107,7 +107,7 @@ phase plan these entries follow.
   Spotify's own precision, alongside the year the `{year}` token needs; the album's track total,
   so the track tag reads `4/12` and a player can tell a partial rip from a complete album; and
   the album's copyright line, preferring the recording's over the composition's.
-- **855 tests**, 13 of which drive the real window through FlaUI and are excluded from CI.
+- **857 tests**, 13 of which drive the real window through FlaUI and are excluded from CI.
 
 ### Changed
 
@@ -213,6 +213,14 @@ phase plan these entries follow.
   so `artist` and `album_artist` were identical on every enriched file. It now credits the
   track's own performers, as the predecessor's TPE1/TPE2 split did. File names are unaffected;
   the `{artist}` template token still renders from `Track.Artists`.
+- **The activity log grew for the life of the session instead of scrolling.** The in-memory sink
+  keeps the last 2000 lines and the page's backing buffer trimmed with it, but the collection
+  actually bound to the list never dropped its oldest entry — so an overnight session ended with
+  a pane holding far more lines than had been retained. Both now trim in lockstep, and a line the
+  filter hides no longer evicts one it shows.
+- **A single day's log file had no size ceiling.** The daily roll bounds the file count, not the
+  size of any one file. It now rolls at 16 MB as well, which caps the log directory at seven
+  files rather than seven days of unbounded writing.
 - **Nothing tagged from Last.fm ever carried a genre.** The mapper hard-coded an empty array and
   never read the `toptags` node. Since Spotify has also stopped returning album genres for most
   of its catalogue, the genre tag was empty whichever provider was chosen.
