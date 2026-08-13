@@ -453,4 +453,24 @@
     <value>There is no ffmpeg.exe at that path.</value>
     <comment>Inline validation: an explicit ffmpeg path that does not exist.</comment>
   </data>
+  <data name="TrayShow" xml:space="preserve">
+    <value>Show Offstream</value>
+    <comment>Tray menu item that restores the window.</comment>
+  </data>
+  <data name="TrayExit" xml:space="preserve">
+    <value>Exit</value>
+    <comment>Tray menu item that quits the app.</comment>
+  </data>
+  <data name="TrayIdle" xml:space="preserve">
+    <value>Offstream — not recording</value>
+    <comment>Tray tooltip while idle.</comment>
+  </data>
+  <data name="TrayRecording" xml:space="preserve">
+    <value>Offstream — recording {0}</value>
+    <comment>Tray tooltip while recording. {0} is the current track.</comment>
+  </data>
+  <data name="TrayWaiting" xml:space="preserve">
+    <value>Offstream — waiting for a track</value>
+    <comment>Tray tooltip while a session is running but nothing is playing yet.</comment>
+  </data>
 </root>

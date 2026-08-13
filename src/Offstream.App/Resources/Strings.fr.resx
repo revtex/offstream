@@ -352,4 +352,19 @@
   <data name="AdvancedFfmpegNotFound" xml:space="preserve">
     <value>Il n'y a pas de ffmpeg.exe à ce chemin.</value>
   </data>
+  <data name="TrayShow" xml:space="preserve">
+    <value>Afficher Offstream</value>
+  </data>
+  <data name="TrayExit" xml:space="preserve">
+    <value>Quitter</value>
+  </data>
+  <data name="TrayIdle" xml:space="preserve">
+    <value>Offstream — pas d'enregistrement</value>
+  </data>
+  <data name="TrayRecording" xml:space="preserve">
+    <value>Offstream — enregistre {0}</value>
+  </data>
+  <data name="TrayWaiting" xml:space="preserve">
+    <value>Offstream — en attente d'un titre</value>
+  </data>
 </root>

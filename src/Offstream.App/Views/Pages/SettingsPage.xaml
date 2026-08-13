@@ -27,6 +27,7 @@
                 not an event.
             -->
             <ui:InfoBar Margin="{StaticResource OffstreamStackGap}"
+                        AutomationProperties.AutomationId="SettingsSaveProblem"
                         IsClosable="False"
                         IsOpen="{Binding HasSaveProblem, Mode=OneWay}"
                         Message="{Binding SaveProblem, Mode=OneWay}"
@@ -57,11 +58,15 @@
                     <StackPanel Grid.Row="0" Grid.Column="1" Width="360">
                         <DockPanel>
                             <ui:Button Margin="8,0,0,0"
+                                       AutomationProperties.AutomationId="SettingsBrowseButton"
                                        Command="{Binding BrowseCommand}"
                                        Content="{x:Static res:Strings.SettingsBrowse}"
                                        DockPanel.Dock="Right"
                                        Icon="{ui:SymbolIcon FolderOpen24}" />
-                            <ui:TextBox x:Name="OutputPathBox" Text="{Binding OutputPath, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
+                            <ui:TextBox x:Name="OutputPathBox"
+                                        AutomationProperties.AutomationId="SettingsOutputPath"
+                                        AutomationProperties.Name="{x:Static res:Strings.SettingsOutputPathLabel}"
+                                        Text="{Binding OutputPath, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
                         </DockPanel>
                         <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=OutputPathBox, Path=(Validation.Errors)/ErrorContent}" />
                     </StackPanel>
@@ -78,6 +83,8 @@
                               Grid.Column="1"
                               Width="360"
                               Margin="0,16,0,0"
+                              AutomationProperties.AutomationId="SettingsFormat"
+                              AutomationProperties.Name="{x:Static res:Strings.SettingsFormatLabel}"
                               DisplayMemberPath="Name"
                               ItemsSource="{Binding Formats, Mode=OneTime}"
                               SelectedValue="{Binding Format, Mode=TwoWay}"
@@ -95,7 +102,9 @@
                                 Grid.Column="1"
                                 Width="360"
                                 Margin="0,16,0,0">
-                        <ComboBox IsEnabled="{Binding SupportsBitrate, Mode=OneWay}"
+                        <ComboBox AutomationProperties.AutomationId="SettingsBitrate"
+                                  AutomationProperties.Name="{x:Static res:Strings.SettingsBitrateLabel}"
+                                  IsEnabled="{Binding SupportsBitrate, Mode=OneWay}"
                                   ItemStringFormat="{x:Static res:Strings.SettingsBitrateItem}"
                                   ItemsSource="{Binding Bitrates, Mode=OneWay}"
                                   SelectedValue="{Binding BitrateKbps, Mode=TwoWay}" />
@@ -143,11 +152,14 @@
 
                     <DockPanel Grid.Row="0" Grid.Column="1" Width="360">
                         <ui:Button Margin="8,0,0,0"
+                                   AutomationProperties.AutomationId="SettingsDeviceRefreshButton"
                                    Command="{Binding RefreshDevicesCommand}"
                                    Content="{x:Static res:Strings.SettingsDeviceRefresh}"
                                    DockPanel.Dock="Right"
                                    Icon="{ui:SymbolIcon ArrowClockwise24}" />
-                        <ComboBox DisplayMemberPath="Name"
+                        <ComboBox AutomationProperties.AutomationId="SettingsDevice"
+                                  AutomationProperties.Name="{x:Static res:Strings.SettingsDeviceLabel}"
+                                  DisplayMemberPath="Name"
                                   ItemsSource="{Binding Devices, Mode=OneWay}"
                                   SelectedItem="{Binding SelectedDevice, Mode=TwoWay}" />
                     </DockPanel>
@@ -171,7 +183,10 @@
                                        Foreground="{StaticResource OffstreamIdleBrush}"
                                        Style="{StaticResource BodyTextBlockStyle}"
                                        Text="{x:Static res:Strings.SettingsSecondsUnit}" />
-                            <ui:TextBox x:Name="MinimumLengthBox" Text="{Binding MinimumLengthSeconds, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
+                            <ui:TextBox x:Name="MinimumLengthBox"
+                                        AutomationProperties.AutomationId="SettingsMinimumLength"
+                                        AutomationProperties.Name="{x:Static res:Strings.SettingsMinimumLengthLabel}"
+                                        Text="{Binding MinimumLengthSeconds, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
                         </DockPanel>
                         <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=MinimumLengthBox, Path=(Validation.Errors)/ErrorContent}" />
                     </StackPanel>
@@ -202,6 +217,8 @@
                     <ComboBox Grid.Row="0"
                               Grid.Column="1"
                               Width="360"
+                              AutomationProperties.AutomationId="SettingsProvider"
+                              AutomationProperties.Name="{x:Static res:Strings.SettingsProviderLabel}"
                               DisplayMemberPath="Name"
                               ItemsSource="{Binding Providers, Mode=OneTime}"
                               SelectedValue="{Binding Provider, Mode=TwoWay}"
@@ -225,7 +242,10 @@
                                 Width="360"
                                 Margin="0,16,0,0"
                                 Visibility="{Binding IsSpotifyProvider, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
-                        <ui:TextBox x:Name="ClientIdBox" Text="{Binding SpotifyClientId, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
+                        <ui:TextBox x:Name="ClientIdBox"
+                                    AutomationProperties.AutomationId="SettingsClientId"
+                                    AutomationProperties.Name="{x:Static res:Strings.SettingsClientIdLabel}"
+                                    Text="{Binding SpotifyClientId, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
                         <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=ClientIdBox, Path=(Validation.Errors)/ErrorContent}" />
                         <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.SettingsClientIdHint}" />
                     </StackPanel>

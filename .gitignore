@@ -45,3 +45,7 @@ BenchmarkDotNet.Artifacts/
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# Byte-code from the icon generator in tools/
+__pycache__/
+*.pyc

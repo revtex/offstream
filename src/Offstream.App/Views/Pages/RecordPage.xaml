@@ -57,11 +57,13 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}"
+                    <TextBlock AutomationProperties.AutomationId="RecordNowPlaying"
+                               Style="{StaticResource SubtitleTextBlockStyle}"
                                Text="{Binding NowPlaying, Mode=OneWay}"
                                TextTrimming="CharacterEllipsis"
                                ToolTip="{Binding NowPlaying, Mode=OneWay}" />
                     <TextBlock Margin="0,4,0,0"
+                               AutomationProperties.AutomationId="RecordStatus"
                                Foreground="{StaticResource OffstreamIdleBrush}"
                                Style="{StaticResource BodyTextBlockStyle}"
                                Text="{Binding Status, Mode=OneWay}"
@@ -71,6 +73,7 @@
                 <TextBlock Grid.Column="1"
                            Margin="16,0"
                            VerticalAlignment="Center"
+                           AutomationProperties.AutomationId="RecordElapsed"
                            FontFamily="{StaticResource OffstreamMonoFontFamily}"
                            Style="{StaticResource TitleTextBlockStyle}"
                            Text="{Binding ElapsedText, Mode=OneWay}" />
@@ -82,11 +85,13 @@
                 -->
                 <Grid Grid.Column="2" VerticalAlignment="Center">
                     <ui:Button Appearance="Primary"
+                               AutomationProperties.AutomationId="RecordStartButton"
                                Command="{Binding StartCommand}"
                                Content="{x:Static res:Strings.RecordStart}"
                                Icon="{ui:SymbolIcon Record24}"
                                Visibility="{Binding IsIdle, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
                     <ui:Button Appearance="Danger"
+                               AutomationProperties.AutomationId="RecordStopButton"
                                Command="{Binding StopCommand}"
                                Content="{x:Static res:Strings.RecordStop}"
                                Icon="{ui:SymbolIcon Stop24}"
@@ -101,6 +106,7 @@
         -->
         <ui:Card Grid.Row="1" Margin="{StaticResource OffstreamStackGap}">
             <controls:WaveformView Height="64"
+                                   AutomationProperties.AutomationId="RecordLevelMeter"
                                    AutomationProperties.Name="{x:Static res:Strings.RecordLevelLabel}"
                                    Fill="{StaticResource OffstreamRecordingBrush}"
                                    Level="{Binding Level, Mode=OneWay}" />
@@ -122,16 +128,20 @@
                 <ComboBox Width="180"
                           Margin="8,0,0,0"
                           VerticalAlignment="Center"
+                          AutomationProperties.AutomationId="RecordLogFilter"
+                          AutomationProperties.Name="{x:Static res:Strings.RecordFilterLabel}"
                           DisplayMemberPath="Name"
                           ItemsSource="{Binding FilterOptions, Mode=OneTime}"
                           SelectedValue="{Binding Filter, Mode=TwoWay}"
                           SelectedValuePath="Value" />
 
                 <ui:Button Margin="8,0,0,0"
+                           AutomationProperties.AutomationId="RecordCopyLogButton"
                            Command="{Binding CopyLogCommand}"
                            Content="{x:Static res:Strings.RecordCopyLog}"
                            Icon="{ui:SymbolIcon Copy24}" />
                 <ui:Button Margin="8,0,0,0"
+                           AutomationProperties.AutomationId="RecordClearLogButton"
                            Command="{Binding ClearLogCommand}"
                            Content="{x:Static res:Strings.RecordClearLog}"
                            Icon="{ui:SymbolIcon Delete24}" />
@@ -139,6 +149,7 @@
 
             <ui:Card Grid.Row="1">
                 <ListBox x:Name="LogList"
+                         AutomationProperties.AutomationId="RecordLogList"
                          Background="Transparent"
                          BorderThickness="0"
                          FontFamily="{StaticResource OffstreamMonoFontFamily}"

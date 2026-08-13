@@ -3,6 +3,7 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:pages="clr-namespace:Offstream.App.Views.Pages"
                  xmlns:res="clr-namespace:Offstream.App.Resources"
+                 xmlns:tb="http://www.hardcodet.net/taskbar"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  Title="Offstream"
                  Width="960"
@@ -10,9 +11,14 @@
                  MinWidth="720"
                  MinHeight="480"
                  ExtendsContentIntoTitleBar="True"
+                 Icon="pack://application:,,,/Assets/offstream.ico"
                  WindowBackdropType="Mica"
                  WindowCornerPreference="Round"
                  WindowStartupLocation="CenterScreen">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibility" />
+    </Window.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -20,6 +26,46 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
+
+        <!--
+            The tray icon lives in the window's tree, which is what keeps it alive while the
+            window is hidden — hiding does not unload. It appears only while the window is in
+            the tray (see ShellViewModel.IsInTray), and its colour is the whole point: red is
+            the one moment the user cannot see the Record page and still needs to know a
+            recording is running.
+
+            It draws nothing, so it sits outside the row layout entirely.
+        -->
+        <tb:TaskbarIcon x:Name="Tray"
+                        DoubleClickCommand="{Binding ShowCommand}"
+                        LeftClickCommand="{Binding ShowCommand}"
+                        NoLeftClickDelay="True"
+                        ToolTipText="{Binding TrayTooltip}"
+                        Visibility="{Binding IsInTray, Converter={StaticResource BooleanToVisibility}}">
+            <!--
+                Two icons, one shape: only the fill changes, so the tray reads as the same app
+                in a different state rather than as a different icon. Done as a trigger rather
+                than a converter so the two asset paths stay visible in the markup.
+            -->
+            <tb:TaskbarIcon.Style>
+                <Style TargetType="tb:TaskbarIcon">
+                    <Setter Property="IconSource" Value="pack://application:,,,/Assets/tray-idle.ico" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsRecording}" Value="True">
+                            <Setter Property="IconSource" Value="pack://application:,,,/Assets/tray-recording.ico" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </tb:TaskbarIcon.Style>
+
+            <tb:TaskbarIcon.ContextMenu>
+                <ContextMenu>
+                    <MenuItem Command="{Binding ShowCommand}" Header="{x:Static res:Strings.TrayShow}" />
+                    <Separator />
+                    <MenuItem Command="{Binding ExitCommand}" Header="{x:Static res:Strings.TrayExit}" />
+                </ContextMenu>
+            </tb:TaskbarIcon.ContextMenu>
+        </tb:TaskbarIcon>
 
         <ui:TitleBar Grid.Row="0" Title="Offstream" />
 
@@ -30,6 +76,7 @@
         -->
         <ui:InfoBar Grid.Row="1"
                     Margin="24,0,24,12"
+                    AutomationProperties.AutomationId="ShellStartupWarning"
                     IsClosable="True"
                     IsOpen="{Binding HasStartupWarning, Mode=OneWay}"
                     Message="{Binding StartupWarning, Mode=OneWay}"
@@ -46,7 +93,8 @@
                            IsPaneToggleVisible="False"
                            PaneDisplayMode="Top">
             <ui:NavigationView.MenuItems>
-                <ui:NavigationViewItem Content="{x:Static res:Strings.NavRecord}"
+                <ui:NavigationViewItem AutomationProperties.AutomationId="NavRecord"
+                                       Content="{x:Static res:Strings.NavRecord}"
                                        NavigationCacheMode="Enabled"
                                        TargetPageType="{x:Type pages:RecordPage}">
                     <ui:NavigationViewItem.Icon>
@@ -54,7 +102,8 @@
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
 
-                <ui:NavigationViewItem Content="{x:Static res:Strings.NavSettings}"
+                <ui:NavigationViewItem AutomationProperties.AutomationId="NavSettings"
+                                       Content="{x:Static res:Strings.NavSettings}"
                                        NavigationCacheMode="Enabled"
                                        TargetPageType="{x:Type pages:SettingsPage}">
                     <ui:NavigationViewItem.Icon>
@@ -62,7 +111,8 @@
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
 
-                <ui:NavigationViewItem Content="{x:Static res:Strings.NavAdvanced}"
+                <ui:NavigationViewItem AutomationProperties.AutomationId="NavAdvanced"
+                                       Content="{x:Static res:Strings.NavAdvanced}"
                                        NavigationCacheMode="Enabled"
                                        TargetPageType="{x:Type pages:AdvancedPage}">
                     <ui:NavigationViewItem.Icon>

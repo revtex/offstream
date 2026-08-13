@@ -108,9 +108,20 @@ internal sealed class FakeSessionFactory : IRecordingSessionFactory
     /// <summary>The most recent session handed out.</summary>
     public RecordingSession? Last { get; private set; }
 
+    /// <summary>
+    /// The channel the controller handed in, so a test can report what a session would.
+    /// </summary>
+    /// <remarks>
+    /// Reaching a state like "recording, and this is the track" otherwise means running a real
+    /// poller against a fake Spotify and waiting for it to notice — an integration test of the
+    /// session, dressed up as a test of whatever is reading the reports.
+    /// </remarks>
+    public IProgress<RecordingProgress>? Progress { get; private set; }
+
     public RecordingSession Create(OffstreamSettings settings, IProgress<RecordingProgress> progress)
     {
         Calls++;
+        Progress = progress;
 
         if (Failure is not null) throw Failure;
 
