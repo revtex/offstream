@@ -107,7 +107,7 @@ phase plan these entries follow.
   Spotify's own precision, alongside the year the `{year}` token needs; the album's track total,
   so the track tag reads `4/12` and a player can tell a partial rip from a complete album; and
   the album's copyright line, preferring the recording's over the composition's.
-- **857 tests**, 13 of which drive the real window through FlaUI and are excluded from CI.
+- **860 tests**, 14 of which drive the real window through FlaUI and are excluded from CI.
 
 ### Changed
 
@@ -213,6 +213,20 @@ phase plan these entries follow.
   so `artist` and `album_artist` were identical on every enriched file. It now credits the
   track's own performers, as the predecessor's TPE1/TPE2 split did. File names are unaffected;
   the `{artist}` template token still renders from `Track.Artists`.
+- **Spotify tagged nothing on tracks whose boundary caught its backend mid-change.** The window
+  title advances the instant the desktop client does, while `/v1/me/player/currently-playing` is
+  served from player state that trails it by a second or more — so asking once at the boundary
+  returns the *previous* track, the title-match guard correctly refuses it, and the recording is
+  saved bare. The predecessor waited before its first poll and retried a second later; the port
+  kept the guard and dropped the retry. Both are back, with a momentary empty answer treated as
+  the same race rather than as "nothing is playing". A podcast episode still fails immediately —
+  retrying could not change that answer.
+- **The Record page grew taller than its window, so the log never scrolled.** WPF-UI's
+  `NavigationViewContentPresenter` wraps a page in a `DynamicScrollViewer` whenever its
+  `ScrollViewer.CanContentScroll` is true — which that control's own static constructor makes the
+  default — and inside it the page is measured with infinite height. The log's star row resolved
+  to its content's size instead of the viewport, so the list realised every retained line and ran
+  off the bottom of the window, with tail-following silently doing nothing.
 - **The activity log grew for the life of the session instead of scrolling.** The in-memory sink
   keeps the last 2000 lines and the page's backing buffer trimmed with it, but the collection
   actually bound to the list never dropped its oldest entry — so an overnight session ended with
