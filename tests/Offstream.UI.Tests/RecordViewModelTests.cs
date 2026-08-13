@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Offstream.App.Resources;
 using Offstream.App.Services;
 using Offstream.App.ViewModels;
@@ -344,11 +345,6 @@ public sealed class RecordViewModelTests
         var controller = ControllerFor(factory);
         var viewModel = new RecordViewModel(new InMemoryLogSink(), controller);
 
-        await controller.StartAsync();
-        factory.Progress!.Report(new RecordingProgress(stage));
-
-        Assert.Equal(capturing, viewModel.IsCapturing);
-
         var expected = stage switch
         {
             RecordingStage.Recording => Strings.RecordTransportRecording,
@@ -356,6 +352,10 @@ public sealed class RecordViewModelTests
             _ => Strings.RecordTransportStopped,
         };
 
+        await controller.StartAsync();
+        await ReportAsync(factory, viewModel, new RecordingProgress(stage), () => viewModel.Transport == expected);
+
+        Assert.Equal(capturing, viewModel.IsCapturing);
         Assert.Equal(expected, viewModel.Transport);
     }
 
@@ -374,11 +374,19 @@ public sealed class RecordViewModelTests
         Assert.False(viewModel.IsArmed);
 
         await viewModel.StartCommand.ExecuteAsync(null);
-        factory.Progress!.Report(new RecordingProgress(RecordingStage.WaitingForTrack));
+        await ReportAsync(
+            factory,
+            viewModel,
+            new RecordingProgress(RecordingStage.WaitingForTrack),
+            () => viewModel.IsArmed);
 
         Assert.True(viewModel.IsArmed);
 
-        factory.Progress.Report(new RecordingProgress(RecordingStage.Recording));
+        await ReportAsync(
+            factory,
+            viewModel,
+            new RecordingProgress(RecordingStage.Recording),
+            () => viewModel.IsCapturing);
 
         // Solid, not blinking, the moment audio starts reaching the encoder.
         Assert.False(viewModel.IsArmed);
@@ -415,7 +423,11 @@ public sealed class RecordViewModelTests
         var viewModel = new RecordViewModel(new InMemoryLogSink(), controller);
 
         await viewModel.StartCommand.ExecuteAsync(null);
-        factory.Progress!.Report(new RecordingProgress(RecordingStage.Recording));
+        await ReportAsync(
+            factory,
+            viewModel,
+            new RecordingProgress(RecordingStage.Recording),
+            () => viewModel.IsCapturing);
 
         await viewModel.StopCommand.ExecuteAsync(null);
 
@@ -454,4 +466,51 @@ public sealed class RecordViewModelTests
 
     private static Logger LoggerFor(InMemoryLogSink sink) =>
         new LoggerConfiguration().MinimumLevel.Debug().WriteTo.Sink(sink).CreateLogger();
+
+    /// <summary>
+    /// Reports progress and waits for the view model to have acted on it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="IProgress{T}.Report"/> is asynchronous. <see cref="Progress{T}"/> captures the
+    /// <see cref="SynchronizationContext"/> current when it is constructed, and a unit test has
+    /// none — so the callback is posted to the thread pool and <c>Report</c> returns before the
+    /// view model has changed anything. Asserting on the next line is a race, and this suite lost
+    /// it often enough to make a green run meaningless.
+    /// </para>
+    /// <para>
+    /// Waiting on <see cref="INotifyPropertyChanged.PropertyChanged"/> rather than sleeping keeps
+    /// the tests both deterministic and fast: the same shape <c>ShellViewModelTests.TooltipAfter</c>
+    /// already used for the same reason. The condition is re-checked on every notification because
+    /// one report can raise several, and the interesting one is not always first.
+    /// </para>
+    /// </remarks>
+    private static async Task ReportAsync(
+        FakeSessionFactory factory,
+        RecordViewModel viewModel,
+        RecordingProgress progress,
+        Func<bool> settled)
+    {
+        var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        void OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (settled()) changed.TrySetResult();
+        }
+
+        viewModel.PropertyChanged += OnPropertyChanged;
+
+        try
+        {
+            factory.Progress!.Report(progress);
+
+            if (settled()) return;
+
+            await changed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            viewModel.PropertyChanged -= OnPropertyChanged;
+        }
+    }
 }
