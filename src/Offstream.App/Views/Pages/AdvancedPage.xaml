@@ -10,10 +10,11 @@
         naming, what counts as a track, what ends up in the tags, and the two application settings
         with nowhere else to live.
 
-        Two columns, at the user's direction, and the split is by subject rather than by length:
-        the left column is the file that gets written, the right is what the app watches for and
-        how the app itself behaves. Thirteen settings do not fit one column at the window's minimum
-        height, and this page makes the same no-scroll promise the Settings page does.
+        Laid out by what each section actually needs rather than by splitting the count in half.
+        File names goes across the top because its content is wide — a path template, and a
+        rendered path under it — and folding that into a half-width column wrapped both onto three
+        lines. Detection and Application take a column each below it, because their content is a
+        list of short rows, which is the shape a narrow column suits.
 
         Inside a column the grammar matches Settings — label directly above its control for
         anything with a value, label and switch on one line for anything that is only on or off,
@@ -25,11 +26,29 @@
         <BooleanToVisibilityConverter x:Key="BooleanToVisibility" />
 
         <Style x:Key="Field" TargetType="StackPanel">
-            <Setter Property="Margin" Value="0,0,0,14" />
+            <Setter Property="Margin" Value="0,0,0,12" />
         </Style>
 
-        <Style x:Key="SwitchRow" TargetType="DockPanel">
-            <Setter Property="Margin" Value="0,0,0,14" />
+        <!--
+            The label half of a switch row.
+
+            Its column is a fixed width and the row is left-aligned, which is the whole fix for
+            what these looked like before: with the switch docked to the right of a stretching
+            row, a maximised window put three hundred empty pixels between a setting and the
+            switch that answered it, and every row's switch landed in a different place because
+            each label is a different length. Pinning the column puts the switches in one line
+            down the card and keeps them next to what they belong to at any window size.
+        -->
+        <Style x:Key="SwitchLabel" TargetType="StackPanel">
+            <Setter Property="Margin" Value="0,0,20,12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <Style x:Key="Switch"
+               BasedOn="{StaticResource {x:Type ui:ToggleSwitch}}"
+               TargetType="ui:ToggleSwitch">
+            <Setter Property="Margin" Value="0,0,0,12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
 
         <!--
@@ -60,6 +79,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -71,22 +91,26 @@
                     Message="{Binding SaveProblem, Mode=OneWay}"
                     Severity="Error" />
 
-        <Grid Grid.Row="1">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="16" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
+        <!--  What the file is called. Across the top, because everything in it is a long string.  -->
+        <Border Grid.Row="1"
+                Margin="0,0,0,12"
+                Padding="20,16,20,4"
+                Style="{StaticResource OffstreamCardStyle}">
+            <StackPanel>
+                <ContentControl Content="{x:Static res:Strings.AdvancedNamingSection}" Style="{StaticResource OffstreamGroupHeaderStyle}" />
 
-            <!--  The file that gets written: what it is called, and what goes in its tags.  -->
-            <Border Grid.Column="0"
-                    Padding="24,20,24,8"
-                    VerticalAlignment="Top"
-                    Style="{StaticResource OffstreamCardStyle}">
-                <StackPanel>
-                    <ContentControl Content="{x:Static res:Strings.AdvancedNamingSection}" Style="{StaticResource OffstreamGroupHeaderStyle}" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="28" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
 
-                    <StackPanel Style="{StaticResource Field}">
+                    <StackPanel Grid.Row="0" Grid.Column="0" Style="{StaticResource Field}">
                         <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedTemplateLabel}" />
 
                         <DockPanel>
@@ -110,7 +134,7 @@
 
                             <!--
                                 The one field on either page that commits per keystroke: the
-                                preview below it is the whole point, and a preview that waits for
+                                preview beside it is the whole point, and a preview that waits for
                                 focus loss is a preview of the previous template.
                             -->
                             <ui:TextBox x:Name="TemplateBox"
@@ -133,232 +157,297 @@
                         </StackPanel>
                     </StackPanel>
 
-                    <!--
-                        StaysOpen false so a click anywhere else dismisses it, which writes false
-                        back through the same property the button is bound to and pops the button
-                        out with it.
-                    -->
-                    <Popup AllowsTransparency="True"
-                           HorizontalOffset="-8"
-                           IsOpen="{Binding IsTokenReferenceOpen, Mode=TwoWay}"
-                           Placement="Bottom"
-                           PlacementTarget="{Binding ElementName=TokenReferenceButton}"
-                           PopupAnimation="Fade"
-                           StaysOpen="False"
-                           VerticalOffset="6">
-                        <Border MaxWidth="420"
-                                Padding="16"
-                                Style="{StaticResource OffstreamCardStyle}">
-                            <StackPanel>
-                                <ContentControl Content="{x:Static res:Strings.AdvancedTemplateTokens}" Style="{StaticResource OffstreamGroupHeaderStyle}" />
-                                <ItemsControl AutomationProperties.AutomationId="AdvancedTokenList"
-                                              Grid.IsSharedSizeScope="True"
-                                              ItemTemplate="{StaticResource TemplateTokenTemplate}"
-                                              ItemsSource="{Binding Tokens, Mode=OneTime}" />
-                            </StackPanel>
-                        </Border>
-                    </Popup>
-
-                    <StackPanel Style="{StaticResource Field}">
+                    <StackPanel Grid.Row="0" Grid.Column="2" Style="{StaticResource Field}">
                         <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedPreviewLabel}" />
 
                         <!--
                             Rendered by the recorder's own naming code, so what is shown here is
-                            the path that would be written — including the length budgeting.
+                            the path that would be written — including the length budgeting. Beside
+                            the template rather than under it: the two are read together, and a
+                            preview a line below the box it describes is a preview you have to
+                            look for.
                         -->
-                        <TextBlock AutomationProperties.AutomationId="AdvancedTemplatePreview"
+                        <TextBlock Height="34"
+                                   AutomationProperties.AutomationId="AdvancedTemplatePreview"
                                    FontFamily="{StaticResource OffstreamMonoFontFamily}"
                                    FontSize="{StaticResource OffstreamMonoFontSize}"
                                    Text="{Binding TemplatePreview, Mode=OneWay}"
                                    TextWrapping="Wrap" />
                     </StackPanel>
 
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
+                    <StackPanel Grid.Row="1" Grid.Column="0" Style="{StaticResource Field}">
+                        <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedExistingLabel}" />
+                        <ComboBox AutomationProperties.AutomationId="AdvancedExistingFilePolicy"
+                                  AutomationProperties.Name="{x:Static res:Strings.AdvancedExistingLabel}"
+                                  DisplayMemberPath="Name"
+                                  ItemsSource="{Binding Policies, Mode=OneTime}"
+                                  SelectedValue="{Binding ExistingFilePolicy, Mode=TwoWay}"
+                                  SelectedValuePath="Value" />
+                    </StackPanel>
 
-                            <!--
-                                Auto, not star. The counter beside it is only shown for templates
-                                that use {count}, and a star column would hold half the card empty
-                                for every template that does not — which is what made the policy
-                                label wrap over two lines with nothing beside it.
-                            -->
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-
-                        <StackPanel Grid.Column="0" Style="{StaticResource Field}">
-                            <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedExistingLabel}" />
-                            <ComboBox AutomationProperties.AutomationId="AdvancedExistingFilePolicy"
-                                      AutomationProperties.Name="{x:Static res:Strings.AdvancedExistingLabel}"
-                                      DisplayMemberPath="Name"
-                                      ItemsSource="{Binding Policies, Mode=OneTime}"
-                                      SelectedValue="{Binding ExistingFilePolicy, Mode=TwoWay}"
-                                      SelectedValuePath="Value" />
-                        </StackPanel>
-
-                        <!--
-                            Only shown when the template actually uses {count}. A "next number"
-                            field beside a template that never numbers anything is a setting with
-                            no effect.
-                        -->
-                        <StackPanel Grid.Column="1"
+                    <!--
+                        Only shown when the template actually uses {count}. A "next number" field
+                        beside a template that never numbers anything is a setting with no effect.
+                    -->
+                    <StackPanel Grid.Row="1"
+                                Grid.Column="2"
+                                Style="{StaticResource Field}"
+                                Visibility="{Binding UsesCounter, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                        <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedCounterLabel}" />
+                        <ui:TextBox x:Name="CounterBox"
                                     Width="150"
-                                    Margin="20,0,0,14"
-                                    Visibility="{Binding UsesCounter, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
-                            <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedCounterLabel}" />
-                            <ui:TextBox x:Name="CounterBox"
-                                        AutomationProperties.AutomationId="AdvancedFileCounter"
-                                        AutomationProperties.Name="{x:Static res:Strings.AdvancedCounterLabel}"
-                                        Text="{Binding FileCounter, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
-                            <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=CounterBox, Path=(Validation.Errors)/ErrorContent}" />
-                            <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.AdvancedCounterHint}" />
+                                    HorizontalAlignment="Left"
+                                    AutomationProperties.AutomationId="AdvancedFileCounter"
+                                    AutomationProperties.Name="{x:Static res:Strings.AdvancedCounterLabel}"
+                                    Text="{Binding FileCounter, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
+                        <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=CounterBox, Path=(Validation.Errors)/ErrorContent}" />
+                    </StackPanel>
+                </Grid>
+
+                <!--
+                    StaysOpen false so a click anywhere else dismisses it, which writes false
+                    back through the same property the button is bound to and pops the button
+                    out with it.
+                -->
+                <Popup AllowsTransparency="True"
+                       HorizontalOffset="-8"
+                       IsOpen="{Binding IsTokenReferenceOpen, Mode=TwoWay}"
+                       Placement="Bottom"
+                       PlacementTarget="{Binding ElementName=TokenReferenceButton}"
+                       PopupAnimation="Fade"
+                       StaysOpen="False"
+                       VerticalOffset="6">
+                    <Border MaxWidth="420"
+                            Padding="16"
+                            Style="{StaticResource OffstreamCardStyle}">
+                        <StackPanel>
+                            <ContentControl Content="{x:Static res:Strings.AdvancedTemplateTokens}" Style="{StaticResource OffstreamGroupHeaderStyle}" />
+                            <ItemsControl AutomationProperties.AutomationId="AdvancedTokenList"
+                                          Grid.IsSharedSizeScope="True"
+                                          ItemTemplate="{StaticResource TemplateTokenTemplate}"
+                                          ItemsSource="{Binding Tokens, Mode=OneTime}" />
                         </StackPanel>
-                    </Grid>
+                    </Border>
+                </Popup>
+            </StackPanel>
+        </Border>
 
-                    <ContentControl Content="{x:Static res:Strings.AdvancedTagsSection}" Style="{StaticResource OffstreamGroupHeaderStyle}" />
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
 
-                    <DockPanel Style="{StaticResource SwitchRow}">
-                        <ui:ToggleSwitch Margin="16,0,0,0"
-                                         VerticalAlignment="Center"
-                                         AutomationProperties.AutomationId="AdvancedWriteCounter"
-                                         AutomationProperties.Name="{x:Static res:Strings.AdvancedWriteCounter}"
-                                         DockPanel.Dock="Right"
-                                         IsChecked="{Binding WriteCounterToTrackNumber, Mode=TwoWay}" />
-
-                        <StackPanel VerticalAlignment="Center">
-                            <TextBlock Margin="0"
-                                       Style="{StaticResource OffstreamFieldLabelStyle}"
-                                       Text="{x:Static res:Strings.AdvancedWriteCounter}" />
-                            <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.AdvancedWriteCounterHint}" />
-                        </StackPanel>
-                    </DockPanel>
-                </StackPanel>
-            </Border>
-
-            <!--  What the app watches for, and how the app itself behaves.  -->
-            <Border Grid.Column="2"
-                    Padding="24,20,24,8"
-                    VerticalAlignment="Top"
+            <!--  What counts as a track, and what ends up in its tags.  -->
+            <Border Grid.Column="0"
+                    Padding="20,16,20,4"
                     Style="{StaticResource OffstreamCardStyle}">
                 <StackPanel>
                     <ContentControl Content="{x:Static res:Strings.AdvancedDetectionSection}" Style="{StaticResource OffstreamGroupHeaderStyle}" />
 
-                    <DockPanel Style="{StaticResource SwitchRow}">
-                        <ui:ToggleSwitch Margin="16,0,0,0"
-                                         VerticalAlignment="Center"
+                    <!--
+                        Every switch in the section shares one grid, which is what puts them in a
+                        column. Separate rows would each size to their own label and scatter.
+                    -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <!--
+                                Star with a cap, not a fixed width. The cap is what stops the
+                                switches drifting to the far edge of a maximised window; the star
+                                is what lets the column give ground at the minimum size, where the
+                                timer's own field needs room on the same row.
+                            -->
+                            <ColumnDefinition Width="*" MaxWidth="330" />
+
+                            <!--
+                                A floor wide enough for the timer's own field, so every section's
+                                switch column resolves to the same width and the switches line up
+                                across the section rule rather than only within it.
+                            -->
+                            <ColumnDefinition Width="Auto" MinWidth="176" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Grid.Row="0" Grid.Column="0" Style="{StaticResource SwitchLabel}">
+                            <TextBlock Margin="0" Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedMuteAds}" />
+                        </StackPanel>
+
+                        <ui:ToggleSwitch Grid.Row="0"
+                                         Grid.Column="1"
                                          AutomationProperties.AutomationId="AdvancedMuteAds"
                                          AutomationProperties.Name="{x:Static res:Strings.AdvancedMuteAds}"
-                                         DockPanel.Dock="Right"
-                                         IsChecked="{Binding MuteAds, Mode=TwoWay}" />
+                                         IsChecked="{Binding MuteAds, Mode=TwoWay}"
+                                         Style="{StaticResource Switch}" />
 
-                        <TextBlock Margin="0"
-                                   VerticalAlignment="Center"
-                                   Style="{StaticResource OffstreamFieldLabelStyle}"
-                                   Text="{x:Static res:Strings.AdvancedMuteAds}" />
-                    </DockPanel>
-
-                    <DockPanel Style="{StaticResource SwitchRow}">
-                        <ui:ToggleSwitch Margin="16,0,0,0"
-                                         VerticalAlignment="Center"
-                                         AutomationProperties.AutomationId="AdvancedRecordEverything"
-                                         AutomationProperties.Name="{x:Static res:Strings.AdvancedRecordEverything}"
-                                         DockPanel.Dock="Right"
-                                         IsChecked="{Binding RecordEverything, Mode=TwoWay}" />
-
-                        <StackPanel VerticalAlignment="Center">
-                            <TextBlock Margin="0"
-                                       Style="{StaticResource OffstreamFieldLabelStyle}"
-                                       Text="{x:Static res:Strings.AdvancedRecordEverything}" />
+                        <StackPanel Grid.Row="1" Grid.Column="0" Style="{StaticResource SwitchLabel}">
+                            <TextBlock Margin="0" Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedRecordEverything}" />
                             <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.AdvancedRecordEverythingHint}" />
                         </StackPanel>
-                    </DockPanel>
 
-                    <!--
-                        Disabled rather than hidden while track detection is on: an advertisement
-                        has no artist and is never written as a file, and seeing the switch greyed
-                        out under the one that governs it is the explanation.
-                    -->
-                    <DockPanel Style="{StaticResource SwitchRow}">
-                        <ui:ToggleSwitch Margin="16,0,0,0"
-                                         VerticalAlignment="Center"
+                        <ui:ToggleSwitch Grid.Row="1"
+                                         Grid.Column="1"
+                                         AutomationProperties.AutomationId="AdvancedRecordEverything"
+                                         AutomationProperties.Name="{x:Static res:Strings.AdvancedRecordEverything}"
+                                         IsChecked="{Binding RecordEverything, Mode=TwoWay}"
+                                         Style="{StaticResource Switch}" />
+
+                        <!--
+                            Disabled rather than hidden while track detection is on: an
+                            advertisement has no artist and is never written as a file, and seeing
+                            the switch greyed out under the one that governs it is the explanation.
+                        -->
+                        <StackPanel Grid.Row="2"
+                                    Grid.Column="0"
+                                    IsEnabled="{Binding CanRecordAds, Mode=OneWay}"
+                                    Style="{StaticResource SwitchLabel}">
+                            <TextBlock Margin="0" Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedRecordAds}" />
+                        </StackPanel>
+
+                        <ui:ToggleSwitch Grid.Row="2"
+                                         Grid.Column="1"
                                          AutomationProperties.AutomationId="AdvancedRecordAds"
                                          AutomationProperties.Name="{x:Static res:Strings.AdvancedRecordAds}"
-                                         DockPanel.Dock="Right"
                                          IsChecked="{Binding RecordAds, Mode=TwoWay}"
-                                         IsEnabled="{Binding CanRecordAds, Mode=OneWay}" />
+                                         IsEnabled="{Binding CanRecordAds, Mode=OneWay}"
+                                         Style="{StaticResource Switch}" />
 
-                        <TextBlock Margin="0"
-                                   VerticalAlignment="Center"
-                                   IsEnabled="{Binding CanRecordAds, Mode=OneWay}"
-                                   Style="{StaticResource OffstreamFieldLabelStyle}"
-                                   Text="{x:Static res:Strings.AdvancedRecordAds}" />
-                    </DockPanel>
+                        <StackPanel Grid.Row="3" Grid.Column="0" Style="{StaticResource SwitchLabel}">
+                            <TextBlock Margin="0" Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedTimerEnabled}" />
+                        </StackPanel>
 
-                    <StackPanel Style="{StaticResource Field}">
-                        <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedTimerEnabled}" />
-
-                        <DockPanel>
-                            <ui:ToggleSwitch Margin="0,0,12,0"
-                                             VerticalAlignment="Center"
-                                             AutomationProperties.AutomationId="AdvancedTimerEnabled"
+                        <!--
+                            The switch stays in the column with the others and the duration hangs
+                            off it, so the row reads as one more on-or-off setting that happens to
+                            take a value.
+                        -->
+                        <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal">
+                            <ui:ToggleSwitch AutomationProperties.AutomationId="AdvancedTimerEnabled"
                                              AutomationProperties.Name="{x:Static res:Strings.AdvancedTimerEnabled}"
-                                             DockPanel.Dock="Left"
-                                             IsChecked="{Binding IsTimerEnabled, Mode=TwoWay}" />
+                                             IsChecked="{Binding IsTimerEnabled, Mode=TwoWay}"
+                                             Style="{StaticResource Switch}" />
+
                             <ui:TextBox x:Name="TimerBox"
-                                        Width="150"
-                                        HorizontalAlignment="Left"
+                                        Width="120"
+                                        Margin="12,0,0,12"
                                         VerticalAlignment="Center"
                                         AutomationProperties.AutomationId="AdvancedTimer"
                                         AutomationProperties.Name="{x:Static res:Strings.AdvancedTimerEnabled}"
                                         FontFamily="{StaticResource OffstreamMonoFontFamily}"
                                         IsEnabled="{Binding IsTimerEnabled, Mode=OneWay}"
                                         Text="{Binding Timer, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
-                        </DockPanel>
+                        </StackPanel>
+                    </Grid>
 
-                        <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=TimerBox, Path=(Validation.Errors)/ErrorContent}" />
-                    </StackPanel>
+                    <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=TimerBox, Path=(Validation.Errors)/ErrorContent}" />
 
+                    <ContentControl Content="{x:Static res:Strings.AdvancedTagsSection}" Style="{StaticResource OffstreamGroupHeaderStyle}" />
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <!--
+                                Star with a cap, not a fixed width. The cap is what stops the
+                                switches drifting to the far edge of a maximised window; the star
+                                is what lets the column give ground at the minimum size, where the
+                                timer's own field needs room on the same row.
+                            -->
+                            <ColumnDefinition Width="*" MaxWidth="330" />
+
+                            <!--
+                                A floor wide enough for the timer's own field, so every section's
+                                switch column resolves to the same width and the switches line up
+                                across the section rule rather than only within it.
+                            -->
+                            <ColumnDefinition Width="Auto" MinWidth="176" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Style="{StaticResource SwitchLabel}">
+                            <TextBlock Margin="0" Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedWriteCounter}" />
+                            <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.AdvancedWriteCounterHint}" />
+                        </StackPanel>
+
+                        <ui:ToggleSwitch Grid.Column="1"
+                                         AutomationProperties.AutomationId="AdvancedWriteCounter"
+                                         AutomationProperties.Name="{x:Static res:Strings.AdvancedWriteCounter}"
+                                         IsChecked="{Binding WriteCounterToTrackNumber, Mode=TwoWay}"
+                                         Style="{StaticResource Switch}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!--  How the app itself behaves.  -->
+            <Border Grid.Column="2"
+                    Padding="20,16,20,4"
+                    Style="{StaticResource OffstreamCardStyle}">
+                <StackPanel>
                     <ContentControl Content="{x:Static res:Strings.AdvancedAppSection}" Style="{StaticResource OffstreamGroupHeaderStyle}" />
 
-                    <DockPanel Style="{StaticResource SwitchRow}">
-                        <ui:ToggleSwitch Margin="16,0,0,0"
-                                         VerticalAlignment="Center"
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <!--
+                                Star with a cap, not a fixed width. The cap is what stops the
+                                switches drifting to the far edge of a maximised window; the star
+                                is what lets the column give ground at the minimum size, where the
+                                timer's own field needs room on the same row.
+                            -->
+                            <ColumnDefinition Width="*" MaxWidth="330" />
+
+                            <!--
+                                A floor wide enough for the timer's own field, so every section's
+                                switch column resolves to the same width and the switches line up
+                                across the section rule rather than only within it.
+                            -->
+                            <ColumnDefinition Width="Auto" MinWidth="176" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Style="{StaticResource SwitchLabel}">
+                            <TextBlock Margin="0" Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedMinimizeToTray}" />
+                        </StackPanel>
+
+                        <ui:ToggleSwitch Grid.Column="1"
                                          AutomationProperties.AutomationId="AdvancedMinimizeToTray"
                                          AutomationProperties.Name="{x:Static res:Strings.AdvancedMinimizeToTray}"
-                                         DockPanel.Dock="Right"
-                                         IsChecked="{Binding MinimizeToTray, Mode=TwoWay}" />
+                                         IsChecked="{Binding MinimizeToTray, Mode=TwoWay}"
+                                         Style="{StaticResource Switch}" />
+                    </Grid>
 
-                        <TextBlock Margin="0"
-                                   VerticalAlignment="Center"
-                                   Style="{StaticResource OffstreamFieldLabelStyle}"
-                                   Text="{x:Static res:Strings.AdvancedMinimizeToTray}" />
-                    </DockPanel>
+                    <!--
+                        Capped rather than stretched. Neither of these is read left to right — a
+                        language is one word and an ffmpeg path is scanned for its tail — so a box
+                        that grows with the window only puts more empty field behind the value.
+                    -->
+                    <StackPanel MaxWidth="440" HorizontalAlignment="Left">
+                        <StackPanel Style="{StaticResource Field}">
+                            <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedLanguageLabel}" />
+                            <ComboBox AutomationProperties.AutomationId="AdvancedLanguage"
+                                      AutomationProperties.Name="{x:Static res:Strings.AdvancedLanguageLabel}"
+                                      DisplayMemberPath="Name"
+                                      ItemsSource="{Binding Languages, Mode=OneTime}"
+                                      SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}" />
+                            <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.AdvancedLanguageRestart}" />
+                        </StackPanel>
 
-                    <StackPanel Style="{StaticResource Field}">
-                        <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedLanguageLabel}" />
-                        <ComboBox AutomationProperties.AutomationId="AdvancedLanguage"
-                                  AutomationProperties.Name="{x:Static res:Strings.AdvancedLanguageLabel}"
-                                  DisplayMemberPath="Name"
-                                  ItemsSource="{Binding Languages, Mode=OneTime}"
-                                  SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}" />
-                        <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.AdvancedLanguageRestart}" />
-                    </StackPanel>
+                        <StackPanel Style="{StaticResource Field}">
+                            <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedFfmpegLabel}" />
+                            <ui:TextBox x:Name="FfmpegBox"
+                                        AutomationProperties.AutomationId="AdvancedFfmpegPath"
+                                        AutomationProperties.Name="{x:Static res:Strings.AdvancedFfmpegLabel}"
+                                        Text="{Binding FfmpegPath, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
+                            <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=FfmpegBox, Path=(Validation.Errors)/ErrorContent}" />
 
-                    <StackPanel Style="{StaticResource Field}">
-                        <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedFfmpegLabel}" />
-                        <ui:TextBox x:Name="FfmpegBox"
-                                    AutomationProperties.AutomationId="AdvancedFfmpegPath"
-                                    AutomationProperties.Name="{x:Static res:Strings.AdvancedFfmpegLabel}"
-                                    Text="{Binding FfmpegPath, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
-                        <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=FfmpegBox, Path=(Validation.Errors)/ErrorContent}" />
-
-                        <!--  Which ffmpeg an empty box resolves to, since that is the usual case.  -->
-                        <TextBlock Style="{StaticResource OffstreamHintStyle}"
-                                   Text="{Binding FfmpegStatus, Mode=OneWay}"
-                                   TextTrimming="CharacterEllipsis"
-                                   TextWrapping="NoWrap"
-                                   ToolTip="{Binding FfmpegStatus, Mode=OneWay}" />
-                        <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.AdvancedFfmpegHint}" />
+                            <!--  Which ffmpeg an empty box resolves to, since that is the usual case.  -->
+                            <TextBlock Style="{StaticResource OffstreamHintStyle}"
+                                       Text="{Binding FfmpegStatus, Mode=OneWay}"
+                                       TextTrimming="CharacterEllipsis"
+                                       TextWrapping="NoWrap"
+                                       ToolTip="{Binding FfmpegStatus, Mode=OneWay}" />
+                            <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.AdvancedFfmpegHint}" />
+                        </StackPanel>
                     </StackPanel>
                 </StackPanel>
             </Border>

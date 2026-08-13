@@ -50,7 +50,6 @@
 
         <Border Grid.Row="1"
                 Padding="24,20,24,8"
-                VerticalAlignment="Top"
                 Style="{StaticResource OffstreamCardStyle}">
             <StackPanel>
 
