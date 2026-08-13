@@ -117,15 +117,17 @@
         </ui:Card>
 
         <!--
-            The waveform. Fixed height: it is a signal, not content, and letting it take the slack
-            in the layout would push the activity log off a short window.
+            The level meter. Fixed height: it is a signal, not content, and letting it take the
+            slack in the layout would push the activity log off a short window.
         -->
         <ui:Card Grid.Row="1" Margin="{StaticResource OffstreamStackGap}">
-            <controls:WaveformView Height="64"
-                                   AutomationProperties.AutomationId="RecordLevelMeter"
-                                   AutomationProperties.Name="{x:Static res:Strings.RecordLevelLabel}"
-                                   Fill="{StaticResource OffstreamRecordingBrush}"
-                                   Level="{Binding Level, Mode=OneWay}" />
+            <controls:LevelMeterView Height="20"
+                                     AutomationProperties.AutomationId="RecordLevelMeter"
+                                     AutomationProperties.Name="{x:Static res:Strings.RecordLevelLabel}"
+                                     Fill="{StaticResource OffstreamRecordingBrush}"
+                                     Level="{Binding Level, Mode=OneWay}"
+                                     PeakBrush="{DynamicResource TextFillColorPrimaryBrush}"
+                                     TrackBrush="{DynamicResource ControlAltFillColorTertiaryBrush}" />
         </ui:Card>
 
         <Grid Grid.Row="2">
