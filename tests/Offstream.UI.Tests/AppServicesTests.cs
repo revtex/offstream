@@ -7,8 +7,6 @@ using Offstream.App.Views;
 using Offstream.App.Views.Pages;
 using Offstream.Core.Diagnostics;
 using Offstream.Core.Settings;
-using Wpf.Ui;
-using Wpf.Ui.Abstractions;
 using Xunit;
 
 namespace Offstream.UI.Tests;
@@ -24,22 +22,22 @@ namespace Offstream.UI.Tests;
 /// wiring that most needs checking on every push.
 /// </para>
 /// <para>
-/// A page missing from the container is invisible until someone clicks that tab, because
-/// <see cref="PageProvider"/> hands navigation a null and the failure surfaces as a blank frame
-/// rather than an exception at startup.
+/// A page missing from the container takes the window down at startup rather than at the click
+/// that needed it — the shell resolves all three in its own constructor — which is a better
+/// failure than a blank tab but still one worth catching on a push instead of on a launch.
 /// </para>
 /// </remarks>
 public sealed class AppServicesTests
 {
     [Fact]
-    public void AddOffstream_RegistersEveryPageTheNavigationCanReach()
+    public void AddOffstream_RegistersEveryPageTheShellHosts()
     {
         var services = Build();
 
         var pages = typeof(RecordPage).Assembly
             .GetTypes()
             .Where(type => type.Namespace == typeof(RecordPage).Namespace)
-            .Where(type => type.IsSubclassOf(typeof(Page)) && !type.IsAbstract)
+            .Where(type => type.IsSubclassOf(typeof(UserControl)) && !type.IsAbstract)
             .ToList();
 
         Assert.NotEmpty(pages);
@@ -54,8 +52,6 @@ public sealed class AppServicesTests
     [InlineData(typeof(ShellWindow))]
     [InlineData(typeof(ShellViewModel))]
     [InlineData(typeof(RecordViewModel))]
-    [InlineData(typeof(INavigationService))]
-    [InlineData(typeof(INavigationViewPageProvider))]
     [InlineData(typeof(SettingsStore))]
     [InlineData(typeof(SettingsDocument))]
     [InlineData(typeof(SettingsViewModel))]
@@ -81,9 +77,9 @@ public sealed class AppServicesTests
     }
 
     /// <summary>
-    /// Pages are cached by the navigation (<c>NavigationCacheMode.Enabled</c>), so a transient
-    /// registration would hand out a second instance the cache never shows — a half-filled
-    /// settings form that silently stops being the one on screen.
+    /// The shell builds all three pages once and switches them by visibility, so a transient
+    /// registration would hand out a second instance nothing ever shows — a half-filled settings
+    /// form that silently stops being the one on screen.
     /// </summary>
     [Fact]
     public void AddOffstream_ScopesPagesAndViewModelsAsSingletons()

@@ -213,6 +213,16 @@ phase plan these entries follow.
   so `artist` and `album_artist` were identical on every enriched file. It now credits the
   track's own performers, as the predecessor's TPE1/TPE2 split did. File names are unaffected;
   the `{artist}` template token still renders from `Track.Artists`.
+- **The elapsed counter drifted behind Spotify and never caught up.** It added one second per
+  timer tick observed, and `PeriodicTimer` schedules the next tick from when the previous one was
+  consumed rather than making up a late one — so every delayed tick lost a second permanently.
+  The counter is now sampled from a monotonic clock anchored at the track's start, with pauses
+  banked rather than counted, so a late tick reports the truth and the drift corrects itself.
+- **The Record page lagged while recording.** The waveform emitted a separate `DrawRectangle` per
+  bar — several hundred drawing instructions rebuilt thirty times a second — and drove itself
+  from `CompositionTarget.Rendering`, which wakes the UI thread at the display's refresh rate and
+  keeps WPF composing rather than idling. The bars are now one frozen geometry in a single draw
+  call, sampled by a timer at exactly the rate the scroll needs.
 - **Spotify tagged nothing on tracks whose boundary caught its backend mid-change.** The window
   title advances the instant the desktop client does, while `/v1/me/player/currently-playing` is
   served from player state that trails it by a second or more — so asking once at the boundary

@@ -5,17 +5,17 @@ using NAudio.Wave;
 namespace Offstream.Core.Audio;
 
 /// <summary>
-/// Tracks the loudest sample seen since it was last read, for a level display.
+/// Tracks how loud the audio has been since it was last read, for a level display.
 /// </summary>
 /// <remarks>
 /// <para>
 /// <b>Accumulate-and-drain, rather than an event per callback.</b> Capture fires roughly every
 /// 10 ms; a meter that raised an event each time would push 100 dispatcher marshals a second at
 /// the UI for a bar that can only redraw at 60 Hz. Instead the capture thread folds each buffer
-/// into a running peak with no allocation and no lock, and whoever is drawing calls
-/// <see cref="Read"/> at its own rate. The peak resets on read, so a slow reader sees the
-/// loudest moment in its interval instead of whatever happened to be playing at the instant it
-/// looked — which is what makes the display track transients rather than flicker.
+/// into a running energy total with no allocation, and whoever is drawing calls
+/// <see cref="Read()"/> at its own rate. The total resets on read, so a slow reader sees the
+/// loudness of its whole interval rather than whatever happened to be playing at the instant it
+/// looked.
 /// </para>
 /// <para>
 /// <b>An unsupported format reads as silence rather than throwing.</b> This drives a decoration;
@@ -37,9 +37,20 @@ public sealed class AudioLevelMeter
     /// </summary>
     private delegate float SampleReader(ReadOnlySpan<byte> bytes);
 
-    private readonly SampleReader? _read;
+    /// <summary>
+    /// Quietest level the display distinguishes, in dBFS. Below this reads as silence.
+    /// </summary>
+    /// <remarks>
+    /// 60&#160;dB is the usual span for a music meter: it puts a quiet passage near the bottom
+    /// and a loud one near the top, which is the range the eye can actually read.
+    /// </remarks>
+    private const double FloorDecibels = -60;
 
-    private float _peak;
+    private readonly SampleReader? _read;
+    private readonly Lock _gate = new();
+
+    private readonly double[] _sumOfSquares;
+    private readonly long[] _samples;
 
     public AudioLevelMeter(WaveFormat format)
     {
@@ -48,63 +59,128 @@ public sealed class AudioLevelMeter
         Format = format;
         _read = SampleReaderFor(format);
         IsSupported = _read is not null;
+
+        ChannelCount = Math.Max(format.Channels, 1);
+        _sumOfSquares = new double[ChannelCount];
+        _samples = new long[ChannelCount];
     }
 
     /// <summary>The format samples arrive in.</summary>
     public WaveFormat Format { get; }
 
+    /// <summary>How many channels <see cref="Read(Span{LevelReading})"/> can fill.</summary>
+    public int ChannelCount { get; }
+
     /// <summary>Whether this meter can read <see cref="Format"/>; a false reads as silence.</summary>
     public bool IsSupported { get; }
 
     /// <summary>
-    /// Folds a captured buffer into the running peak. Called on the capture thread.
+    /// Folds a captured buffer into the running per-channel totals. Called on the capture thread.
     /// </summary>
     /// <param name="data">Captured PCM, in <see cref="Format"/>.</param>
     public void Write(ReadOnlySpan<byte> data)
     {
-        var peak = PeakOf(data);
-        if (peak <= 0f) return;
+        if (_read is null || data.IsEmpty) return;
 
-        // Lock-free max. Contention is between one capture thread and one reader, and the
-        // reader only ever writes zero, so this settles in a pass or two.
-        var current = Volatile.Read(ref _peak);
+        var stride = Format.BitsPerSample / 8;
+        if (stride <= 0) return;
 
-        while (peak > current)
+        // One capture thread and one reader, and the critical section is a handful of additions —
+        // the hundred acquisitions a second this takes are far cheaper than the lock-free dance a
+        // running sum would otherwise need.
+        lock (_gate)
         {
-            var observed = Interlocked.CompareExchange(ref _peak, peak, current);
-            if (observed.Equals(current)) return;
+            var channel = 0;
 
-            current = observed;
+            // Whole samples only: a callback can end mid-sample, and a partial one read as a
+            // whole is a spike the audio never contained. Buffers arrive frame-aligned, so
+            // starting at channel zero each time keeps left and right from swapping over.
+            for (var offset = 0; offset + stride <= data.Length; offset += stride)
+            {
+                double sample = _read(data.Slice(offset, stride));
+
+                _sumOfSquares[channel] += sample * sample;
+                _samples[channel]++;
+
+                if (++channel == ChannelCount) channel = 0;
+            }
         }
     }
 
     /// <summary>
-    /// Takes the loudest sample since the last read, as 0–1, and starts a new interval.
+    /// Takes the loudness of the interval just ended, across all channels, and starts a new one.
     /// </summary>
-    public float Read() => Interlocked.Exchange(ref _peak, 0f);
+    /// <remarks>
+    /// <b>RMS on a decibel scale, not the peak sample.</b> The peak over an interval this short
+    /// is at or near full scale for essentially all mastered music, so a peak meter drew a solid
+    /// block that said only "audio is arriving" — a display with no information in it. RMS is
+    /// what loudness actually tracks, and mapping it through <see cref="FloorDecibels"/> spreads
+    /// the range a listener cares about across the height available instead of crowding it into
+    /// the top tenth, which is what a linear amplitude scale does.
+    /// </remarks>
+    public LevelReading Read() => Read(default);
 
-    /// <summary>Drops the current interval, for the end of a session.</summary>
-    public void Reset() => Interlocked.Exchange(ref _peak, 0f);
-
-    /// <summary>The loudest absolute sample in <paramref name="data"/>, as 0–1.</summary>
-    private float PeakOf(ReadOnlySpan<byte> data)
+    /// <summary>
+    /// Takes the loudness of the interval just ended and starts a new one, filling
+    /// <paramref name="channels"/> with the per-channel readings.
+    /// </summary>
+    /// <param name="channels">
+    /// Receives one reading per channel, up to its own length and
+    /// <see cref="ChannelCount"/>. Pass an empty span for the combined figure alone — the
+    /// interval is drained either way, so this must not be called twice for one reading.
+    /// </param>
+    /// <returns>The reading across all channels together.</returns>
+    public LevelReading Read(Span<LevelReading> channels)
     {
-        if (_read is null || data.IsEmpty) return 0f;
+        Span<double> sums = stackalloc double[ChannelCount];
+        Span<long> counts = stackalloc long[ChannelCount];
 
-        var stride = Format.BitsPerSample / 8;
-        if (stride <= 0) return 0f;
-
-        var peak = 0f;
-
-        // Whole samples only: a callback can end mid-sample, and a partial one read as a whole
-        // is a spike the audio never contained.
-        for (var offset = 0; offset + stride <= data.Length; offset += stride)
+        lock (_gate)
         {
-            var sample = Math.Abs(_read(data.Slice(offset, stride)));
-            if (sample > peak) peak = sample;
+            _sumOfSquares.CopyTo(sums);
+            _samples.CopyTo(counts);
+
+            Array.Clear(_sumOfSquares);
+            Array.Clear(_samples);
         }
 
-        return Math.Min(peak, 1f);
+        var totalSum = 0d;
+        var totalCount = 0L;
+
+        for (var channel = 0; channel < ChannelCount; channel++)
+        {
+            totalSum += sums[channel];
+            totalCount += counts[channel];
+
+            if (channel < channels.Length) channels[channel] = ReadingFor(sums[channel], counts[channel]);
+        }
+
+        return ReadingFor(totalSum, totalCount);
+    }
+
+    /// <summary>Drops the current interval, for the end of a session.</summary>
+    public void Reset()
+    {
+        lock (_gate)
+        {
+            Array.Clear(_sumOfSquares);
+            Array.Clear(_samples);
+        }
+    }
+
+    /// <summary>Turns accumulated energy into a reading.</summary>
+    private static LevelReading ReadingFor(double sumOfSquares, long samples)
+    {
+        if (samples == 0) return LevelReading.Silent;
+
+        var rms = Math.Sqrt(sumOfSquares / samples);
+        if (rms <= 0) return LevelReading.Silent;
+
+        var decibels = 20 * Math.Log10(rms);
+
+        return new LevelReading(
+            (float)Math.Clamp((decibels - FloorDecibels) / -FloorDecibels, 0, 1),
+            decibels);
     }
 
     /// <summary>

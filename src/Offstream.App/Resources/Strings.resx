@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <!--
     User-facing strings, English (the neutral culture).
@@ -111,7 +111,7 @@
   </data>
   <data name="RecordLevelLabel" xml:space="preserve">
     <value>Output level</value>
-    <comment>Accessible name for the waveform. Screen readers get this; sighted users get the bars.</comment>
+    <comment>Accessible name for the level meter. Screen readers get this; sighted users get the bars.</comment>
   </data>
   <data name="RecordCannotStartSettings" xml:space="preserve">
     <value>Settings could not be read, so recording did not start. Fix or delete the settings file and try again.</value>
@@ -292,6 +292,10 @@
   <data name="SettingsSpotifyNotSignedIn" xml:space="preserve">
     <value>Not signed in. Nothing will be tagged until you are.</value>
     <comment>Settings page: no Spotify refresh token is stored.</comment>
+  </data>
+  <data name="SettingsSpotifyAttribution" xml:space="preserve">
+    <value>Track details and cover art are provided by Spotify.</value>
+    <comment>Settings page: Spotify Developer Terms require content from the API to be attributed to Spotify.</comment>
   </data>
   <data name="AdvancedNamingSection" xml:space="preserve">
     <value>File names</value>
@@ -500,5 +504,17 @@
   <data name="TrayWaiting" xml:space="preserve">
     <value>Offstream — waiting for a track</value>
     <comment>Tray tooltip while a session is running but nothing is playing yet.</comment>
+  </data>
+  <data name="RecordTransportRecording" xml:space="preserve">
+    <value>REC</value>
+    <comment>Transport indicator on the display while audio is being written. A recorder marking; kept short and untranslated where that is the convention.</comment>
+  </data>
+  <data name="RecordTransportWaiting" xml:space="preserve">
+    <value>WAIT</value>
+    <comment>Transport indicator while the session is armed but between tracks.</comment>
+  </data>
+  <data name="RecordTransportStopped" xml:space="preserve">
+    <value>STOP</value>
+    <comment>Transport indicator while nothing is running.</comment>
   </data>
 </root>

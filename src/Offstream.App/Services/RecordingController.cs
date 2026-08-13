@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using Offstream.App.Resources;
 using Offstream.Core.Audio;
@@ -64,6 +65,40 @@ public sealed class RecordingController(IRecordingSessionFactory factory, Settin
     /// why the level is pulled rather than pushed.
     /// </remarks>
     public AudioLevelMeter? Level => _session?.Level;
+
+    /// <summary>
+    /// What the output is, as the display prints it — <c>MP3 320K 48K</c>.
+    /// </summary>
+    /// <remarks>
+    /// Read from settings rather than remembered, so an idle page shows what pressing Start would
+    /// produce and a running one shows what it is producing. The sample rate only appears once a
+    /// session exists: it is the capture endpoint's rate, which is not knowable until the endpoint
+    /// is open, and printing a guess on the one line of the page that claims to describe the file
+    /// would be worse than printing nothing. Lossless formats omit the bitrate for the same
+    /// reason — the setting exists but does not apply.
+    /// </remarks>
+    public string FormatSummary
+    {
+        get
+        {
+            var recording = _settings.Current.ToRecordingSettings();
+            var profile = EncodingProfiles.For(recording.MediaFormat);
+
+            var parts = new List<string>(3) { profile.Extension.ToUpperInvariant() };
+
+            if (profile.SupportsBitrate)
+            {
+                parts.Add(string.Create(CultureInfo.CurrentCulture, $"{recording.BitrateKbps}K"));
+            }
+
+            if (_session?.Level.Format.SampleRate is { } hertz)
+            {
+                parts.Add(string.Create(CultureInfo.CurrentCulture, $"{hertz / 1000d:0.#}K"));
+            }
+
+            return string.Join(' ', parts);
+        }
+    }
 
     /// <summary>Starts recording.</summary>
     /// <returns>Null when a session started; otherwise why one did not.</returns>

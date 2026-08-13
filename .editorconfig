@@ -23,7 +23,12 @@ dotnet_style_require_accessibility_modifiers = for_non_interface_members:warning
 dotnet_sort_system_directives_first = true
 
 # Correctness rules that matter for this codebase
-dotnet_diagnostic.CA2007.severity = none      # ConfigureAwait: desktop app, context is wanted
+# ConfigureAwait: the context is wanted in Offstream.App, where a continuation belongs on the
+# dispatcher. It is emphatically not wanted in Offstream.Core, which may not reference WPF at
+# all — a long-running loop there that captures a caller's context runs the whole pipeline on
+# that caller's thread. SpotifyPoller did exactly that and froze the window for seconds at a
+# time; the loops now start on the pool, and SpotifyPollerTests pins it.
+dotnet_diagnostic.CA2007.severity = none
 dotnet_diagnostic.CA1848.severity = none      # LoggerMessage delegates: overkill here
 dotnet_diagnostic.CA1416.severity = error     # Platform compatibility: Windows-only, keep honest
 dotnet_diagnostic.CA2100.severity = error

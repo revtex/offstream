@@ -68,6 +68,7 @@ public sealed partial class RecordViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(StartCommand))]
     [NotifyCanExecuteChangedFor(nameof(StopCommand))]
     [NotifyPropertyChangedFor(nameof(IsIdle))]
+    [NotifyPropertyChangedFor(nameof(IsArmed))]
     private bool _isRecording;
 
     [ObservableProperty]
@@ -91,6 +92,42 @@ public sealed partial class RecordViewModel : ObservableObject
     [ObservableProperty]
     private AudioLevelMeter? _level;
 
+    /// <summary>The transport word on the display: <c>REC</c>, <c>WAIT</c> or <c>STOP</c>.</summary>
+    [ObservableProperty]
+    private string _transport = Strings.RecordTransportStopped;
+
+    /// <summary>
+    /// Whether audio is being written right now, as opposed to armed and waiting for a track.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="IsRecording"/>, which is true for both: the session is running
+    /// from the moment Start succeeds, but between tracks it is listening rather than capturing.
+    /// The display inverts its indicator block for one and outlines it for the other, which is
+    /// the distinction a recordist reads first and the one the buttons cannot show.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsArmed))]
+    private bool _isCapturing;
+
+    /// <summary>What the output is, as the display prints it.</summary>
+    [ObservableProperty]
+    private string _formatText = string.Empty;
+
+    /// <summary>
+    /// Why the last Start was refused, or null when nothing is wrong.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="Status"/>, which describes the session in words and is not drawn:
+    /// the display says what state it is in through the transport block, so the only text worth
+    /// interrupting for is a failure. This drives a bar above the panel rather than a line inside
+    /// it, which is what keeps a missing ffmpeg from reading as a slightly different idle state.
+    /// It survives until the next Start, because "ffmpeg is not installed" is a condition and not
+    /// an event.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasProblem))]
+    private string? _problem;
+
     [ObservableProperty]
     private LogFilter _filter = LogFilter.Activity;
 
@@ -111,6 +148,10 @@ public sealed partial class RecordViewModel : ObservableObject
 
         controller.Progress += OnProgress;
         controller.StateChanged += OnStateChanged;
+
+        // Seeds the format line, which describes what pressing Start would produce and so has
+        // something to say before anything is running.
+        Sync();
     }
 
     /// <summary>Lines currently shown, after <see cref="Filter"/>.</summary>
@@ -124,21 +165,49 @@ public sealed partial class RecordViewModel : ObservableObject
         new(LogFilter.All, Strings.RecordFilterAll),
     ];
 
-    /// <summary>Elapsed time on the current track, as the page shows it.</summary>
+    /// <summary>Elapsed time on the current track, as the display shows it.</summary>
     /// <remarks>
-    /// Minutes and seconds until a track passes an hour, because a leading <c>0:</c> on every
-    /// three-minute song is a column of noise. Tracks that long exist — live sets, mixes — so the
-    /// hour is not dropped, only omitted until it means something.
+    /// <para>
+    /// A fixed-width <c>00:03:42</c> field. It carried unit letters — <c>00H03M42S</c> — until
+    /// they were seen at display size: nine glyphs of which three are letters reads as a word, and
+    /// the eye has to parse it before it can find the number. Colons are the separator every clock
+    /// uses, so the grouping is recognised rather than read, and the digits are then the only
+    /// things on the line with any weight.
+    /// </para>
+    /// <para>
+    /// Zero-padded rather than dropping the hours until a track has one: an instrument's counter
+    /// that changes width partway through a session has to be found again each time. Two leading
+    /// zeroes buy a number that never moves.
+    /// </para>
+    /// <para>
+    /// Built from <see cref="TimeSpan.TotalHours"/> rather than formatted with <c>hh</c>, which
+    /// counts hours within a day and would roll a very long session back to zero.
+    /// </para>
     /// </remarks>
-    public string ElapsedText => Elapsed.ToString(
-        Elapsed.TotalHours >= 1 ? @"h\:mm\:ss" : @"m\:ss",
-        CultureInfo.CurrentCulture);
+    public string ElapsedText => string.Create(
+        CultureInfo.CurrentCulture,
+        $"{(int)Elapsed.TotalHours:00}:{Elapsed.Minutes:00}:{Elapsed.Seconds:00}");
 
     /// <summary>
     /// The inverse of <see cref="IsRecording"/>, so the two transport buttons can swap places
     /// without a converter.
     /// </summary>
     public bool IsIdle => !IsRecording;
+
+    /// <summary>Whether <see cref="Problem"/> has anything worth interrupting for.</summary>
+    public bool HasProblem => !string.IsNullOrWhiteSpace(Problem);
+
+    /// <summary>
+    /// Running, but between tracks — nothing is being written yet.
+    /// </summary>
+    /// <remarks>
+    /// The display blinks its indicator on this and holds it solid on
+    /// <see cref="IsCapturing"/>, which is the convention every recorder uses for standby against
+    /// rolling. It is worth a distinct state rather than a third label because it is the one the
+    /// user is most likely to misread: an armed session looks exactly like a recording one from
+    /// the transport buttons, and a blink says "waiting for something to play" without a word.
+    /// </remarks>
+    public bool IsArmed => IsRecording && !IsCapturing;
 
     private bool CanStart => !IsRecording && !IsBusy;
 
@@ -156,6 +225,7 @@ public sealed partial class RecordViewModel : ObservableObject
             // A refusal is the app declining, not failing: it says what to fix and leaves the
             // page exactly as it was, so the next press is the whole retry.
             Status = refusal ?? Strings.RecordStatusWaiting;
+            Problem = refusal;
         }
         finally
         {
@@ -183,6 +253,8 @@ public sealed partial class RecordViewModel : ObservableObject
         Elapsed = TimeSpan.Zero;
         NowPlaying = Strings.RecordNothingPlaying;
         Status = Strings.RecordStatusIdle;
+        Transport = Strings.RecordTransportStopped;
+        IsCapturing = false;
 
         Sync();
     }
@@ -288,6 +360,14 @@ public sealed partial class RecordViewModel : ObservableObject
     {
         NowPlaying = progress.Track ?? Strings.RecordNothingPlaying;
         Elapsed = progress.Elapsed ?? TimeSpan.Zero;
+        IsCapturing = progress.Stage == RecordingStage.Recording;
+
+        Transport = progress.Stage switch
+        {
+            RecordingStage.Recording => Strings.RecordTransportRecording,
+            RecordingStage.WaitingForTrack => Strings.RecordTransportWaiting,
+            _ => Strings.RecordTransportStopped,
+        };
 
         if (IsBusy) return;
 
@@ -307,6 +387,7 @@ public sealed partial class RecordViewModel : ObservableObject
     {
         IsRecording = _controller.IsRunning;
         Level = _controller.Level;
+        FormatText = _controller.FormatSummary;
     }
 
     /// <summary>Runs an update on the UI thread; see <see cref="UiThread"/>.</summary>

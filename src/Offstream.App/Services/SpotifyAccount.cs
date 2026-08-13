@@ -1,4 +1,5 @@
 using System.Net.Http;
+using Offstream.Core.Spotify;
 using Offstream.Core.Spotify.Auth;
 using Serilog;
 using SpotifyAPI.Web;
@@ -102,7 +103,14 @@ public sealed class SpotifyAccount(IHttpClientFactory httpClientFactory) : ISpot
     /// An SDK config routed through the factory's <see cref="HttpClient"/> rather than the
     /// SDK's own, so token requests share the app's handler pool and its DNS refresh behaviour.
     /// </summary>
+    /// <remarks>
+    /// The retry handler has to be attached explicitly: <see cref="SpotifyClientConfig.CreateDefault"/>
+    /// leaves <c>RetryHandler</c> null, so without this a rate-limited call throws on the first
+    /// 429 and the track records untagged. See <see cref="SpotifyRetryHandler"/> for why the wait
+    /// is Spotify's to specify rather than ours to guess.
+    /// </remarks>
     private SpotifyClientConfig Config() => SpotifyClientConfig
         .CreateDefault()
-        .WithHTTPClient(new NetHttpClient(_httpClientFactory.CreateClient(nameof(Offstream))));
+        .WithHTTPClient(new NetHttpClient(_httpClientFactory.CreateClient(nameof(Offstream))))
+        .WithRetryHandler(new SpotifyRetryHandler());
 }

@@ -22,15 +22,23 @@ public sealed record SpotifyAuthOptions
     public static readonly Uri DefaultRedirectUri = new("http://127.0.0.1:4002/callback");
 
     /// <summary>
-    /// Every scope the metadata layer needs: currently-playing to enrich the active track, and
-    /// nothing that grants playback control — Offstream reads, it never drives Spotify.
+    /// The one scope the metadata layer needs, and nothing else.
     /// </summary>
-    public static readonly IReadOnlyList<string> DefaultScopes =
-    [
-        SpotifyScopes.UserReadCurrentlyPlaying,
-        SpotifyScopes.UserReadPlaybackState,
-        SpotifyScopes.UserReadRecentlyPlayed,
-    ];
+    /// <remarks>
+    /// <para>
+    /// Offstream makes exactly two calls: <c>GET /me/player/currently-playing</c>, which this
+    /// scope covers, and <c>GET /albums/{id}</c>, which needs no user scope at all. Nothing here
+    /// grants playback control — Offstream reads, it never drives Spotify.
+    /// </para>
+    /// <para>
+    /// This asked for <c>user-read-playback-state</c> and <c>user-read-recently-played</c> as
+    /// well, on the assumption a later feature would want them. Neither was ever called. A scope
+    /// requested ahead of the feature that needs it is a permission the user is asked to grant for
+    /// nothing, on a consent screen where the extra lines are indistinguishable from the one that
+    /// is load-bearing. Ask again when something actually calls those endpoints.
+    /// </para>
+    /// </remarks>
+    public static readonly IReadOnlyList<string> DefaultScopes = [SpotifyScopes.UserReadCurrentlyPlaying];
 
     /// <summary>The Client ID from the user's Spotify Developer Dashboard app.</summary>
     public required string ClientId { get; init; }

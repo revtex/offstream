@@ -1,7 +1,9 @@
+using System.Net;
 using Moq;
 using Offstream.Core.Metadata;
 using Offstream.Core.Metadata.Providers;
 using SpotifyAPI.Web;
+using SpotifyAPI.Web.Http;
 using Xunit;
 
 namespace Offstream.Core.Tests.Metadata;
@@ -46,6 +48,17 @@ public sealed class SpotifyMetadataProviderTests
             Player
                 .Setup(x => x.GetCurrentlyPlaying(It.IsAny<PlayerCurrentlyPlayingRequest>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(playback!);
+
+        /// <summary>Fails the playback call the way the SDK surfaces an API error.</summary>
+        public void Fails(HttpStatusCode status, string message)
+        {
+            var response = new Mock<IResponse>();
+            response.SetupGet(x => x.StatusCode).Returns(status);
+
+            Player
+                .Setup(x => x.GetCurrentlyPlaying(It.IsAny<PlayerCurrentlyPlayingRequest>(), It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new APIException(message) { Response = response.Object });
+        }
 
         public void ReturnsAlbum(string albumId, FullAlbum album) =>
             Albums.Setup(x => x.Get(albumId, It.IsAny<CancellationToken>())).ReturnsAsync(album);
@@ -212,5 +225,65 @@ public sealed class SpotifyMetadataProviderTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => harness.Provider.EnrichAsync(DetectedTrack(), cancellation.Token));
+    }
+
+    /// <summary>
+    /// A dead refresh token is the one API failure with a remedy, and the remedy is the user's:
+    /// nothing this process does will revive it, so the host is told to clear it and ask for a
+    /// fresh sign-in rather than retrying it on every track forever.
+    /// </summary>
+    [Fact]
+    public async Task EnrichAsync_WhenTheStoredSignInIsRejected_RaisesAuthorizationExpired()
+    {
+        var harness = new Harness();
+        harness.Fails(HttpStatusCode.Unauthorized, "The access token expired");
+
+        var provider = harness.Provider;
+        var raised = 0;
+        provider.AuthorizationExpired += (_, _) => raised++;
+
+        Assert.False(await provider.EnrichAsync(DetectedTrack()));
+        Assert.Equal(1, raised);
+    }
+
+    /// <summary>
+    /// Every other API fault is downgraded to "no metadata". Tags are worth having; they are
+    /// never worth failing a recording over.
+    /// </summary>
+    [Theory]
+    [InlineData(HttpStatusCode.Forbidden)]
+    [InlineData(HttpStatusCode.NotFound)]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    public async Task EnrichAsync_WhenTheApiFails_RecordsUntaggedInsteadOfThrowing(HttpStatusCode status)
+    {
+        var harness = new Harness();
+        harness.Fails(status, "Something went wrong");
+
+        Assert.False(await harness.Provider.EnrichAsync(DetectedTrack()));
+    }
+
+    /// <summary>
+    /// Only a 401 means the sign-in is gone. Treating a rate limit or an outage as an expired
+    /// token would sign the user out over a transient fault.
+    /// </summary>
+    [Theory]
+    [InlineData(HttpStatusCode.Forbidden)]
+    [InlineData(HttpStatusCode.NotFound)]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    public async Task EnrichAsync_WhenTheApiFailsOtherwise_LeavesTheSignInAlone(HttpStatusCode status)
+    {
+        var harness = new Harness();
+        harness.Fails(status, "Something went wrong");
+
+        var provider = harness.Provider;
+        var raised = 0;
+        provider.AuthorizationExpired += (_, _) => raised++;
+
+        await provider.EnrichAsync(DetectedTrack());
+
+        Assert.Equal(0, raised);
     }
 }

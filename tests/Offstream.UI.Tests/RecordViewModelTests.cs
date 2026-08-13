@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Offstream.App.Resources;
 using Offstream.App.Services;
 using Offstream.App.ViewModels;
@@ -157,20 +158,40 @@ public sealed class RecordViewModelTests
         Assert.Equal(Strings.RecordNothingPlaying, ViewModelFor().NowPlaying);
 
     [Fact]
-    public void ElapsedText_StartsAtZero() => Assert.Equal("0:00", ViewModelFor().ElapsedText);
+    public void ElapsedText_StartsAtZero() => Assert.Equal("00:00:00", ViewModelFor().ElapsedText);
 
+    /// <summary>
+    /// The counter is a fixed-width field on an instrument face, so every part is padded and
+    /// none is dropped - a number that changes width partway through a session is one the eye
+    /// has to find again.
+    /// </summary>
     [Theory]
-    [InlineData(0, 0, 7, "0:07")]
-    [InlineData(0, 3, 42, "3:42")]
-    [InlineData(0, 12, 5, "12:05")]
-    [InlineData(1, 4, 9, "1:04:09")]
-    public void ElapsedText_ShowsTheHourOnlyWhenThereIsOne(int hours, int minutes, int seconds, string expected)
+    [InlineData(0, 0, 7, "00:00:07")]
+    [InlineData(0, 3, 42, "00:03:42")]
+    [InlineData(0, 12, 5, "00:12:05")]
+    [InlineData(1, 4, 9, "01:04:09")]
+    public void ElapsedText_IsAlwaysTheSameWidth(int hours, int minutes, int seconds, string expected)
     {
         var viewModel = ViewModelFor();
 
         viewModel.Elapsed = new TimeSpan(hours, minutes, seconds);
 
         Assert.Equal(expected, viewModel.ElapsedText);
+    }
+
+    /// <summary>
+    /// Hours beyond a day keep counting. A <c>hh</c> format string counts hours within a day and
+    /// would roll a long session back to zero - unlikely on one track, but the counter is the
+    /// page's proof that time is passing and it must not lie.
+    /// </summary>
+    [Fact]
+    public void ElapsedText_PastADay_KeepsCounting()
+    {
+        var viewModel = ViewModelFor();
+
+        viewModel.Elapsed = new TimeSpan(26, 1, 2);
+
+        Assert.Equal("26:01:02", viewModel.ElapsedText);
     }
 
     [Fact]
@@ -309,6 +330,125 @@ public sealed class RecordViewModelTests
         Assert.Contains("Encoder failed", entry.Text, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The display's indicator field. "Running" and "writing audio" are different states and the
+    /// transport buttons cannot tell them apart - both show Stop.
+    /// </summary>
+    [Theory]
+    [InlineData(RecordingStage.Recording, true)]
+    [InlineData(RecordingStage.WaitingForTrack, false)]
+    [InlineData(RecordingStage.Idle, false)]
+    [InlineData(RecordingStage.Stopped, false)]
+    public async Task Progress_SetsTheTransportIndicator(RecordingStage stage, bool capturing)
+    {
+        var factory = new FakeSessionFactory();
+        var controller = ControllerFor(factory);
+        var viewModel = new RecordViewModel(new InMemoryLogSink(), controller);
+
+        var expected = stage switch
+        {
+            RecordingStage.Recording => Strings.RecordTransportRecording,
+            RecordingStage.WaitingForTrack => Strings.RecordTransportWaiting,
+            _ => Strings.RecordTransportStopped,
+        };
+
+        await controller.StartAsync();
+        await ReportAsync(factory, viewModel, new RecordingProgress(stage), () => viewModel.Transport == expected);
+
+        Assert.Equal(capturing, viewModel.IsCapturing);
+        Assert.Equal(expected, viewModel.Transport);
+    }
+
+    /// <summary>
+    /// Armed is running-but-not-writing, which is what the indicator blinks on. Both it and
+    /// capturing show Stop on the buttons, so nothing else on the page distinguishes them.
+    /// </summary>
+    [Fact]
+    public async Task IsArmed_IsRunningWithoutCapturing()
+    {
+        var factory = new FakeSessionFactory();
+        var controller = ControllerFor(factory);
+        var viewModel = new RecordViewModel(new InMemoryLogSink(), controller);
+
+        // Not running at all is not armed - a stopped display must not blink.
+        Assert.False(viewModel.IsArmed);
+
+        await viewModel.StartCommand.ExecuteAsync(null);
+        await ReportAsync(
+            factory,
+            viewModel,
+            new RecordingProgress(RecordingStage.WaitingForTrack),
+            () => viewModel.IsArmed);
+
+        Assert.True(viewModel.IsArmed);
+
+        await ReportAsync(
+            factory,
+            viewModel,
+            new RecordingProgress(RecordingStage.Recording),
+            () => viewModel.IsCapturing);
+
+        // Solid, not blinking, the moment audio starts reaching the encoder.
+        Assert.False(viewModel.IsArmed);
+        Assert.True(viewModel.IsCapturing);
+    }
+
+    /// <summary>
+    /// The blink is driven by a trigger on this, so it has to raise when either half changes -
+    /// a computed property with a missing notification leaves the indicator stuck.
+    /// </summary>
+    [Fact]
+    public void IsArmed_RaisesWhenEitherHalfChanges()
+    {
+        var viewModel = ViewModelFor();
+        var raised = 0;
+
+        viewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(RecordViewModel.IsArmed)) raised++;
+        };
+
+        viewModel.IsRecording = true;
+        Assert.Equal(1, raised);
+
+        viewModel.IsCapturing = true;
+        Assert.Equal(2, raised);
+    }
+
+    [Fact]
+    public async Task StopCommand_ResetsTheTransportIndicator()
+    {
+        var factory = new FakeSessionFactory();
+        var controller = ControllerFor(factory);
+        var viewModel = new RecordViewModel(new InMemoryLogSink(), controller);
+
+        await viewModel.StartCommand.ExecuteAsync(null);
+        await ReportAsync(
+            factory,
+            viewModel,
+            new RecordingProgress(RecordingStage.Recording),
+            () => viewModel.IsCapturing);
+
+        await viewModel.StopCommand.ExecuteAsync(null);
+
+        // A block left inverted after Stop says the app is still writing a file.
+        Assert.False(viewModel.IsCapturing);
+        Assert.Equal(Strings.RecordTransportStopped, viewModel.Transport);
+    }
+
+    /// <summary>
+    /// The format line describes what pressing Start would produce, so it has to say something
+    /// before anything is running - an empty field on an idle display reads as a fault.
+    /// </summary>
+    [Fact]
+    public void FormatText_IsPopulatedBeforeAnythingStarts()
+    {
+        var text = ViewModelFor().FormatText;
+
+        Assert.False(string.IsNullOrWhiteSpace(text));
+        Assert.Equal(text, text.ToUpperInvariant());
+    }
+
     [Fact]
     public void Constructor_RejectsNulls()
     {
@@ -326,4 +466,51 @@ public sealed class RecordViewModelTests
 
     private static Logger LoggerFor(InMemoryLogSink sink) =>
         new LoggerConfiguration().MinimumLevel.Debug().WriteTo.Sink(sink).CreateLogger();
+
+    /// <summary>
+    /// Reports progress and waits for the view model to have acted on it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="IProgress{T}.Report"/> is asynchronous. <see cref="Progress{T}"/> captures the
+    /// <see cref="SynchronizationContext"/> current when it is constructed, and a unit test has
+    /// none — so the callback is posted to the thread pool and <c>Report</c> returns before the
+    /// view model has changed anything. Asserting on the next line is a race, and this suite lost
+    /// it often enough to make a green run meaningless.
+    /// </para>
+    /// <para>
+    /// Waiting on <see cref="INotifyPropertyChanged.PropertyChanged"/> rather than sleeping keeps
+    /// the tests both deterministic and fast: the same shape <c>ShellViewModelTests.TooltipAfter</c>
+    /// already used for the same reason. The condition is re-checked on every notification because
+    /// one report can raise several, and the interesting one is not always first.
+    /// </para>
+    /// </remarks>
+    private static async Task ReportAsync(
+        FakeSessionFactory factory,
+        RecordViewModel viewModel,
+        RecordingProgress progress,
+        Func<bool> settled)
+    {
+        var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        void OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (settled()) changed.TrySetResult();
+        }
+
+        viewModel.PropertyChanged += OnPropertyChanged;
+
+        try
+        {
+            factory.Progress!.Report(progress);
+
+            if (settled()) return;
+
+            await changed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            viewModel.PropertyChanged -= OnPropertyChanged;
+        }
+    }
 }

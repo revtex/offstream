@@ -1,27 +1,47 @@
 <ui:FluentWindow x:Class="Offstream.App.Views.ShellWindow"
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                 xmlns:pages="clr-namespace:Offstream.App.Views.Pages"
                  xmlns:res="clr-namespace:Offstream.App.Resources"
                  xmlns:tb="http://www.hardcodet.net/taskbar"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:vm="clr-namespace:Offstream.App.ViewModels"
                  Title="Offstream"
-                 Width="960"
-                 Height="640"
-                 MinWidth="720"
-                 MinHeight="480"
+                 Width="1024"
+                 Height="700"
+                 MinWidth="1024"
+                 MinHeight="700"
                  ExtendsContentIntoTitleBar="True"
-                 Icon="pack://application:,,,/Assets/offstream.ico"
-                 WindowBackdropType="Mica"
+                 Icon="pack://application:,,,/Offstream;component/Assets/offstream.ico"
+                 WindowBackdropType="None"
                  WindowCornerPreference="Round"
                  WindowStartupLocation="CenterScreen">
+
+    <!--
+        The minimum size is the no-scroll promise, written down.
+
+        Both settings pages lay every field out at once rather than behind a scrollbar, which only
+        holds above a size — the Advanced page's two columns need roughly this much. Setting the
+        floor to the design size means the promise is structural instead of aspirational: the
+        window cannot be dragged to a size where a setting is unreachable. It opens at its floor
+        and every pixel past that is slack.
+
+        No Mica backdrop. The page is nearly black so that the display reads as the only lit thing
+        on it, and a backdrop that samples the desktop puts whatever is behind the window into
+        that judgement.
+
+        The near-black is painted by the root Grid rather than by the window, which looks like the
+        wrong place for it and is not: WPF-UI reassigns FluentWindow.Background from the theme when
+        it applies a backdrop, so a colour set on the window is overwritten after load. The Grid is
+        ours.
+    -->
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibility" />
     </Window.Resources>
 
-    <Grid>
+    <Grid Background="{StaticResource OffstreamWindowBrush}">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -49,10 +69,10 @@
             -->
             <tb:TaskbarIcon.Style>
                 <Style TargetType="tb:TaskbarIcon">
-                    <Setter Property="IconSource" Value="pack://application:,,,/Assets/tray-idle.ico" />
+                    <Setter Property="IconSource" Value="pack://application:,,,/Offstream;component/Assets/tray-idle.ico" />
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding IsRecording}" Value="True">
-                            <Setter Property="IconSource" Value="pack://application:,,,/Assets/tray-recording.ico" />
+                            <Setter Property="IconSource" Value="pack://application:,,,/Offstream;component/Assets/tray-recording.ico" />
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>
@@ -67,15 +87,162 @@
             </tb:TaskbarIcon.ContextMenu>
         </tb:TaskbarIcon>
 
-        <ui:TitleBar Grid.Row="0" Title="Offstream" />
+        <!-- Transparent, so the near-black runs from the top edge and the window reads as one surface. -->
+        <ui:TitleBar Grid.Row="0" Title="Offstream" Background="Transparent" />
+
+        <!--
+            The header: three tabs on the left, the transport on the right.
+
+            The tabs are RadioButtons in one group rather than a NavigationView. What the design
+            asks for — a flat label over an accent underline — is not Fluent's navigation idiom,
+            and reproducing it meant retemplating that control down to a shape it does not have.
+            Binding a tab enum instead is less machinery and fewer moving parts: the strip sets
+            ShellViewModel.Tab, the host below reads it, and the pages are DI singletons so
+            switching away and back keeps every page exactly as it was.
+        -->
+        <Grid Grid.Row="1" Margin="24,8,24,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" VerticalAlignment="Bottom" Orientation="Horizontal">
+                <RadioButton AutomationProperties.AutomationId="NavRecord"
+                             GroupName="ShellTabs"
+                             IsChecked="{Binding Tab, Mode=TwoWay, ConverterParameter={x:Static vm:ShellTab.Record}, Converter={StaticResource EnumToBoolean}}"
+                             Style="{StaticResource OffstreamTabStyle}">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Margin="0,0,8,0"
+                                       VerticalAlignment="Center"
+                                       FontSize="18"
+                                       Symbol="Mic24" />
+                        <TextBlock VerticalAlignment="Center" Text="{x:Static res:Strings.NavRecord}" />
+
+                        <!--
+                            The recording lamp. It is on the tab rather than beside the button
+                            because it answers a question asked from the other two tabs: a session
+                            keeps running while the user is editing settings, and this is the only
+                            thing on those screens that says so.
+
+                            Always present, and it changes colour rather than appearing: a lamp
+                            that is dark when nothing is running is a lamp, and one that is only
+                            there sometimes is a layout that moves. Red is the app's recording
+                            colour, spent here and on the Stop button and nowhere else.
+                        -->
+                        <Border Width="18"
+                                Height="8"
+                                Margin="8,1,0,0"
+                                VerticalAlignment="Center"
+                                CornerRadius="4">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="{StaticResource OffstreamSurfaceBorderBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsRecording, Mode=OneWay}" Value="True">
+                                            <Setter Property="Background" Value="{StaticResource OffstreamRecordingBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                        </Border>
+                    </StackPanel>
+                </RadioButton>
+
+                <RadioButton AutomationProperties.AutomationId="NavSettings"
+                             GroupName="ShellTabs"
+                             IsChecked="{Binding Tab, Mode=TwoWay, ConverterParameter={x:Static vm:ShellTab.Settings}, Converter={StaticResource EnumToBoolean}}"
+                             Style="{StaticResource OffstreamTabStyle}">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Margin="0,0,8,0"
+                                       VerticalAlignment="Center"
+                                       FontSize="18"
+                                       Symbol="Options24" />
+                        <TextBlock VerticalAlignment="Center" Text="{x:Static res:Strings.NavSettings}" />
+                    </StackPanel>
+                </RadioButton>
+
+                <RadioButton AutomationProperties.AutomationId="NavAdvanced"
+                             GroupName="ShellTabs"
+                             IsChecked="{Binding Tab, Mode=TwoWay, ConverterParameter={x:Static vm:ShellTab.Advanced}, Converter={StaticResource EnumToBoolean}}"
+                             Style="{StaticResource OffstreamTabStyle}">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Margin="0,0,8,0"
+                                       VerticalAlignment="Center"
+                                       FontSize="18"
+                                       Symbol="Gauge24" />
+                        <TextBlock VerticalAlignment="Center" Text="{x:Static res:Strings.NavAdvanced}" />
+                    </StackPanel>
+                </RadioButton>
+            </StackPanel>
+
+            <!--
+                Two buttons in one cell rather than one that relabels itself: start and stop are
+                different actions, and a control that changes what it does under the pointer is
+                the classic way to stop a recording by accident.
+
+                Offered only on the Record tab, at the user's direction. It binds the Record
+                page's own ViewModel — see ShellViewModel.Record for why that chaining is allowed
+                here and nowhere else.
+            -->
+            <Grid Grid.Column="1"
+                  Margin="16,0,0,10"
+                  VerticalAlignment="Bottom"
+                  DataContext="{Binding Record}">
+
+                <!--
+                    Hidden, never collapsed. Collapsing takes the button out of the measure as
+                    well as out of the picture, and it is the tallest thing in this row — so the
+                    whole tab strip stepped up on the way to Settings and back down on the way to
+                    Record. Reserving the space costs nothing and stops the header moving.
+                -->
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Visibility" Value="Hidden" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding DataContext.IsRecordTab, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+
+                <Button AutomationProperties.AutomationId="RecordStartButton"
+                        Command="{Binding StartCommand}"
+                        Style="{StaticResource OffstreamTransportButtonStyle}"
+                        Visibility="{Binding IsIdle, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="8"
+                                 Height="8"
+                                 Margin="0,0,8,0"
+                                 VerticalAlignment="Center"
+                                 Fill="White" />
+                        <TextBlock Text="{x:Static res:Strings.RecordStart}" />
+                    </StackPanel>
+                </Button>
+
+                <Button AutomationProperties.AutomationId="RecordStopButton"
+                        Command="{Binding StopCommand}"
+                        Style="{StaticResource OffstreamStopButtonStyle}"
+                        Visibility="{Binding IsRecording, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                    <StackPanel Orientation="Horizontal">
+                        <Rectangle Width="8"
+                                   Height="8"
+                                   Margin="0,0,8,0"
+                                   VerticalAlignment="Center"
+                                   Fill="White" />
+                        <TextBlock Text="{x:Static res:Strings.RecordStop}" />
+                    </StackPanel>
+                </Button>
+            </Grid>
+        </Grid>
 
         <!--
             A settings file that would not load is the one condition worth interrupting for,
             and it is not a modal dialog (plan §7): the app has already opened on defaults, so
             this reports what happened rather than asking permission.
         -->
-        <ui:InfoBar Grid.Row="1"
-                    Margin="24,0,24,12"
+        <ui:InfoBar Grid.Row="2"
+                    Margin="24,12,24,0"
                     AutomationProperties.AutomationId="ShellStartupWarning"
                     IsClosable="True"
                     IsOpen="{Binding HasStartupWarning, Mode=OneWay}"
@@ -83,44 +250,16 @@
                     Severity="Warning" />
 
         <!--
-            Top pane, not left: the three-tab structure is explicitly staying (plan §11), and a
-            top NavigationView is what tabs look like in Fluent. Pages are cached so switching
-            away from Record and back does not throw away the activity log.
+            One host, three pages, all alive at once. Every page is a DI singleton, so this hands
+            out the same instance each time and a tab switch costs nothing — which is what keeps
+            the activity log, a half-typed template, and the meter's own timer intact across a
+            trip to Settings and back.
         -->
-        <ui:NavigationView x:Name="RootNavigation"
-                           Grid.Row="2"
-                           IsBackButtonVisible="Collapsed"
-                           IsPaneToggleVisible="False"
-                           PaneDisplayMode="Top">
-            <ui:NavigationView.MenuItems>
-                <ui:NavigationViewItem AutomationProperties.AutomationId="NavRecord"
-                                       Content="{x:Static res:Strings.NavRecord}"
-                                       NavigationCacheMode="Enabled"
-                                       TargetPageType="{x:Type pages:RecordPage}">
-                    <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="Mic24" />
-                    </ui:NavigationViewItem.Icon>
-                </ui:NavigationViewItem>
-
-                <ui:NavigationViewItem AutomationProperties.AutomationId="NavSettings"
-                                       Content="{x:Static res:Strings.NavSettings}"
-                                       NavigationCacheMode="Enabled"
-                                       TargetPageType="{x:Type pages:SettingsPage}">
-                    <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="Options24" />
-                    </ui:NavigationViewItem.Icon>
-                </ui:NavigationViewItem>
-
-                <ui:NavigationViewItem AutomationProperties.AutomationId="NavAdvanced"
-                                       Content="{x:Static res:Strings.NavAdvanced}"
-                                       NavigationCacheMode="Enabled"
-                                       TargetPageType="{x:Type pages:AdvancedPage}">
-                    <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="WrenchSettings24" />
-                    </ui:NavigationViewItem.Icon>
-                </ui:NavigationViewItem>
-            </ui:NavigationView.MenuItems>
-        </ui:NavigationView>
+        <Grid Grid.Row="3" Margin="24,12,24,24">
+            <ContentControl x:Name="RecordHost" Visibility="{Binding IsRecordTab, Converter={StaticResource BooleanToVisibility}}" />
+            <ContentControl x:Name="SettingsHost" Visibility="{Binding IsSettingsTab, Converter={StaticResource BooleanToVisibility}}" />
+            <ContentControl x:Name="AdvancedHost" Visibility="{Binding IsAdvancedTab, Converter={StaticResource BooleanToVisibility}}" />
+        </Grid>
     </Grid>
 
 </ui:FluentWindow>

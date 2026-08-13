@@ -54,8 +54,8 @@ public sealed class ShellWindowTests(OffstreamApp app) : IClassFixture<Offstream
         app.Navigate("NavRecord");
         app.Navigate("NavAdvanced");
 
-        // NavigationCacheMode=Enabled on every item: switching away from Record and back must
-        // not throw away the activity log, and the same caching keeps this box's text.
+        // All three pages stay loaded and are switched by visibility: leaving Record and coming
+        // back must not throw away the activity log, and the same thing keeps this box's text.
         Assert.Equal("{artist}/{title}", app.Find("AdvancedTemplate").AsTextBox().Text);
     }
 

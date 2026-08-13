@@ -468,9 +468,9 @@ Delivered in four PRs: **PR 1** (shell scaffold, DI, navigation, design tokens),
 
 **Exit (as amended):** FlaUI suite covers the shell and the controls it drives — **the per-control page suites were dropped at the user's direction on 2026-08-12 in favour of manual verification** (PR 4 findings, below); key-parity test passes; side-by-side behavioural review against the reference app (behaviour compared, chrome and wording deliberately not copied). **Key-parity met** in PR 1; PR 4 closes the phase at **771 tests green** — 607 in `Offstream.Core.Tests`, 151 in `Offstream.UI.Tests`, and 13 Desktop-category FlaUI tests that CI and `build.ps1` exclude.
 
-- **The three tabs are `NavigationView` items, not a `TabControl`.** §11 keeps the three-tab structure; it does not require the predecessor's control. A top-mode `NavigationView` reads as tabs, keeps each page a separate `Page` the container builds, and gets keyboard and UIA behaviour for free — which is what PR 4's FlaUI sweep will drive.
-- **Pages come from the DI container via `INavigationViewPageProvider`, never from WPF-UI's default activator.** The default constructs pages reflectively, so a page whose constructor takes a ViewModel is built with nulls instead of failing — a blank tab with no exception. `PageProvider` resolves from the container, and `AppServicesTests` asserts every `Page` in `Views.Pages` is registered, since that failure is otherwise invisible until someone clicks the tab.
-- **Pages and their ViewModels are singletons**, to match `NavigationCacheMode.Enabled`. A transient registration hands out an instance the navigation cache never displays, so a half-filled settings form quietly stops being the one on screen.
+- **The three tabs are `NavigationView` items, not a `TabControl`.** §11 keeps the three-tab structure; it does not require the predecessor's control. A top-mode `NavigationView` reads as tabs, keeps each page a separate `Page` the container builds, and gets keyboard and UIA behaviour for free — which is what PR 4's FlaUI sweep will drive. ***Superseded by the redesign (2026-08-13): `NavigationView` is gone. See the redesign findings below.***
+- **Pages come from the DI container via `INavigationViewPageProvider`, never from WPF-UI's default activator.** The default constructs pages reflectively, so a page whose constructor takes a ViewModel is built with nulls instead of failing — a blank tab with no exception. `PageProvider` resolves from the container, and `AppServicesTests` asserts every `Page` in `Views.Pages` is registered, since that failure is otherwise invisible until someone clicks the tab. ***Superseded: `PageProvider` is deleted; the shell takes the three pages as constructor parameters, so a missing registration now fails at startup. The `AppServicesTests` sweep survives, over `UserControl`.***
+- **Pages and their ViewModels are singletons**, to match `NavigationCacheMode.Enabled`. A transient registration hands out an instance the navigation cache never displays, so a half-filled settings form quietly stops being the one on screen. ***Still true, for a different reason: the shell keeps all three loaded and switches them by visibility.***
 - **XAML reaches strings through `{x:Static res:Strings.*}`**, against a `Strings` class generated from the .resx into `obj/` by MSBuild. A mistyped key fails the build rather than rendering an empty label. The cost is that a language change takes effect on the next launch — acceptable for a setting touched once, and the predecessor rebuilt its entire form to do it live.
 - **Generating that class inside a WPF project needs an explicit ordering target, and the obvious version of it hangs the build.** Any XAML naming a local type makes WPF compile a throwaway assembly first, and that temp project invokes `CoreCompile` directly, so the generated `Strings` class does not exist during the pass that needs it. The fix is a target depending on `PrepareResourceNames;CoreResGen` — **not** on `PrepareResources`, which WPF extends with `MarkupCompilePass2ForMainAssembly` and which therefore recurses into markup compilation forever, silently, with no error output. Same class of trap for `NeutralResourcesLanguageAttribute`: the MSBuild property does not reach the temp project, so CA1824 fails there and only there, and the attribute lives in `AssemblyInfo.cs` instead. Both are commented at the site.
 - **`SystemTheme` has twelve members and `ApplicationTheme` has four.** `== Dark ? Dark : Light` compiles, reads correctly, and renders the four high-contrast schemes as an ordinary light theme — silently undoing an accessibility setting. `ThemeService.FromSystem` maps them to `HighContrast` and everything unrecognised to Dark, pinned by `ThemeServiceTests`.
@@ -514,8 +514,53 @@ Delivered in four PRs: **PR 1** (shell scaffold, DI, navigation, design tokens),
 - **The tray menu has its own Exit.** Without one, an app hidden in the tray can only be quit by restoring it first — the predecessor's tray icon had no menu at all, and that is where the papercut came from.
 - **Surfacing takes three steps in order:** `Show()` undoes the hide, `WindowState = Normal` undoes the minimise (the window is still minimised until it is restored, so skipping this shows a window that is not on screen), and `Activate()` stops it coming back behind whatever the user was looking at.
 - **The tray reads recording state from `RecordingController`, not from `RecordViewModel`.** Both are singletons so either compiles, but the controller is the source of truth and the Record page is a peer reading the same events — chaining one ViewModel off another would mean the tray silently stopped updating whenever the page's logic changed.
-- **`WaveformView` needed an automation peer to exist at all.** `FrameworkElement` creates none, so without it the meter is invisible to a screen reader and the `AutomationProperties.Name` the page sets on it reaches nothing. Reported as an image rather than a progress bar: claiming a progress bar promises a range pattern and a value this has no meaning for.
+- **The level meter needed an automation peer to exist at all.** (Written of `WaveformView`; the control is now `LcdMeterView` — see the Record page display section below — and the finding carries over unchanged.) `FrameworkElement` creates none, so without it the meter is invisible to a screen reader and the `AutomationProperties.Name` the page sets on it reaches nothing. Reported as an image rather than a progress bar: claiming a progress bar promises a range pattern and a value this has no meaning for.
 - **The two defects PR 3 found are still open and still deliberately unfixed here** — AAC output is an m4a container written to a `.aac` filename (`RecordingSettings.MediaFormatExtension` against `EncodingProfiles.For`), and nothing calls `OffstreamSettings.CaptureRuntimeState`, so the in-session file counter never reaches the disk and numbering restarts every run. Both are pipeline behaviour with their own tests to write; neither belongs in a shell PR. **Both fixed on 2026-08-12** — see the metadata pipeline section below.
+
+**Redesign findings (2026-08-13):**
+
+The user supplied two mockups — a Record tab and a Settings tab — and three constraints: the
+Advanced tab gets the same treatment in two columns, neither settings page may scroll, and the
+transport button belongs on the Record tab only. Two open questions were settled by the user:
+refusals appear as a red bar above the display and the display carries no status row at all; the
+window's minimum size is **1024 × 700**.
+
+- **`NavigationView` is gone, and removing it paid twice.** The design asks for a flat label over
+  an accent underline, which is not Fluent's navigation idiom — reproducing it meant retemplating
+  the control down to a shape it does not have. Three `RadioButton`s in one group bound to a
+  `ShellTab` enum through `EnumToBooleanConverter` is less machinery, and it took
+  `NavigationViewContentPresenter` out of the tree with it, which is what had forced
+  `ScrollViewer.CanContentScroll="False"` onto the Record page. `PageProvider` and the
+  `INavigationService` registration are deleted.
+- **The converter's `ConvertBack` returns `Binding.DoNothing` for an unchecked button.** Unchecking
+  is what happens to the *outgoing* button when another is picked; writing anything back for it
+  races the incoming button and settles on whichever the group updated last.
+- **The three pages became `UserControl`s, and this is not cosmetic.** `Page` throws
+  *"Page can have only Window or Frame as parent"* the moment a `ContentControl` hosts it — the
+  crash lands in `MeasureOverride`, so it survives compilation and the first render and only
+  appears when the shell arranges. Nothing is lost: a `Page` outside a navigation frame is a
+  `UserControl` with a `Title` nobody reads.
+- **WPF-UI reassigns `FluentWindow.Background` after load**, from the theme, when it applies a
+  backdrop — including `WindowBackdropType="None"`. A colour set on the window is silently
+  overwritten. The near-black is painted by the root `Grid` instead.
+- **Pack URIs are assembly-qualified now** (`/Offstream;component/Assets/…`). Unqualified ones
+  resolve against `Application.ResourceAssembly`, which is the *entry* assembly — the app when the
+  app runs, the test host when anything else loads the same XAML — and it cannot be reassigned once
+  set. Note the assembly is `Offstream`, not `Offstream.App`.
+- **Field labels are top-aligned with a 7 px nudge, not centred.** On a one-control row the nudge
+  lands on the control's centre line anyway; on a row whose control carries a hint or a validation
+  message under it, centring pushed the label halfway down a stack and left it pointing at nothing.
+  They wrap rather than trim for the same reason — a label ending in an ellipsis is a setting the
+  user has to click to identify.
+- **The token reference moved from a `CardExpander` to a flyout.** Ten rows of reference text
+  pushed everything below off the page the moment it opened, which is not available on a page that
+  promises not to scroll. A `ToggleButton` and a `Popup` share `IsTokenReferenceOpen`, and
+  `StaysOpen="False"` means an outside click writes `false` back through the same property that
+  pops the button out.
+- **The minimum size is the no-scroll promise made structural.** Advanced's two columns need
+  roughly 1024 wide; both pages lay out every field at once, which only holds above a size. Setting
+  the floor to the design size means the window cannot be dragged to where a setting is
+  unreachable.
 
 ### Metadata pipeline — closing Phase 4's open end (2026-08-12) — ✅ **complete**
 
@@ -558,6 +603,146 @@ A session log showed Spotify tagging two tracks and skipping the one between the
 - **Four attempts rather than the reference's two**, because the budget is different: enrichment is bounded by `TrackEnricher.DefaultDeadline` (20s) and runs concurrently with a recording lasting minutes, so ~3s of chasing costs nothing. `SpotifyPollingOptions` carries the timings so tests exercise the retry without waiting them out.
 - **A momentary empty answer is the same race**, so a 204 is retried too — the reference retried that case as well. A podcast episode is not, and fails on the first look: no number of retries turns an episode into a track.
 - **The log line now says what Spotify answered.** "Spotify had no metadata for X" was true and useless; the mismatch is logged at debug with both titles, which is what would have answered this question from the log instead of from the source.
+
+#### Third follow-up: the Record page display (2026-08-13)
+
+Reported as a slow, laggy Record page whose elapsed counter ran behind Spotify, and a waveform
+that was "almost always peaked". Three separate causes, and the last one changed what the page
+looks like.
+
+- **The freeze was `SpotifyPoller.Start()` capturing the dispatcher, not the drawing.** Start is
+  called from a button click, so the WPF `SynchronizationContext` was current, and every `await`
+  in the poll loop without `ConfigureAwait(false)` resumed on the UI thread — window-title reads
+  fourteen times a second, and `StopCurrentRecorder`'s blocking wait on the capture buffer at
+  every track change. Proven by hashing the frames of a screen recording: 2.53 s and 2.33 s of
+  byte-identical frames, with the counter jumping 0:30 → 0:32 across one of them. The loops now
+  start on the pool via `Task.Run`, and `SpotifyPollerTests` pins it with a counting
+  `SynchronizationContext` that must never be posted to. **Three earlier diagnoses — geometry
+  batching, `DrawingVisual`, log filtering — were all wrong**; each made the page cheaper to draw
+  and none of them touched a blocked thread. The user's own read ("it's like it's waiting for
+  something") was the signal that it was a block rather than a cost.
+- **The counter drifted because it counted ticks instead of reading a clock.** `PeriodicTimer`
+  never makes up a tick it delivered late, so ten seconds that produced four ticks read as four
+  seconds and stayed four behind for the rest of the track. It now samples a monotonic clock
+  through `TimeProvider`, which is also what makes the drift testable without waiting.
+- **A waveform cannot work against a loudness-normalised source.** Peak over a 33 ms display
+  interval is at or near full scale for essentially all mastered music, so every bar came out the
+  same height and the control drew a solid block. Moving to RMS on a decibel scale fixed the
+  measurement, but Spotify normalises to about −14 dBFS and the remaining dynamic range is a few
+  decibels — not enough for a scroll to be worth the space.
+- **What replaced it is a field recorder's display.** `LcdMeterView` draws L and R segment bars
+  over a −50…0 dB scale with ticks at −50, −30, −20, −12, −6 and 0, and the held peak printed in
+  dBFS; the transport state, the counter, what is playing and the output format sit above it on
+  the same panel. The ruler is the part a progress bar cannot offer — it turns "about two-thirds
+  along" into "near −12 dB". `AudioLevelMeter` gained per-channel accumulation to feed it, and
+  drains through `LevelReading`, which carries the dBFS figure alongside the 0–1 level so the bars
+  and the printed numbers are one measurement rather than two scales that agree by accident.
+- **Unlit cells stay faintly visible, and that is the whole point of the control.** Everything
+  else on the page comes from Spotify's window title, which keeps changing whether or not a
+  sample reaches the encoder. A silent meter has to read as a working meter showing nothing
+  rather than as one that has stopped — the failure this page exists to make visible is a folder
+  of silent files discovered in the morning.
+- **The indicator blinks while armed and holds solid while capturing**, which is the standby-
+  against-rolling convention every recorder uses, and the only cue the page has for a distinction
+  the transport buttons cannot show — armed and capturing are both "running" and both offer Stop.
+  Discrete key frames rather than a fade, because an LCD segment has no in-between and a
+  cross-fade reads as a glow; one second per cycle, well under the rate that matters for
+  photosensitivity; and gated on `SystemParameters.ClientAreaAnimation`, so a user who turned
+  animations off gets the static outlined block, which still differs from capturing's inverted one.
+- **The palette is fixed rather than themed**, because a physical LCD looks the same in a dark
+  room. The transport buttons stay in the app's own style, outside the panel: an LCD is not
+  clickable, and styling a button to look like one would be a lie about what can be pressed.
+- **The segment grid is a tiled mask over continuous bars**, one draw call at any width, with the
+  pitch derived from the width to hold about forty cells. At a fixed 5 px a wide panel came out as
+  a hundred hairlines that read as texture on a solid bar rather than as discrete steps.
+- **The log pane grew in two independent ways.** `LogLines` — the collection the `ListBox` binds
+  to — was never trimmed even though the backing buffer was, so an overnight session ended with a
+  pane holding far more lines than the sink retained. Separately, WPF-UI's
+  `NavigationViewContentPresenter` reads `ScrollViewer.GetCanContentScroll(page)` on navigation
+  and swaps in a template that wraps the page in a `DynamicScrollViewer` — and its static
+  constructor defaults that property to `True` for every `Page`. Inside that scroller the page is
+  measured with infinite height, so the star row resolved to its content's size instead of the
+  viewport and the card grew off the bottom of the window. `ScrollViewer.CanContentScroll="False"`
+  on the Record page opts out; Settings and Advanced keep the default because they are long forms
+  that genuinely want to scroll as a whole. ***The second half is obsolete as of the redesign
+  (2026-08-13): removing `NavigationView` removed the presenter, and no page opts out of anything
+  any more. The `LogLines` half stands, and the FlaUI test that pins the log inside the window is
+  kept.***
+
+#### Fourth follow-up: conformance to the Spotify Web API rules (2026-08-13)
+
+The user set a written rule sheet for all Spotify Web API work — spec-derived endpoints, PKCE,
+loopback-literal redirect, minimum scopes, secure tokens with refresh, 429 backoff honouring
+`Retry-After`, no deprecated endpoints, per-status error handling, and the Developer Terms. An
+audit of what Phase 4 shipped found most of it already conformant and **two real gaps**, both
+invisible at compile time and both silent at runtime.
+
+- **`SpotifyClientConfig.CreateDefault()` attaches no retry handler at all.** Verified by
+  reflection, not assumed: `RetryHandler` is null. So a 429 threw `APITooManyRequestsException`,
+  fell through `TrackEnricher`'s catch-all, and the track recorded untagged — rate limiting is the
+  one API failure that is *supposed* to be recoverable, and it was the one being treated as fatal.
+  Worse, the provider's own boundary-race retry (4 attempts, fixed 1s) sits *inside* that, so a
+  throttled session would keep asking. `SpotifyRetryHandler` now honours `Retry-After` exactly for
+  429 and applies exponential backoff (1/2/4/8s, capped) to a 429 with no usable header and to the
+  5xx family. Nothing else is retried: a 404 asked five times is still a 404 and four wasted round
+  trips.
+- **`Retry-After` is obeyed, not negotiated.** Guessing shorter than Spotify asks is what gets an
+  application throttled harder. The handler needs no timeout of its own because enrichment already
+  runs under `TrackEnricher.DefaultDeadline` (20s) — a `Retry-After` longer than that cancels the
+  lookup and the recording continues untagged, which is the correct trade. Header lookup is
+  case-insensitive, because HTTP says the name is and the SDK hands over whatever casing the wire
+  used; an ordinal match would silently miss and fall back to guessing.
+- **Three scopes were requested and one was used.** `user-read-playback-state` and
+  `user-read-recently-played` were asked for on the assumption a later feature would want them;
+  nothing ever called `GetCurrentPlayback` or `GetRecentlyPlayed`. Offstream makes exactly two
+  calls — `/me/player/currently-playing`, which needs `user-read-currently-playing`, and
+  `/albums/{id}`, which needs no user scope. A scope requested ahead of its feature is a permission
+  the user grants for nothing, on a screen where the extra lines look identical to the load-bearing
+  one. `SpotifyAuthOptionsTests` pins the list so it cannot drift back.
+  **Existing sign-ins keep working** — a stored refresh token carries the grant it was issued with,
+  so narrowing what is *requested* costs nobody a re-authorisation; new sign-ins simply get the
+  smaller grant.
+- **A dead refresh token had no exit.** It dies when revoked from the account page, when the
+  dashboard app is deleted, or when the granted scopes stop covering the request — none of which
+  recover on their own. The 401 was logged like any other fault and retried on every subsequent
+  track, while the Settings page went on claiming the account was connected. `AuthorizationExpired`
+  now fires on exactly that status; the host clears the stored token, and because that runs through
+  `SettingsDocument.Update` it raises `Changed`, which is what flips the Settings page back to its
+  signed-out state and puts the sign-in button in front of the user. **Only a 401 does this** —
+  treating a rate limit or an outage as an expired token would sign the user out over a transient
+  fault, and there is a test for each.
+- **Being throttled is logged as a warning, and that level is the feature.** The first cut logged
+  it at `Debug`, which is invisible: the Record page's activity log shows Information and above by
+  default, so the one condition a user most needs explained — files coming out untagged — was
+  reported only to whoever thought to switch the filter to "All". 429 is now a `Warning` naming the
+  wait Spotify asked for; a throttle that outlasts the retry budget gets a second, louder line
+  saying the lookup was abandoned and that recording itself is unaffected. Transient 5xx stays at
+  `Information` on purpose: it usually clears on the next attempt, and promoting it would make the
+  Problems filter noisy enough to stop being read.
+- **Quota and rate limit are different failures and read differently.** A 429 is Spotify throttling
+  request rate; a 403 can mean the signed-in account is not on the dashboard app's allowlist *or*
+  that the app has run past the user quota its mode allows. The body is the only thing that
+  distinguishes them, so it is quoted rather than replaced.
+- **The retry handler takes its logger the way it takes its delay.** `Log.Logger` is static, so
+  asserting on these lines by reassigning it would leak into every test running beside it. Injecting
+  `ILogger` keeps the log assertions honest and resolves per call, so production picks up whatever
+  Serilog is configured with rather than whatever existed when the client was built.
+- **The API's own error message is the user-facing one.** Spotify sends a reason in the error body
+  and the SDK surfaces it as `Exception.Message`; that beats anything writable from a status code
+  alone. These land in the Record page's activity log, so the wording is the user's answer rather
+  than a stack trace. Every fault is still downgraded to "no metadata" — the status decides what
+  the user is told to do, never whether the recording survives.
+- **Attribution is on the Settings page, beside the provider that requires it**, not in an about
+  box: it is visible at the moment the user turns Spotify on. The Developer Terms' caching clause
+  was reviewed and **deliberately left alone at the user's direction (2026-08-13)** — writing tags
+  and cover art permanently into recorded files is what the app is for, and that is the user's call
+  to make, not a conformance defect to fix.
+- **No deprecated endpoint is in use**, and none of the rule sheet's named ones (`/playlists/{id}/tracks`,
+  the type-specific library endpoints) is reachable from anything Offstream does.
+
+**906 tests green** (738 core + 168 UI), up from 864: 28 for the retry schedule and what it reports — asserted on the
+intervals it *produces*, with the delay function injected so no test spends one — plus the provider's
+error paths and the scope list.
 
 ### Phase 7 — Windows integration polish (3–4 days)
 - **Raise the TFM to `net10.0-windows10.0.22621.0` first.** SMTC needs WinRT projections, which a bare `net10.0-windows` TFM does not provide. This is now free: Windows 11's floor is build 22000, so a versioned TFM costs no supported users. Expect the change to be mechanical (one property in `Directory.Build.props`) but verify the routing interop still binds afterwards — it is hand-rolled COM and the projections change what the compiler generates around WinRT types.

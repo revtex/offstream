@@ -1,4 +1,5 @@
 using FlaUI.Core.AutomationElements;
+using Offstream.App.Resources;
 using Xunit;
 
 namespace Offstream.UI.Tests.Desktop;
@@ -36,7 +37,11 @@ public sealed class RecordPageTests : IClassFixture<OffstreamApp>
 
     [Fact]
     public void TheElapsedCounterStartsAtZero() =>
-        Assert.Equal("0:00", _app.Find("RecordElapsed").AsLabel().Text);
+        Assert.Equal("00:00:00", _app.Find("RecordElapsed").AsLabel().Text);
+
+    [Fact]
+    public void TheTransportIndicatorReadsStopped() =>
+        Assert.Equal(Strings.RecordTransportStopped, _app.Find("RecordTransport").AsLabel().Text);
 
     [Fact]
     public void TheLevelMeterIsOnThePage() =>
@@ -84,14 +89,13 @@ public sealed class RecordPageTests : IClassFixture<OffstreamApp>
     /// The log scrolls inside its box; it does not push the page taller than the window.
     /// </summary>
     /// <remarks>
-    /// This is the regression WPF-UI's <c>NavigationViewContentPresenter</c> causes by default:
-    /// it wraps a <see cref="System.Windows.Controls.Page"/> whose
-    /// <c>ScrollViewer.CanContentScroll</c> is true — which its own static constructor makes the
-    /// default — in a <c>DynamicScrollViewer</c>, and inside that the page is measured with
-    /// infinite height. The star row holding the log then resolves to its content's size rather
-    /// than the viewport, so the list lays out every retained line and runs off the bottom of the
-    /// window. Asserted against the window's own rectangle rather than a fixed pixel height, so
-    /// this holds however the window is sized.
+    /// This caught a real regression once, from WPF-UI's <c>NavigationViewContentPresenter</c>:
+    /// it wrapped each page in a <c>DynamicScrollViewer</c> that measured with infinite height,
+    /// so the star row holding the log resolved to its content's size rather than the viewport
+    /// and the list laid out every retained line off the bottom of the window. That presenter is
+    /// gone — the shell hosts the pages itself now — but the invariant it violated is the one
+    /// that matters and is cheap to keep watching. Asserted against the window's own rectangle
+    /// rather than a fixed pixel height, so this holds however the window is sized.
     /// </remarks>
     [Fact]
     public void TheActivityLogStaysInsideTheWindow()

@@ -175,8 +175,9 @@ public sealed class ShellViewModelTests
     [Fact]
     public void Constructor_RejectsNulls()
     {
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(null!, SettingsFakes.Document()));
-        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(ControllerFor(), null!));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(null!, SettingsFakes.Document(), RecordFor()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(ControllerFor(), null!, RecordFor()));
+        Assert.Throws<ArgumentNullException>(() => new ShellViewModel(ControllerFor(), SettingsFakes.Document(), null!));
     }
 
     /// <summary>Runs <paramref name="report"/> and waits for the tooltip it produces.</summary>
@@ -210,8 +211,20 @@ public sealed class ShellViewModelTests
 
     private static ShellViewModel Build(
         RecordingController? controller = null,
-        SettingsDocument? settings = null) =>
-        new(controller ?? ControllerFor(), settings ?? SettingsFakes.Document());
+        SettingsDocument? settings = null)
+    {
+        var owned = controller ?? ControllerFor();
+
+        return new ShellViewModel(owned, settings ?? SettingsFakes.Document(), RecordFor(owned));
+    }
+
+    /// <summary>
+    /// The Record page's ViewModel, which the shell holds so the header's transport button can
+    /// bind to it. Given the same controller when there is one, since the two would otherwise
+    /// disagree about whether anything is running.
+    /// </summary>
+    private static RecordViewModel RecordFor(RecordingController? controller = null) =>
+        new(new InMemoryLogSink(), controller ?? ControllerFor());
 
     private static RecordingController ControllerFor(FakeSessionFactory? factory = null) =>
         new(factory ?? new FakeSessionFactory(), RecordingFakes.Document());
