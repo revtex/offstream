@@ -1,47 +1,51 @@
 using Offstream.App.ViewModels;
 using Offstream.App.Views.Pages;
-using Wpf.Ui;
-using Wpf.Ui.Abstractions;
 using Wpf.Ui.Controls;
 
 namespace Offstream.App.Views;
 
 /// <summary>
-/// The shell window: title bar, top navigation, and the frame the pages render into.
+/// The shell window: title bar, tab strip, transport, and the three pages.
 /// </summary>
 /// <remarks>
-/// Code-behind is wiring only, per the MVVM convention in CLAUDE.md. The wiring that has to
-/// live here is navigation: <see cref="INavigationService"/> needs the concrete
-/// <see cref="NavigationView"/> from the XAML, which nothing outside this class can reach.
+/// <para>
+/// Code-behind is wiring only, per the MVVM convention in CLAUDE.md. What has to live here is
+/// putting the pages into their hosts: a ViewModel that held <see cref="System.Windows.Controls.Page"/>
+/// instances would be a ViewModel that references the views it is supposed to be independent of.
+/// The window is the one place that is allowed to know about both.
+/// </para>
+/// <para>
+/// <b>All three pages are loaded at once and switched by visibility.</b> Every page is a DI
+/// singleton, so this costs three constructions for the life of the process and buys the thing a
+/// navigation frame had to be configured for: state survives a tab switch. The activity log, a
+/// half-typed filename template and the meter's own sampling timer are all still there on the way
+/// back. It also drops a WPF-UI trap — its content presenter wrapped every page in a scroll
+/// viewer that measured with infinite height, which is what used to make the Record page's log
+/// grow off the bottom of the window instead of scrolling inside its own box.
+/// </para>
 /// </remarks>
-public partial class ShellWindow : FluentWindow, INavigationWindow
+public partial class ShellWindow : FluentWindow
 {
-    private readonly INavigationViewPageProvider _pageProvider;
-    private readonly IServiceProvider _services;
     private readonly ShellViewModel _viewModel;
 
     public ShellWindow(
         ShellViewModel viewModel,
-        INavigationService navigationService,
-        INavigationViewPageProvider pageProvider,
-        IServiceProvider services)
+        RecordPage recordPage,
+        SettingsPage settingsPage,
+        AdvancedPage advancedPage)
     {
-        ArgumentNullException.ThrowIfNull(navigationService);
+        ArgumentNullException.ThrowIfNull(recordPage);
+        ArgumentNullException.ThrowIfNull(settingsPage);
+        ArgumentNullException.ThrowIfNull(advancedPage);
 
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
-        _pageProvider = pageProvider ?? throw new ArgumentNullException(nameof(pageProvider));
-        _services = services ?? throw new ArgumentNullException(nameof(services));
 
         DataContext = viewModel;
         InitializeComponent();
 
-        SetPageService(_pageProvider);
-        SetServiceProvider(_services);
-        navigationService.SetNavigationControl(RootNavigation);
-
-        // Nothing is selected until something navigates, and an empty frame on launch reads as
-        // a broken window rather than an empty tab.
-        Loaded += (_, _) => Navigate(typeof(RecordPage));
+        RecordHost.Content = recordPage;
+        SettingsHost.Content = settingsPage;
+        AdvancedHost.Content = advancedPage;
 
         StateChanged += OnStateChanged;
         viewModel.ShowRequested += (_, _) => Surface();
@@ -83,24 +87,4 @@ public partial class ShellWindow : FluentWindow, INavigationWindow
         WindowState = System.Windows.WindowState.Normal;
         _ = Activate();
     }
-
-    /// <inheritdoc />
-    public INavigationView GetNavigation() => RootNavigation;
-
-    /// <inheritdoc />
-    public bool Navigate(Type pageType) => RootNavigation.Navigate(pageType);
-
-    /// <inheritdoc />
-    public void SetPageService(INavigationViewPageProvider navigationViewPageProvider) =>
-        RootNavigation.SetPageProviderService(navigationViewPageProvider);
-
-    /// <inheritdoc />
-    public void SetServiceProvider(IServiceProvider serviceProvider) =>
-        RootNavigation.SetServiceProvider(serviceProvider);
-
-    /// <inheritdoc />
-    public void ShowWindow() => Show();
-
-    /// <inheritdoc />
-    public void CloseWindow() => Close();
 }

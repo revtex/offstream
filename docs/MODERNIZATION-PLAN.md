@@ -468,9 +468,9 @@ Delivered in four PRs: **PR 1** (shell scaffold, DI, navigation, design tokens),
 
 **Exit (as amended):** FlaUI suite covers the shell and the controls it drives — **the per-control page suites were dropped at the user's direction on 2026-08-12 in favour of manual verification** (PR 4 findings, below); key-parity test passes; side-by-side behavioural review against the reference app (behaviour compared, chrome and wording deliberately not copied). **Key-parity met** in PR 1; PR 4 closes the phase at **771 tests green** — 607 in `Offstream.Core.Tests`, 151 in `Offstream.UI.Tests`, and 13 Desktop-category FlaUI tests that CI and `build.ps1` exclude.
 
-- **The three tabs are `NavigationView` items, not a `TabControl`.** §11 keeps the three-tab structure; it does not require the predecessor's control. A top-mode `NavigationView` reads as tabs, keeps each page a separate `Page` the container builds, and gets keyboard and UIA behaviour for free — which is what PR 4's FlaUI sweep will drive.
-- **Pages come from the DI container via `INavigationViewPageProvider`, never from WPF-UI's default activator.** The default constructs pages reflectively, so a page whose constructor takes a ViewModel is built with nulls instead of failing — a blank tab with no exception. `PageProvider` resolves from the container, and `AppServicesTests` asserts every `Page` in `Views.Pages` is registered, since that failure is otherwise invisible until someone clicks the tab.
-- **Pages and their ViewModels are singletons**, to match `NavigationCacheMode.Enabled`. A transient registration hands out an instance the navigation cache never displays, so a half-filled settings form quietly stops being the one on screen.
+- **The three tabs are `NavigationView` items, not a `TabControl`.** §11 keeps the three-tab structure; it does not require the predecessor's control. A top-mode `NavigationView` reads as tabs, keeps each page a separate `Page` the container builds, and gets keyboard and UIA behaviour for free — which is what PR 4's FlaUI sweep will drive. ***Superseded by the redesign (2026-08-13): `NavigationView` is gone. See the redesign findings below.***
+- **Pages come from the DI container via `INavigationViewPageProvider`, never from WPF-UI's default activator.** The default constructs pages reflectively, so a page whose constructor takes a ViewModel is built with nulls instead of failing — a blank tab with no exception. `PageProvider` resolves from the container, and `AppServicesTests` asserts every `Page` in `Views.Pages` is registered, since that failure is otherwise invisible until someone clicks the tab. ***Superseded: `PageProvider` is deleted; the shell takes the three pages as constructor parameters, so a missing registration now fails at startup. The `AppServicesTests` sweep survives, over `UserControl`.***
+- **Pages and their ViewModels are singletons**, to match `NavigationCacheMode.Enabled`. A transient registration hands out an instance the navigation cache never displays, so a half-filled settings form quietly stops being the one on screen. ***Still true, for a different reason: the shell keeps all three loaded and switches them by visibility.***
 - **XAML reaches strings through `{x:Static res:Strings.*}`**, against a `Strings` class generated from the .resx into `obj/` by MSBuild. A mistyped key fails the build rather than rendering an empty label. The cost is that a language change takes effect on the next launch — acceptable for a setting touched once, and the predecessor rebuilt its entire form to do it live.
 - **Generating that class inside a WPF project needs an explicit ordering target, and the obvious version of it hangs the build.** Any XAML naming a local type makes WPF compile a throwaway assembly first, and that temp project invokes `CoreCompile` directly, so the generated `Strings` class does not exist during the pass that needs it. The fix is a target depending on `PrepareResourceNames;CoreResGen` — **not** on `PrepareResources`, which WPF extends with `MarkupCompilePass2ForMainAssembly` and which therefore recurses into markup compilation forever, silently, with no error output. Same class of trap for `NeutralResourcesLanguageAttribute`: the MSBuild property does not reach the temp project, so CA1824 fails there and only there, and the attribute lives in `AssemblyInfo.cs` instead. Both are commented at the site.
 - **`SystemTheme` has twelve members and `ApplicationTheme` has four.** `== Dark ? Dark : Light` compiles, reads correctly, and renders the four high-contrast schemes as an ordinary light theme — silently undoing an accessibility setting. `ThemeService.FromSystem` maps them to `HighContrast` and everything unrecognised to Dark, pinned by `ThemeServiceTests`.
@@ -516,6 +516,51 @@ Delivered in four PRs: **PR 1** (shell scaffold, DI, navigation, design tokens),
 - **The tray reads recording state from `RecordingController`, not from `RecordViewModel`.** Both are singletons so either compiles, but the controller is the source of truth and the Record page is a peer reading the same events — chaining one ViewModel off another would mean the tray silently stopped updating whenever the page's logic changed.
 - **The level meter needed an automation peer to exist at all.** (Written of `WaveformView`; the control is now `LcdMeterView` — see the Record page display section below — and the finding carries over unchanged.) `FrameworkElement` creates none, so without it the meter is invisible to a screen reader and the `AutomationProperties.Name` the page sets on it reaches nothing. Reported as an image rather than a progress bar: claiming a progress bar promises a range pattern and a value this has no meaning for.
 - **The two defects PR 3 found are still open and still deliberately unfixed here** — AAC output is an m4a container written to a `.aac` filename (`RecordingSettings.MediaFormatExtension` against `EncodingProfiles.For`), and nothing calls `OffstreamSettings.CaptureRuntimeState`, so the in-session file counter never reaches the disk and numbering restarts every run. Both are pipeline behaviour with their own tests to write; neither belongs in a shell PR. **Both fixed on 2026-08-12** — see the metadata pipeline section below.
+
+**Redesign findings (2026-08-13):**
+
+The user supplied two mockups — a Record tab and a Settings tab — and three constraints: the
+Advanced tab gets the same treatment in two columns, neither settings page may scroll, and the
+transport button belongs on the Record tab only. Two open questions were settled by the user:
+refusals appear as a red bar above the display and the display carries no status row at all; the
+window's minimum size is **1024 × 700**.
+
+- **`NavigationView` is gone, and removing it paid twice.** The design asks for a flat label over
+  an accent underline, which is not Fluent's navigation idiom — reproducing it meant retemplating
+  the control down to a shape it does not have. Three `RadioButton`s in one group bound to a
+  `ShellTab` enum through `EnumToBooleanConverter` is less machinery, and it took
+  `NavigationViewContentPresenter` out of the tree with it, which is what had forced
+  `ScrollViewer.CanContentScroll="False"` onto the Record page. `PageProvider` and the
+  `INavigationService` registration are deleted.
+- **The converter's `ConvertBack` returns `Binding.DoNothing` for an unchecked button.** Unchecking
+  is what happens to the *outgoing* button when another is picked; writing anything back for it
+  races the incoming button and settles on whichever the group updated last.
+- **The three pages became `UserControl`s, and this is not cosmetic.** `Page` throws
+  *"Page can have only Window or Frame as parent"* the moment a `ContentControl` hosts it — the
+  crash lands in `MeasureOverride`, so it survives compilation and the first render and only
+  appears when the shell arranges. Nothing is lost: a `Page` outside a navigation frame is a
+  `UserControl` with a `Title` nobody reads.
+- **WPF-UI reassigns `FluentWindow.Background` after load**, from the theme, when it applies a
+  backdrop — including `WindowBackdropType="None"`. A colour set on the window is silently
+  overwritten. The near-black is painted by the root `Grid` instead.
+- **Pack URIs are assembly-qualified now** (`/Offstream;component/Assets/…`). Unqualified ones
+  resolve against `Application.ResourceAssembly`, which is the *entry* assembly — the app when the
+  app runs, the test host when anything else loads the same XAML — and it cannot be reassigned once
+  set. Note the assembly is `Offstream`, not `Offstream.App`.
+- **Field labels are top-aligned with a 7 px nudge, not centred.** On a one-control row the nudge
+  lands on the control's centre line anyway; on a row whose control carries a hint or a validation
+  message under it, centring pushed the label halfway down a stack and left it pointing at nothing.
+  They wrap rather than trim for the same reason — a label ending in an ellipsis is a setting the
+  user has to click to identify.
+- **The token reference moved from a `CardExpander` to a flyout.** Ten rows of reference text
+  pushed everything below off the page the moment it opened, which is not available on a page that
+  promises not to scroll. A `ToggleButton` and a `Popup` share `IsTokenReferenceOpen`, and
+  `StaysOpen="False"` means an outside click writes `false` back through the same property that
+  pops the button out.
+- **The minimum size is the no-scroll promise made structural.** Advanced's two columns need
+  roughly 1024 wide; both pages lay out every field at once, which only holds above a size. Setting
+  the floor to the design size means the window cannot be dragged to where a setting is
+  unreachable.
 
 ### Metadata pipeline — closing Phase 4's open end (2026-08-12) — ✅ **complete**
 
@@ -619,7 +664,10 @@ looks like.
   measured with infinite height, so the star row resolved to its content's size instead of the
   viewport and the card grew off the bottom of the window. `ScrollViewer.CanContentScroll="False"`
   on the Record page opts out; Settings and Advanced keep the default because they are long forms
-  that genuinely want to scroll as a whole.
+  that genuinely want to scroll as a whole. ***The second half is obsolete as of the redesign
+  (2026-08-13): removing `NavigationView` removed the presenter, and no page opts out of anything
+  any more. The `LogLines` half stands, and the FlaUI test that pins the log inside the window is
+  kept.***
 
 ### Phase 7 — Windows integration polish (3–4 days)
 - **Raise the TFM to `net10.0-windows10.0.22621.0` first.** SMTC needs WinRT projections, which a bare `net10.0-windows` TFM does not provide. This is now free: Windows 11's floor is build 22000, so a versioned TFM costs no supported users. Expect the change to be mechanical (one property in `Directory.Build.props`) but verify the routing interop still binds afterwards — it is hand-rolled COM and the projections change what the compiler generates around WinRT types.

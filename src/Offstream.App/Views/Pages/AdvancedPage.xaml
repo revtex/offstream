@@ -1,27 +1,37 @@
-<Page x:Class="Offstream.App.Views.Pages.AdvancedPage"
-      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-      xmlns:res="clr-namespace:Offstream.App.Resources"
-      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-      xmlns:vm="clr-namespace:Offstream.App.ViewModels"
-      Title="Advanced">
+<UserControl x:Class="Offstream.App.Views.Pages.AdvancedPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:res="clr-namespace:Offstream.App.Resources"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:vm="clr-namespace:Offstream.App.ViewModels">
 
     <!--
         Everything a recording needs that is not "where does it go and what does it sound like":
         naming, what counts as a track, what ends up in the tags, and the two application
         settings with nowhere else to live.
 
+        Two columns, at the user's direction, and the split is by subject rather than by length:
+        the left column is the file that gets written, the right is what the app watches for and
+        how the app itself behaves. Thirteen rows do not fit one column at the window's minimum
+        height, and this page makes the same no-scroll promise the Settings page does.
+
         Same contract as the Settings page - inline validation, no OK button.
     -->
-    <Page.Resources>
+    <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibility" />
+
+        <Style x:Key="GroupRule" TargetType="Border">
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Margin" Value="0,14,0,14" />
+            <Setter Property="Background" Value="{StaticResource OffstreamRowSeparatorBrush}" />
+        </Style>
 
         <!--
             One token and what it renders to. The token itself is monospaced because it is typed
             verbatim into the box above, braces and all.
         -->
         <DataTemplate x:Key="TemplateTokenTemplate" DataType="{x:Type vm:TemplateToken}">
-            <Grid Margin="0,0,0,4">
+            <Grid Margin="0,0,0,6">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" SharedSizeGroup="TokenName" />
                     <ColumnDefinition Width="*" />
@@ -39,347 +49,347 @@
                            TextWrapping="Wrap" />
             </Grid>
         </DataTemplate>
-    </Page.Resources>
+    </UserControl.Resources>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Grid.IsSharedSizeScope="True" Margin="{StaticResource OffstreamPagePadding}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
 
-            <ui:InfoBar Margin="{StaticResource OffstreamStackGap}"
-                        AutomationProperties.AutomationId="AdvancedSaveProblem"
-                        IsClosable="False"
-                        IsOpen="{Binding HasSaveProblem, Mode=OneWay}"
-                        Message="{Binding SaveProblem, Mode=OneWay}"
-                        Severity="Error" />
+        <ui:InfoBar Grid.Row="0"
+                    Margin="0,0,0,12"
+                    AutomationProperties.AutomationId="AdvancedSaveProblem"
+                    IsClosable="False"
+                    IsOpen="{Binding HasSaveProblem, Mode=OneWay}"
+                    Message="{Binding SaveProblem, Mode=OneWay}"
+                    Severity="Error" />
 
-            <TextBlock Style="{StaticResource OffstreamSectionHeaderStyle}" Text="{x:Static res:Strings.AdvancedNamingSection}" />
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
 
-            <ui:Card Margin="{StaticResource OffstreamStackGap}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" SharedSizeGroup="AdvancedControl" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
+            <!--  The file that gets written: what it is called, and what goes in its tags.  -->
+            <Border Grid.Column="0"
+                    Padding="20"
+                    VerticalAlignment="Top"
+                    Style="{StaticResource OffstreamCardStyle}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource OffstreamGroupHeaderStyle}" Text="{x:Static res:Strings.AdvancedNamingSection}" />
 
-                    <TextBlock Grid.Row="0"
-                               Grid.Column="0"
-                               Margin="0,0,16,0"
-                               VerticalAlignment="Center"
-                               Style="{StaticResource BodyTextBlockStyle}"
-                               Text="{x:Static res:Strings.AdvancedTemplateLabel}"
-                               TextWrapping="Wrap" />
+                    <DockPanel Margin="{StaticResource OffstreamRowGap}">
+                        <TextBlock Width="150"
+                                   Margin="0,7,16,0"
+                                   DockPanel.Dock="Left"
+                                   Style="{StaticResource OffstreamFieldLabelStyle}"
+                                   Text="{x:Static res:Strings.AdvancedTemplateLabel}" />
 
-                    <StackPanel Grid.Row="0" Grid.Column="1" Width="360">
                         <!--
-                            The one field on either page that commits per keystroke: the preview
-                            below it is the whole point, and a preview that waits for focus loss
-                            is a preview of the previous template.
+                            The token reference is a flyout off this button rather than an
+                            expander in the flow. Ten rows of reference text pushed everything
+                            below it off the page the moment it opened, which on a page that
+                            promises not to scroll is not an option — and a reference is
+                            something you consult while typing, so it belongs over the layout
+                            rather than inside it.
                         -->
-                        <ui:TextBox x:Name="TemplateBox"
-                                    AutomationProperties.AutomationId="AdvancedTemplate"
-                                    AutomationProperties.Name="{x:Static res:Strings.AdvancedTemplateLabel}"
-                                    FontFamily="{StaticResource OffstreamMonoFontFamily}"
-                                    Text="{Binding Template, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" />
-                        <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=TemplateBox, Path=(Validation.Errors)/ErrorContent}" />
+                        <ToggleButton x:Name="TokenReferenceButton"
+                                      Margin="8,0,0,0"
+                                      VerticalAlignment="Top"
+                                      AutomationProperties.AutomationId="AdvancedTemplateTokens"
+                                      AutomationProperties.Name="{x:Static res:Strings.AdvancedTemplateTokens}"
+                                      DockPanel.Dock="Right"
+                                      IsChecked="{Binding IsTokenReferenceOpen, Mode=TwoWay}"
+                                      ToolTip="{x:Static res:Strings.AdvancedTemplateTokens}">
+                            <ui:SymbolIcon Symbol="QuestionCircle24" />
+                        </ToggleButton>
 
-                        <StackPanel Margin="0,8,0,0" Orientation="Horizontal">
-                            <ui:Button AutomationProperties.AutomationId="AdvancedTemplateDefaultButton"
-                                       Command="{Binding ResetTemplateCommand}"
-                                       Content="{x:Static res:Strings.AdvancedTemplateDefault}" />
-                            <ui:Button Margin="8,0,0,0"
-                                       AutomationProperties.AutomationId="AdvancedTemplateGroupedButton"
-                                       Command="{Binding UseGroupedTemplateCommand}"
-                                       Content="{x:Static res:Strings.AdvancedTemplateGrouped}" />
+                        <StackPanel>
+                            <!--
+                                The one field on either page that commits per keystroke: the
+                                preview below it is the whole point, and a preview that waits for
+                                focus loss is a preview of the previous template.
+                            -->
+                            <ui:TextBox x:Name="TemplateBox"
+                                        AutomationProperties.AutomationId="AdvancedTemplate"
+                                        AutomationProperties.Name="{x:Static res:Strings.AdvancedTemplateLabel}"
+                                        FontFamily="{StaticResource OffstreamMonoFontFamily}"
+                                        Text="{Binding Template, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" />
+                            <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=TemplateBox, Path=(Validation.Errors)/ErrorContent}" />
                         </StackPanel>
-                    </StackPanel>
-
-                    <TextBlock Grid.Row="1"
-                               Grid.Column="0"
-                               Margin="0,16,16,0"
-                               VerticalAlignment="Center"
-                               Style="{StaticResource BodyTextBlockStyle}"
-                               Text="{x:Static res:Strings.AdvancedPreviewLabel}"
-                               TextWrapping="Wrap" />
+                    </DockPanel>
 
                     <!--
-                        Rendered by the recorder's own naming code, so what is shown here is the
-                        path that would be written - including the length budgeting.
+                        The two presets get the card's full width rather than the control column's.
+                        Side by side they are wider than the box they fill in, and squeezing them
+                        into the column truncated both labels into a pair of buttons that no longer
+                        said which template they would write.
                     -->
-                    <TextBlock Grid.Row="1"
-                               Grid.Column="1"
-                               Width="360"
-                               Margin="0,16,0,0"
-                               VerticalAlignment="Center"
-                               AutomationProperties.AutomationId="AdvancedTemplatePreview"
-                               FontFamily="{StaticResource OffstreamMonoFontFamily}"
-                               FontSize="{StaticResource OffstreamMonoFontSize}"
-                               Text="{Binding TemplatePreview, Mode=OneWay}"
-                               TextWrapping="Wrap" />
+                    <StackPanel Margin="0,2,0,10"
+                                HorizontalAlignment="Left"
+                                Orientation="Horizontal">
+                        <ui:Button AutomationProperties.AutomationId="AdvancedTemplateDefaultButton"
+                                   Command="{Binding ResetTemplateCommand}"
+                                   Content="{x:Static res:Strings.AdvancedTemplateDefault}" />
+                        <ui:Button Margin="8,0,0,0"
+                                   AutomationProperties.AutomationId="AdvancedTemplateGroupedButton"
+                                   Command="{Binding UseGroupedTemplateCommand}"
+                                   Content="{x:Static res:Strings.AdvancedTemplateGrouped}" />
+                    </StackPanel>
 
-                    <ui:CardExpander Grid.Row="2"
-                                     Grid.Column="0"
-                                     Grid.ColumnSpan="2"
-                                     Margin="0,16,0,0"
-                                     Header="{x:Static res:Strings.AdvancedTemplateTokens}"
-                                     Icon="{ui:SymbolIcon QuestionCircle24}"
-                                     IsExpanded="{Binding IsTokenReferenceOpen, Mode=TwoWay}">
-                        <ItemsControl Grid.IsSharedSizeScope="True"
-                                      ItemTemplate="{StaticResource TemplateTokenTemplate}"
-                                      ItemsSource="{Binding Tokens, Mode=OneTime}" />
-                    </ui:CardExpander>
+                    <!--
+                        StaysOpen false so a click anywhere else dismisses it, which writes false
+                        back through the same property the button is bound to and pops the button
+                        out with it.
+                    -->
+                    <Popup AllowsTransparency="True"
+                           HorizontalOffset="-8"
+                           IsOpen="{Binding IsTokenReferenceOpen, Mode=TwoWay}"
+                           Placement="Bottom"
+                           PlacementTarget="{Binding ElementName=TokenReferenceButton}"
+                           PopupAnimation="Fade"
+                           StaysOpen="False"
+                           VerticalOffset="6">
+                        <Border MaxWidth="420"
+                                Padding="16"
+                                Style="{StaticResource OffstreamCardStyle}">
+                            <StackPanel>
+                                <TextBlock Margin="0,0,0,10"
+                                           Style="{StaticResource OffstreamFieldLabelStyle}"
+                                           Text="{x:Static res:Strings.AdvancedTemplateTokens}" />
+                                <ItemsControl AutomationProperties.AutomationId="AdvancedTokenList"
+                                              Grid.IsSharedSizeScope="True"
+                                              ItemTemplate="{StaticResource TemplateTokenTemplate}"
+                                              ItemsSource="{Binding Tokens, Mode=OneTime}" />
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+
+                    <DockPanel Margin="{StaticResource OffstreamRowGap}">
+                        <TextBlock Width="150"
+                                   Margin="0,7,16,0"
+                                   DockPanel.Dock="Left"
+                                   Style="{StaticResource OffstreamFieldLabelStyle}"
+                                   Text="{x:Static res:Strings.AdvancedPreviewLabel}" />
+
+                        <!--
+                            Rendered by the recorder's own naming code, so what is shown here is
+                            the path that would be written - including the length budgeting.
+                        -->
+                        <TextBlock VerticalAlignment="Center"
+                                   AutomationProperties.AutomationId="AdvancedTemplatePreview"
+                                   FontFamily="{StaticResource OffstreamMonoFontFamily}"
+                                   FontSize="{StaticResource OffstreamMonoFontSize}"
+                                   Text="{Binding TemplatePreview, Mode=OneWay}"
+                                   TextWrapping="Wrap" />
+                    </DockPanel>
 
                     <!--
                         Only shown when the template actually uses {count}. A "next number" field
                         next to a template that never numbers anything is a setting with no effect.
                     -->
-                    <TextBlock Grid.Row="3"
-                               Grid.Column="0"
-                               Margin="0,16,16,0"
-                               VerticalAlignment="Center"
-                               Style="{StaticResource BodyTextBlockStyle}"
-                               Text="{x:Static res:Strings.AdvancedCounterLabel}"
-                               TextWrapping="Wrap"
-                               Visibility="{Binding UsesCounter, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                    <DockPanel Margin="{StaticResource OffstreamRowGap}" Visibility="{Binding UsesCounter, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                        <TextBlock Width="150"
+                                   Margin="0,7,16,0"
+                                   DockPanel.Dock="Left"
+                                   Style="{StaticResource OffstreamFieldLabelStyle}"
+                                   Text="{x:Static res:Strings.AdvancedCounterLabel}" />
 
-                    <StackPanel Grid.Row="3"
-                                Grid.Column="1"
-                                Width="360"
-                                Margin="0,16,0,0"
-                                Visibility="{Binding UsesCounter, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
-                        <ui:TextBox x:Name="CounterBox"
-                                    Width="120"
-                                    HorizontalAlignment="Left"
-                                    AutomationProperties.AutomationId="AdvancedFileCounter"
-                                    AutomationProperties.Name="{x:Static res:Strings.AdvancedCounterLabel}"
-                                    Text="{Binding FileCounter, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
-                        <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=CounterBox, Path=(Validation.Errors)/ErrorContent}" />
-                        <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.AdvancedCounterHint}" />
-                    </StackPanel>
+                        <StackPanel>
+                            <ui:TextBox x:Name="CounterBox"
+                                        Width="120"
+                                        HorizontalAlignment="Left"
+                                        AutomationProperties.AutomationId="AdvancedFileCounter"
+                                        AutomationProperties.Name="{x:Static res:Strings.AdvancedCounterLabel}"
+                                        Text="{Binding FileCounter, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
+                            <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=CounterBox, Path=(Validation.Errors)/ErrorContent}" />
+                            <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.AdvancedCounterHint}" />
+                        </StackPanel>
+                    </DockPanel>
 
-                    <TextBlock Grid.Row="4"
-                               Grid.Column="0"
-                               Margin="0,16,16,0"
-                               VerticalAlignment="Center"
-                               Style="{StaticResource BodyTextBlockStyle}"
-                               Text="{x:Static res:Strings.AdvancedExistingLabel}"
-                               TextWrapping="Wrap" />
+                    <DockPanel Margin="{StaticResource OffstreamRowGap}">
+                        <TextBlock Width="150"
+                                   Margin="0,7,16,0"
+                                   DockPanel.Dock="Left"
+                                   Style="{StaticResource OffstreamFieldLabelStyle}"
+                                   Text="{x:Static res:Strings.AdvancedExistingLabel}" />
 
-                    <ComboBox Grid.Row="4"
-                              Grid.Column="1"
-                              Width="360"
-                              Margin="0,16,0,0"
-                              AutomationProperties.AutomationId="AdvancedExistingFilePolicy"
-                              AutomationProperties.Name="{x:Static res:Strings.AdvancedExistingLabel}"
-                              DisplayMemberPath="Name"
-                              ItemsSource="{Binding Policies, Mode=OneTime}"
-                              SelectedValue="{Binding ExistingFilePolicy, Mode=TwoWay}"
-                              SelectedValuePath="Value" />
-                </Grid>
-            </ui:Card>
+                        <ComboBox AutomationProperties.AutomationId="AdvancedExistingFilePolicy"
+                                  AutomationProperties.Name="{x:Static res:Strings.AdvancedExistingLabel}"
+                                  DisplayMemberPath="Name"
+                                  ItemsSource="{Binding Policies, Mode=OneTime}"
+                                  SelectedValue="{Binding ExistingFilePolicy, Mode=TwoWay}"
+                                  SelectedValuePath="Value" />
+                    </DockPanel>
 
-            <TextBlock Style="{StaticResource OffstreamSectionHeaderStyle}" Text="{x:Static res:Strings.AdvancedDetectionSection}" />
+                    <Border Style="{StaticResource GroupRule}" />
 
-            <ui:Card Margin="{StaticResource OffstreamStackGap}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" SharedSizeGroup="AdvancedControl" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
+                    <TextBlock Style="{StaticResource OffstreamGroupHeaderStyle}" Text="{x:Static res:Strings.AdvancedTagsSection}" />
 
-                    <TextBlock Grid.Row="0"
-                               Grid.Column="0"
-                               Margin="0,0,16,0"
-                               VerticalAlignment="Center"
-                               Style="{StaticResource BodyTextBlockStyle}"
-                               Text="{x:Static res:Strings.AdvancedMuteAds}"
-                               TextWrapping="Wrap" />
+                    <DockPanel Margin="{StaticResource OffstreamRowGap}">
+                        <ui:ToggleSwitch Margin="16,0,0,0"
+                                         VerticalAlignment="Center"
+                                         AutomationProperties.AutomationId="AdvancedWriteCounter"
+                                         AutomationProperties.Name="{x:Static res:Strings.AdvancedWriteCounter}"
+                                         DockPanel.Dock="Right"
+                                         IsChecked="{Binding WriteCounterToTrackNumber, Mode=TwoWay}" />
 
-                    <ui:ToggleSwitch Grid.Row="0"
-                                     Grid.Column="1"
-                                     AutomationProperties.AutomationId="AdvancedMuteAds"
-                                     AutomationProperties.Name="{x:Static res:Strings.AdvancedMuteAds}"
-                                     IsChecked="{Binding MuteAds, Mode=TwoWay}" />
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}"
+                                       Text="{x:Static res:Strings.AdvancedWriteCounter}"
+                                       TextWrapping="Wrap" />
+                            <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.AdvancedWriteCounterHint}" />
+                        </StackPanel>
+                    </DockPanel>
+                </StackPanel>
+            </Border>
 
-                    <StackPanel Grid.Row="1"
-                                Grid.Column="0"
-                                Margin="0,16,16,0"
-                                VerticalAlignment="Center">
-                        <TextBlock Style="{StaticResource BodyTextBlockStyle}" Text="{x:Static res:Strings.AdvancedRecordEverything}" TextWrapping="Wrap" />
-                        <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.AdvancedRecordEverythingHint}" />
-                    </StackPanel>
+            <!--  What the app watches for, and how the app itself behaves.  -->
+            <Border Grid.Column="2"
+                    Padding="20"
+                    VerticalAlignment="Top"
+                    Style="{StaticResource OffstreamCardStyle}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource OffstreamGroupHeaderStyle}" Text="{x:Static res:Strings.AdvancedDetectionSection}" />
 
-                    <ui:ToggleSwitch Grid.Row="1"
-                                     Grid.Column="1"
-                                     Margin="0,16,0,0"
-                                     VerticalAlignment="Center"
-                                     AutomationProperties.AutomationId="AdvancedRecordEverything"
-                                     AutomationProperties.Name="{x:Static res:Strings.AdvancedRecordEverything}"
-                                     IsChecked="{Binding RecordEverything, Mode=TwoWay}" />
+                    <DockPanel Margin="{StaticResource OffstreamRowGap}">
+                        <ui:ToggleSwitch Margin="16,0,0,0"
+                                         VerticalAlignment="Center"
+                                         AutomationProperties.AutomationId="AdvancedMuteAds"
+                                         AutomationProperties.Name="{x:Static res:Strings.AdvancedMuteAds}"
+                                         DockPanel.Dock="Right"
+                                         IsChecked="{Binding MuteAds, Mode=TwoWay}" />
+
+                        <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}"
+                                   Text="{x:Static res:Strings.AdvancedMuteAds}"
+                                   TextWrapping="Wrap" />
+                    </DockPanel>
+
+                    <DockPanel Margin="{StaticResource OffstreamRowGap}">
+                        <ui:ToggleSwitch Margin="16,0,0,0"
+                                         VerticalAlignment="Center"
+                                         AutomationProperties.AutomationId="AdvancedRecordEverything"
+                                         AutomationProperties.Name="{x:Static res:Strings.AdvancedRecordEverything}"
+                                         DockPanel.Dock="Right"
+                                         IsChecked="{Binding RecordEverything, Mode=TwoWay}" />
+
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}"
+                                       Text="{x:Static res:Strings.AdvancedRecordEverything}"
+                                       TextWrapping="Wrap" />
+                            <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.AdvancedRecordEverythingHint}" />
+                        </StackPanel>
+                    </DockPanel>
 
                     <!--
                         Disabled rather than hidden while track detection is on: an advertisement
                         has no artist and is never written as a file, and seeing the toggle greyed
                         out under the one that governs it is the explanation.
                     -->
-                    <TextBlock Grid.Row="2"
-                               Grid.Column="0"
-                               Margin="0,16,16,0"
-                               VerticalAlignment="Center"
-                               IsEnabled="{Binding CanRecordAds, Mode=OneWay}"
-                               Style="{StaticResource BodyTextBlockStyle}"
-                               Text="{x:Static res:Strings.AdvancedRecordAds}"
-                               TextWrapping="Wrap" />
+                    <DockPanel Margin="{StaticResource OffstreamRowGap}">
+                        <ui:ToggleSwitch Margin="16,0,0,0"
+                                         VerticalAlignment="Center"
+                                         AutomationProperties.AutomationId="AdvancedRecordAds"
+                                         AutomationProperties.Name="{x:Static res:Strings.AdvancedRecordAds}"
+                                         DockPanel.Dock="Right"
+                                         IsChecked="{Binding RecordAds, Mode=TwoWay}"
+                                         IsEnabled="{Binding CanRecordAds, Mode=OneWay}" />
 
-                    <ui:ToggleSwitch Grid.Row="2"
-                                     Grid.Column="1"
-                                     Margin="0,16,0,0"
-                                     AutomationProperties.AutomationId="AdvancedRecordAds"
-                                     AutomationProperties.Name="{x:Static res:Strings.AdvancedRecordAds}"
-                                     IsChecked="{Binding RecordAds, Mode=TwoWay}"
-                                     IsEnabled="{Binding CanRecordAds, Mode=OneWay}" />
+                        <TextBlock IsEnabled="{Binding CanRecordAds, Mode=OneWay}"
+                                   Style="{StaticResource OffstreamFieldLabelStyle}"
+                                   Text="{x:Static res:Strings.AdvancedRecordAds}"
+                                   TextWrapping="Wrap" />
+                    </DockPanel>
 
-                    <TextBlock Grid.Row="3"
-                               Grid.Column="0"
-                               Margin="0,16,16,0"
-                               VerticalAlignment="Center"
-                               Style="{StaticResource BodyTextBlockStyle}"
-                               Text="{x:Static res:Strings.AdvancedTimerEnabled}"
-                               TextWrapping="Wrap" />
+                    <DockPanel Margin="{StaticResource OffstreamRowGap}">
+                        <TextBlock Width="150"
+                                   Margin="0,7,16,0"
+                                   DockPanel.Dock="Left"
+                                   Style="{StaticResource OffstreamFieldLabelStyle}"
+                                   Text="{x:Static res:Strings.AdvancedTimerEnabled}" />
 
-                    <StackPanel Grid.Row="3"
-                                Grid.Column="1"
-                                Width="360"
-                                Margin="0,16,0,0">
-                        <StackPanel Orientation="Horizontal">
-                            <ui:ToggleSwitch VerticalAlignment="Center"
-                                             AutomationProperties.AutomationId="AdvancedTimerEnabled"
-                                             AutomationProperties.Name="{x:Static res:Strings.AdvancedTimerEnabled}"
-                                             IsChecked="{Binding IsTimerEnabled, Mode=TwoWay}" />
-                            <ui:TextBox x:Name="TimerBox"
-                                        Width="120"
-                                        Margin="8,0,0,0"
-                                        VerticalAlignment="Center"
-                                        AutomationProperties.AutomationId="AdvancedTimer"
-                                        AutomationProperties.Name="{x:Static res:Strings.AdvancedTimerEnabled}"
-                                        FontFamily="{StaticResource OffstreamMonoFontFamily}"
-                                        IsEnabled="{Binding IsTimerEnabled, Mode=OneWay}"
-                                        Text="{Binding Timer, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <ui:ToggleSwitch VerticalAlignment="Center"
+                                                 AutomationProperties.AutomationId="AdvancedTimerEnabled"
+                                                 AutomationProperties.Name="{x:Static res:Strings.AdvancedTimerEnabled}"
+                                                 IsChecked="{Binding IsTimerEnabled, Mode=TwoWay}" />
+                                <ui:TextBox x:Name="TimerBox"
+                                            Width="120"
+                                            Margin="8,0,0,0"
+                                            VerticalAlignment="Center"
+                                            AutomationProperties.AutomationId="AdvancedTimer"
+                                            AutomationProperties.Name="{x:Static res:Strings.AdvancedTimerEnabled}"
+                                            FontFamily="{StaticResource OffstreamMonoFontFamily}"
+                                            IsEnabled="{Binding IsTimerEnabled, Mode=OneWay}"
+                                            Text="{Binding Timer, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=TimerBox, Path=(Validation.Errors)/ErrorContent}" />
                         </StackPanel>
-                        <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=TimerBox, Path=(Validation.Errors)/ErrorContent}" />
-                    </StackPanel>
-                </Grid>
-            </ui:Card>
+                    </DockPanel>
 
-            <TextBlock Style="{StaticResource OffstreamSectionHeaderStyle}" Text="{x:Static res:Strings.AdvancedTagsSection}" />
+                    <Border Style="{StaticResource GroupRule}" />
 
-            <ui:Card Margin="{StaticResource OffstreamStackGap}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" SharedSizeGroup="AdvancedControl" />
-                    </Grid.ColumnDefinitions>
+                    <TextBlock Style="{StaticResource OffstreamGroupHeaderStyle}" Text="{x:Static res:Strings.AdvancedAppSection}" />
 
-                    <StackPanel Grid.Column="0" Margin="0,0,16,0" VerticalAlignment="Center">
-                        <TextBlock Style="{StaticResource BodyTextBlockStyle}" Text="{x:Static res:Strings.AdvancedWriteCounter}" TextWrapping="Wrap" />
-                        <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.AdvancedWriteCounterHint}" />
-                    </StackPanel>
+                    <DockPanel Margin="{StaticResource OffstreamRowGap}">
+                        <ui:ToggleSwitch Margin="16,0,0,0"
+                                         VerticalAlignment="Center"
+                                         AutomationProperties.AutomationId="AdvancedMinimizeToTray"
+                                         AutomationProperties.Name="{x:Static res:Strings.AdvancedMinimizeToTray}"
+                                         DockPanel.Dock="Right"
+                                         IsChecked="{Binding MinimizeToTray, Mode=TwoWay}" />
 
-                    <ui:ToggleSwitch Grid.Column="1"
-                                     VerticalAlignment="Center"
-                                     AutomationProperties.AutomationId="AdvancedWriteCounter"
-                                     AutomationProperties.Name="{x:Static res:Strings.AdvancedWriteCounter}"
-                                     IsChecked="{Binding WriteCounterToTrackNumber, Mode=TwoWay}" />
-                </Grid>
-            </ui:Card>
+                        <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}"
+                                   Text="{x:Static res:Strings.AdvancedMinimizeToTray}"
+                                   TextWrapping="Wrap" />
+                    </DockPanel>
 
-            <TextBlock Style="{StaticResource OffstreamSectionHeaderStyle}" Text="{x:Static res:Strings.AdvancedAppSection}" />
+                    <DockPanel Margin="{StaticResource OffstreamRowGap}">
+                        <TextBlock Width="150"
+                                   Margin="0,7,16,0"
+                                   DockPanel.Dock="Left"
+                                   Style="{StaticResource OffstreamFieldLabelStyle}"
+                                   Text="{x:Static res:Strings.AdvancedLanguageLabel}" />
 
-            <ui:Card Margin="{StaticResource OffstreamStackGap}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" SharedSizeGroup="AdvancedControl" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
+                        <StackPanel>
+                            <ComboBox AutomationProperties.AutomationId="AdvancedLanguage"
+                                      AutomationProperties.Name="{x:Static res:Strings.AdvancedLanguageLabel}"
+                                      DisplayMemberPath="Name"
+                                      ItemsSource="{Binding Languages, Mode=OneTime}"
+                                      SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}" />
+                            <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.AdvancedLanguageRestart}" />
+                        </StackPanel>
+                    </DockPanel>
 
-                    <TextBlock Grid.Row="0"
-                               Grid.Column="0"
-                               Margin="0,0,16,0"
-                               VerticalAlignment="Center"
-                               Style="{StaticResource BodyTextBlockStyle}"
-                               Text="{x:Static res:Strings.AdvancedMinimizeToTray}"
-                               TextWrapping="Wrap" />
+                    <DockPanel Margin="{StaticResource OffstreamRowGap}">
+                        <TextBlock Width="150"
+                                   Margin="0,7,16,0"
+                                   DockPanel.Dock="Left"
+                                   Style="{StaticResource OffstreamFieldLabelStyle}"
+                                   Text="{x:Static res:Strings.AdvancedFfmpegLabel}" />
 
-                    <ui:ToggleSwitch Grid.Row="0"
-                                     Grid.Column="1"
-                                     AutomationProperties.AutomationId="AdvancedMinimizeToTray"
-                                     AutomationProperties.Name="{x:Static res:Strings.AdvancedMinimizeToTray}"
-                                     IsChecked="{Binding MinimizeToTray, Mode=TwoWay}" />
+                        <StackPanel>
+                            <ui:TextBox x:Name="FfmpegBox"
+                                        AutomationProperties.AutomationId="AdvancedFfmpegPath"
+                                        AutomationProperties.Name="{x:Static res:Strings.AdvancedFfmpegLabel}"
+                                        Text="{Binding FfmpegPath, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
+                            <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=FfmpegBox, Path=(Validation.Errors)/ErrorContent}" />
 
-                    <TextBlock Grid.Row="1"
-                               Grid.Column="0"
-                               Margin="0,16,16,0"
-                               VerticalAlignment="Center"
-                               Style="{StaticResource BodyTextBlockStyle}"
-                               Text="{x:Static res:Strings.AdvancedLanguageLabel}"
-                               TextWrapping="Wrap" />
+                            <!--  Which ffmpeg an empty box resolves to, since that is the usual case.  -->
+                            <TextBlock Style="{StaticResource OffstreamHintStyle}"
+                                       Text="{Binding FfmpegStatus, Mode=OneWay}"
+                                       TextTrimming="CharacterEllipsis"
+                                       TextWrapping="NoWrap"
+                                       ToolTip="{Binding FfmpegStatus, Mode=OneWay}" />
+                            <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.AdvancedFfmpegHint}" />
+                        </StackPanel>
+                    </DockPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
 
-                    <StackPanel Grid.Row="1"
-                                Grid.Column="1"
-                                Width="360"
-                                Margin="0,16,0,0">
-                        <ComboBox AutomationProperties.AutomationId="AdvancedLanguage"
-                                  AutomationProperties.Name="{x:Static res:Strings.AdvancedLanguageLabel}"
-                                  DisplayMemberPath="Name"
-                                  ItemsSource="{Binding Languages, Mode=OneTime}"
-                                  SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}" />
-                        <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.AdvancedLanguageRestart}" />
-                    </StackPanel>
-
-                    <TextBlock Grid.Row="2"
-                               Grid.Column="0"
-                               Margin="0,16,16,0"
-                               VerticalAlignment="Center"
-                               Style="{StaticResource BodyTextBlockStyle}"
-                               Text="{x:Static res:Strings.AdvancedFfmpegLabel}"
-                               TextWrapping="Wrap" />
-
-                    <StackPanel Grid.Row="2"
-                                Grid.Column="1"
-                                Width="360"
-                                Margin="0,16,0,0">
-                        <ui:TextBox x:Name="FfmpegBox"
-                                    AutomationProperties.AutomationId="AdvancedFfmpegPath"
-                                    AutomationProperties.Name="{x:Static res:Strings.AdvancedFfmpegLabel}"
-                                    Text="{Binding FfmpegPath, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
-                        <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=FfmpegBox, Path=(Validation.Errors)/ErrorContent}" />
-
-                        <!-- Which ffmpeg an empty box resolves to, since that is the usual case. -->
-                        <TextBlock Style="{StaticResource OffstreamHintStyle}"
-                                   Text="{Binding FfmpegStatus, Mode=OneWay}"
-                                   TextTrimming="CharacterEllipsis"
-                                   ToolTip="{Binding FfmpegStatus, Mode=OneWay}" />
-                        <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.AdvancedFfmpegHint}" />
-                    </StackPanel>
-                </Grid>
-            </ui:Card>
-        </StackPanel>
-    </ScrollViewer>
-
-</Page>
+</UserControl>

@@ -113,6 +113,21 @@ public sealed partial class RecordViewModel : ObservableObject
     [ObservableProperty]
     private string _formatText = string.Empty;
 
+    /// <summary>
+    /// Why the last Start was refused, or null when nothing is wrong.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="Status"/>, which describes the session in words and is not drawn:
+    /// the display says what state it is in through the transport block, so the only text worth
+    /// interrupting for is a failure. This drives a bar above the panel rather than a line inside
+    /// it, which is what keeps a missing ffmpeg from reading as a slightly different idle state.
+    /// It survives until the next Start, because "ffmpeg is not installed" is a condition and not
+    /// an event.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasProblem))]
+    private string? _problem;
+
     [ObservableProperty]
     private LogFilter _filter = LogFilter.Activity;
 
@@ -174,6 +189,9 @@ public sealed partial class RecordViewModel : ObservableObject
     /// </summary>
     public bool IsIdle => !IsRecording;
 
+    /// <summary>Whether <see cref="Problem"/> has anything worth interrupting for.</summary>
+    public bool HasProblem => !string.IsNullOrWhiteSpace(Problem);
+
     /// <summary>
     /// Running, but between tracks — nothing is being written yet.
     /// </summary>
@@ -202,6 +220,7 @@ public sealed partial class RecordViewModel : ObservableObject
             // A refusal is the app declining, not failing: it says what to fix and leaves the
             // page exactly as it was, so the next press is the whole retry.
             Status = refusal ?? Strings.RecordStatusWaiting;
+            Problem = refusal;
         }
         finally
         {

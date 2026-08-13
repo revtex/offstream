@@ -11,8 +11,6 @@ using Offstream.Core.Settings;
 using Offstream.Core.Spotify.Auth;
 using SpotifyAPI.Web;
 using SpotifyAPI.Web.Http;
-using Wpf.Ui;
-using Wpf.Ui.Abstractions;
 
 namespace Offstream.App.Services;
 
@@ -60,11 +58,6 @@ public static class AppServices
         services.AddSingleton<IAudioDeviceCatalog, AudioDeviceCatalog>();
         services.AddSingleton<IFolderPicker, FolderPicker>();
 
-        // Navigation. NavigationService takes the page provider, so the container is what
-        // builds every page - see PageProvider for why that matters.
-        services.AddSingleton<INavigationViewPageProvider, PageProvider>();
-        services.AddSingleton<INavigationService, NavigationService>();
-
         services.AddSingleton<ShellWindow>();
         services.AddSingleton<ShellViewModel>();
 
@@ -76,8 +69,8 @@ public static class AppServices
         services.AddSingleton<IProcessManager, ProcessManager>();
         services.AddSingleton<RecordingController>();
 
-        // Pages are singletons to match NavigationCacheMode.Enabled on the navigation items:
-        // switching tabs must not discard the activity log or a half-filled settings form.
+        // Pages are singletons because the shell keeps all three loaded and switches them by
+        // visibility: switching tabs must not discard the activity log or a half-filled form.
         services.AddSingleton<RecordPage>();
         services.AddSingleton<RecordViewModel>();
         services.AddSingleton<SettingsPage>();

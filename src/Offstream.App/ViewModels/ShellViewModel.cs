@@ -25,6 +25,13 @@ namespace Offstream.App.ViewModels;
 /// chaining one ViewModel off another would mean the tray silently stopped updating whenever
 /// the page's own logic changed.
 /// </para>
+/// <para>
+/// <see cref="Record"/> is the deliberate exception to that. The transport button lives in the
+/// shell header rather than on the page, but it is still the Record page's transport — same
+/// commands, same busy state, same refusal text — so it binds the very ViewModel that owns them
+/// instead of a second copy that would have to be kept in step. What the rule above forbids is
+/// reading a peer's <i>state</i> through a chain; this is the page's own control, relocated.
+/// </para>
 /// </remarks>
 public sealed partial class ShellViewModel : ObservableObject
 {
@@ -37,6 +44,13 @@ public sealed partial class ShellViewModel : ObservableObject
 
     private readonly RecordingController _controller;
     private readonly SettingsDocument _settings;
+
+    /// <summary>Which tab is showing. The content host and the tab strip both bind this.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsRecordTab))]
+    [NotifyPropertyChangedFor(nameof(IsSettingsTab))]
+    [NotifyPropertyChangedFor(nameof(IsAdvancedTab))]
+    private ShellTab _tab = ShellTab.Record;
 
     /// <summary>The track the last progress report named, or null when nothing is playing.</summary>
     private string? _track;
@@ -73,13 +87,14 @@ public sealed partial class ShellViewModel : ObservableObject
     [ObservableProperty]
     private bool _isInTray;
 
-    public ShellViewModel(RecordingController controller, SettingsDocument settings)
+    public ShellViewModel(RecordingController controller, SettingsDocument settings, RecordViewModel record)
     {
         ArgumentNullException.ThrowIfNull(controller);
         ArgumentNullException.ThrowIfNull(settings);
 
         _controller = controller;
         _settings = settings;
+        Record = record ?? throw new ArgumentNullException(nameof(record));
 
         controller.StateChanged += OnStateChanged;
         controller.Progress += OnProgress;
@@ -90,6 +105,32 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>Raised when the user picks Exit from the tray menu.</summary>
     public event EventHandler? ExitRequested;
+
+    /// <summary>
+    /// The Record page's ViewModel, for the transport button in the header.
+    /// </summary>
+    /// <remarks>
+    /// The button is only offered on the Record tab, so it is the page's control in every sense
+    /// except where it is drawn. See the class remarks for why this chaining is allowed where the
+    /// tray's is not.
+    /// </remarks>
+    public RecordViewModel Record { get; }
+
+    /// <summary>
+    /// Which tab is showing, one property per tab.
+    /// </summary>
+    /// <remarks>
+    /// The host keeps all three pages loaded and toggles their visibility, so each needs its own
+    /// boolean to bind. <see cref="IsRecordTab"/> earns a second job: it is also what offers the
+    /// transport button, which belongs to the Record tab alone.
+    /// </remarks>
+    public bool IsRecordTab => Tab == ShellTab.Record;
+
+    /// <inheritdoc cref="IsRecordTab"/>
+    public bool IsSettingsTab => Tab == ShellTab.Settings;
+
+    /// <inheritdoc cref="IsRecordTab"/>
+    public bool IsAdvancedTab => Tab == ShellTab.Advanced;
 
     /// <summary>Whether <see cref="StartupWarning"/> has anything worth showing.</summary>
     public bool HasStartupWarning => !string.IsNullOrWhiteSpace(StartupWarning);

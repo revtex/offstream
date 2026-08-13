@@ -103,6 +103,14 @@ public sealed class LcdMeterView : FrameworkElement
     private const double ReadoutSize = 16;
     private const double ReadoutUnitSize = 9;
 
+    /// <summary>Space kept for the <c>dB</c> unit when the numeric readout is hidden.</summary>
+    /// <remarks>
+    /// The unit stays either way: it is what makes the row of numbers under the bars a decibel
+    /// ruler rather than an unlabelled scale. Reserving only its width is what lets the bars run
+    /// nearly the full panel when the readout is off.
+    /// </remarks>
+    private const double UnitOnlyWidth = 26;
+
     private const double BarHeight = 13;
     private const double BarGap = 4;
 
@@ -158,7 +166,38 @@ public sealed class LcdMeterView : FrameworkElement
         nameof(PanelBrush),
         typeof(Brush),
         typeof(LcdMeterView),
-        new PropertyMetadata(Brushes.DarkSeaGreen, OnPanelChanged));
+        new PropertyMetadata(Brushes.DarkSeaGreen, OnAppearanceChanged));
+
+    /// <summary>
+    /// What the cell grid is painted in — whatever sits behind the bars.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="PanelBrush"/> because the two answer different questions once the
+    /// panel stops being a flat fill. Set into a bezel that already paints the glass, this control
+    /// draws no background of its own (<see cref="PanelBrush"/> goes transparent) — but the grid
+    /// still has to be opaque and still has to match what shows through, or the gaps between cells
+    /// read as lit segments. A gradient behind the bars is near-flat across their thirty pixels,
+    /// so one solid matching it there is enough.
+    /// </remarks>
+    public static readonly DependencyProperty MaskBrushProperty = DependencyProperty.Register(
+        nameof(MaskBrush),
+        typeof(Brush),
+        typeof(LcdMeterView),
+        new PropertyMetadata(Brushes.DarkSeaGreen, OnMaskChanged));
+
+    /// <summary>
+    /// Whether the held peak is printed in dBFS beside the bars.
+    /// </summary>
+    /// <remarks>
+    /// Off gives the bars nearly the whole panel, which is what a display reads like when the
+    /// technical line above it already carries the numbers. The <c>dB</c> unit under the ruler
+    /// stays either way — without it the row of numbers is an unlabelled scale.
+    /// </remarks>
+    public static readonly DependencyProperty ShowReadoutProperty = DependencyProperty.Register(
+        nameof(ShowReadout),
+        typeof(bool),
+        typeof(LcdMeterView),
+        new PropertyMetadata(true, OnAppearanceChanged));
 
     public static readonly DependencyProperty GhostBrushProperty = DependencyProperty.Register(
         nameof(GhostBrush),
@@ -251,11 +290,25 @@ public sealed class LcdMeterView : FrameworkElement
         set => SetValue(LevelProperty, value);
     }
 
-    /// <summary>The lit background of the display.</summary>
+    /// <summary>The lit background of the display; transparent when a bezel already paints it.</summary>
     public Brush PanelBrush
     {
         get => (Brush)GetValue(PanelBrushProperty);
         set => SetValue(PanelBrushProperty, value);
+    }
+
+    /// <inheritdoc cref="MaskBrushProperty"/>
+    public Brush MaskBrush
+    {
+        get => (Brush)GetValue(MaskBrushProperty);
+        set => SetValue(MaskBrushProperty, value);
+    }
+
+    /// <inheritdoc cref="ShowReadoutProperty"/>
+    public bool ShowReadout
+    {
+        get => (bool)GetValue(ShowReadoutProperty);
+        set => SetValue(ShowReadoutProperty, value);
     }
 
     /// <summary>Unlit cells — present, but barely.</summary>
@@ -326,12 +379,11 @@ public sealed class LcdMeterView : FrameworkElement
         view.Redraw();
     }
 
-    private static void OnPanelChanged(DependencyObject sender, DependencyPropertyChangedEventArgs e)
+    private static void OnMaskChanged(DependencyObject sender, DependencyPropertyChangedEventArgs e)
     {
         var view = (LcdMeterView)sender;
 
-        // The cell grid is painted in the panel colour, so it stops matching the moment the panel
-        // changes underneath it.
+        // The grid is painted in this brush, so it stops matching the moment the brush changes.
         view._cellMask = null;
         view._maskPitch = 0;
         view._textDirty = true;
@@ -357,8 +409,8 @@ public sealed class LcdMeterView : FrameworkElement
     /// Runs the sample timer only while there is something to read and somewhere to draw it.
     /// </summary>
     /// <remarks>
-    /// Stopped rather than merely ignored when hidden — a page kept alive by
-    /// <c>NavigationCacheMode</c> would otherwise go on sampling a stopped session from a tab
+    /// Stopped rather than merely ignored when hidden. The shell keeps every page loaded and
+    /// switches them by visibility, so without this the meter would go on sampling from a tab
     /// nobody is looking at. <see cref="DispatcherPriority.Background"/> so the meter can never
     /// sit ahead of the user's own input in the dispatcher queue.
     /// </remarks>
@@ -432,7 +484,7 @@ public sealed class LcdMeterView : FrameworkElement
         var rows = RowsFor(meter);
 
         var barLeft = PanelPadding + ChannelLabelWidth + ChannelLabelGap;
-        var barRight = width - PanelPadding - ReadoutWidth - ReadoutGap;
+        var barRight = width - PanelPadding - (ShowReadout ? ReadoutWidth + ReadoutGap : UnitOnlyWidth);
         var barWidth = barRight - barLeft;
 
         if (barWidth < MinimumCellPitch) return;
@@ -568,15 +620,18 @@ public sealed class LcdMeterView : FrameworkElement
             context.DrawText(text, new Point(labelLeft, rulerTop + TickHeight + TickLabelGap));
         }
 
-        var readout = Format(readoutText, ReadoutSize, SegmentBrush, typeface);
         var unit = Format("dB", ReadoutUnitSize, InkBrush, typeface);
-        var readoutRight = width - PanelPadding;
+        var right = width - PanelPadding;
+
+        context.DrawText(unit, new Point(right - unit.Width, rulerTop + TickHeight + TickLabelGap));
+
+        if (!ShowReadout) return;
+
+        var readout = Format(readoutText, ReadoutSize, SegmentBrush, typeface);
 
         context.DrawText(
             readout,
-            new Point(readoutRight - readout.Width, firstRowTop + ((BarHeight * 2) - readout.Height) / 2));
-
-        context.DrawText(unit, new Point(readoutRight - unit.Width, rulerTop + TickHeight + TickLabelGap));
+            new Point(right - readout.Width, firstRowTop + ((BarHeight * 2) - readout.Height) / 2));
     }
 
     /// <summary>
@@ -613,7 +668,7 @@ public sealed class LcdMeterView : FrameworkElement
     private DrawingBrush BuildCellMask(double pitch, double gap)
     {
         var stripe = new GeometryDrawing(
-            PanelBrush, pen: null, new RectangleGeometry(new Rect(pitch - gap, 0, gap, 1)));
+            MaskBrush, pen: null, new RectangleGeometry(new Rect(pitch - gap, 0, gap, 1)));
 
         return new DrawingBrush(stripe)
         {

@@ -1,311 +1,324 @@
-<Page x:Class="Offstream.App.Views.Pages.SettingsPage"
-      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-      xmlns:res="clr-namespace:Offstream.App.Resources"
-      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-      Title="Settings">
+<UserControl x:Class="Offstream.App.Views.Pages.SettingsPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:res="clr-namespace:Offstream.App.Resources"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
 
     <!--
-        Three groups, in the order a recording passes through them: where the file goes, how it
-        is captured, and where its details come from.
+        Three groups in one card, in the order a recording passes through them: where the file
+        goes, how it is captured, and where its details come from. One card rather than three
+        because three surfaces read as three screens, and the whole point of this page is that it
+        is one screen — every setting reachable without scrolling, at the window's minimum size.
 
         There is no OK button. Every field validates as it is typed and saves itself once it is
         valid (see SettingsDocument), so a confirm step would only add a way to lose an edit.
         Text fields commit on focus loss rather than per keystroke: saving "1" on the way to
         "120" would write a setting the user never chose.
     -->
-    <Page.Resources>
+    <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibility" />
-    </Page.Resources>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Grid.IsSharedSizeScope="True" Margin="{StaticResource OffstreamPagePadding}">
+        <!--
+            The rule between groups. Label left in the mono face and control right at a fixed
+            width is the shape of every row below: the alignment is what turns a column of
+            unrelated fields into something that scans, and the fixed width is what stops a combo
+            box full of long device names from dragging the whole column around.
+        -->
+        <Style x:Key="GroupRule" TargetType="Border">
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Margin" Value="0,14,0,14" />
+            <Setter Property="Background" Value="{StaticResource OffstreamRowSeparatorBrush}" />
+        </Style>
+    </UserControl.Resources>
 
-            <!--
-                A refused save is reported where the settings are, not in a dialog. It survives
-                until the next successful write, because the file being unwritable is a state and
-                not an event.
-            -->
-            <ui:InfoBar Margin="{StaticResource OffstreamStackGap}"
-                        AutomationProperties.AutomationId="SettingsSaveProblem"
-                        IsClosable="False"
-                        IsOpen="{Binding HasSaveProblem, Mode=OneWay}"
-                        Message="{Binding SaveProblem, Mode=OneWay}"
-                        Severity="Error" />
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
 
-            <TextBlock Style="{StaticResource OffstreamSectionHeaderStyle}" Text="{x:Static res:Strings.SettingsOutputSection}" />
+        <!--
+            A refused save is reported where the settings are, not in a dialog. It survives
+            until the next successful write, because the file being unwritable is a state and
+            not an event.
+        -->
+        <ui:InfoBar Grid.Row="0"
+                    Margin="0,0,0,12"
+                    AutomationProperties.AutomationId="SettingsSaveProblem"
+                    IsClosable="False"
+                    IsOpen="{Binding HasSaveProblem, Mode=OneWay}"
+                    Message="{Binding SaveProblem, Mode=OneWay}"
+                    Severity="Error" />
 
-            <ui:Card Margin="{StaticResource OffstreamStackGap}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" SharedSizeGroup="SettingsControl" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
+        <Border Grid.Row="1"
+                Padding="20"
+                VerticalAlignment="Top"
+                Style="{StaticResource OffstreamCardStyle}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MinWidth="160" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0"
-                               Grid.Column="0"
-                               Margin="0,0,16,0"
-                               VerticalAlignment="Center"
-                               Style="{StaticResource BodyTextBlockStyle}"
-                               Text="{x:Static res:Strings.SettingsOutputPathLabel}"
-                               TextWrapping="Wrap" />
+                <!--  Output  -->
 
-                    <StackPanel Grid.Row="0" Grid.Column="1" Width="360">
-                        <DockPanel>
-                            <ui:Button Margin="8,0,0,0"
-                                       AutomationProperties.AutomationId="SettingsBrowseButton"
-                                       Command="{Binding BrowseCommand}"
-                                       Content="{x:Static res:Strings.SettingsBrowse}"
-                                       DockPanel.Dock="Right"
-                                       Icon="{ui:SymbolIcon FolderOpen24}" />
-                            <ui:TextBox x:Name="OutputPathBox"
-                                        AutomationProperties.AutomationId="SettingsOutputPath"
-                                        AutomationProperties.Name="{x:Static res:Strings.SettingsOutputPathLabel}"
-                                        Text="{Binding OutputPath, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
-                        </DockPanel>
-                        <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=OutputPathBox, Path=(Validation.Errors)/ErrorContent}" />
-                    </StackPanel>
+                <TextBlock Grid.Row="0"
+                           Grid.ColumnSpan="2"
+                           Style="{StaticResource OffstreamGroupHeaderStyle}"
+                           Text="{x:Static res:Strings.SettingsOutputSection}" />
 
-                    <TextBlock Grid.Row="1"
-                               Grid.Column="0"
-                               Margin="0,16,16,0"
-                               VerticalAlignment="Center"
-                               Style="{StaticResource BodyTextBlockStyle}"
-                               Text="{x:Static res:Strings.SettingsFormatLabel}"
-                               TextWrapping="Wrap" />
+                <TextBlock Grid.Row="1"
+                           Grid.Column="0"
+                           Margin="0,7,16,6"
+                           Style="{StaticResource OffstreamFieldLabelStyle}"
+                           Text="{x:Static res:Strings.SettingsOutputPathLabel}" />
 
-                    <ComboBox Grid.Row="1"
-                              Grid.Column="1"
-                              Width="360"
-                              Margin="0,16,0,0"
-                              AutomationProperties.AutomationId="SettingsFormat"
-                              AutomationProperties.Name="{x:Static res:Strings.SettingsFormatLabel}"
-                              DisplayMemberPath="Name"
-                              ItemsSource="{Binding Formats, Mode=OneTime}"
-                              SelectedValue="{Binding Format, Mode=TwoWay}"
-                              SelectedValuePath="Value" />
-
-                    <TextBlock Grid.Row="2"
-                               Grid.Column="0"
-                               Margin="0,16,16,0"
-                               VerticalAlignment="Center"
-                               Style="{StaticResource BodyTextBlockStyle}"
-                               Text="{x:Static res:Strings.SettingsBitrateLabel}"
-                               TextWrapping="Wrap" />
-
-                    <StackPanel Grid.Row="2"
-                                Grid.Column="1"
-                                Width="360"
-                                Margin="0,16,0,0">
-                        <ComboBox AutomationProperties.AutomationId="SettingsBitrate"
-                                  AutomationProperties.Name="{x:Static res:Strings.SettingsBitrateLabel}"
-                                  IsEnabled="{Binding SupportsBitrate, Mode=OneWay}"
-                                  ItemStringFormat="{x:Static res:Strings.SettingsBitrateItem}"
-                                  ItemsSource="{Binding Bitrates, Mode=OneWay}"
-                                  SelectedValue="{Binding BitrateKbps, Mode=TwoWay}" />
-
-                        <!--
-                            Shown only for the formats that have no bitrate to set, so the
-                            disabled control above explains itself instead of looking broken.
-                        -->
-                        <TextBlock Text="{x:Static res:Strings.SettingsBitrateNotApplicable}">
-                            <TextBlock.Style>
-                                <Style BasedOn="{StaticResource OffstreamHintStyle}" TargetType="TextBlock">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SupportsBitrate, Mode=OneWay}" Value="False">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                    </StackPanel>
-                </Grid>
-            </ui:Card>
-
-            <TextBlock Style="{StaticResource OffstreamSectionHeaderStyle}" Text="{x:Static res:Strings.SettingsRecordingSection}" />
-
-            <ui:Card Margin="{StaticResource OffstreamStackGap}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" SharedSizeGroup="SettingsControl" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-
-                    <TextBlock Grid.Row="0"
-                               Grid.Column="0"
-                               Margin="0,0,16,0"
-                               VerticalAlignment="Center"
-                               Style="{StaticResource BodyTextBlockStyle}"
-                               Text="{x:Static res:Strings.SettingsDeviceLabel}"
-                               TextWrapping="Wrap" />
-
-                    <DockPanel Grid.Row="0" Grid.Column="1" Width="360">
+                <StackPanel Grid.Row="1"
+                            Grid.Column="1"
+                            Margin="{StaticResource OffstreamRowGap}"
+                            Width="{StaticResource OffstreamFieldWidth}">
+                    <DockPanel>
                         <ui:Button Margin="8,0,0,0"
-                                   AutomationProperties.AutomationId="SettingsDeviceRefreshButton"
-                                   Command="{Binding RefreshDevicesCommand}"
-                                   Content="{x:Static res:Strings.SettingsDeviceRefresh}"
+                                   AutomationProperties.AutomationId="SettingsBrowseButton"
+                                   Command="{Binding BrowseCommand}"
+                                   Content="{x:Static res:Strings.SettingsBrowse}"
                                    DockPanel.Dock="Right"
-                                   Icon="{ui:SymbolIcon ArrowClockwise24}" />
-                        <ComboBox AutomationProperties.AutomationId="SettingsDevice"
-                                  AutomationProperties.Name="{x:Static res:Strings.SettingsDeviceLabel}"
-                                  DisplayMemberPath="Name"
-                                  ItemsSource="{Binding Devices, Mode=OneWay}"
-                                  SelectedItem="{Binding SelectedDevice, Mode=TwoWay}" />
+                                   Icon="{ui:SymbolIcon FolderOpen24}" />
+                        <ui:TextBox x:Name="OutputPathBox"
+                                    AutomationProperties.AutomationId="SettingsOutputPath"
+                                    AutomationProperties.Name="{x:Static res:Strings.SettingsOutputPathLabel}"
+                                    Text="{Binding OutputPath, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
                     </DockPanel>
+                    <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=OutputPathBox, Path=(Validation.Errors)/ErrorContent}" />
+                </StackPanel>
 
-                    <TextBlock Grid.Row="1"
-                               Grid.Column="0"
-                               Margin="0,16,16,0"
-                               VerticalAlignment="Center"
-                               Style="{StaticResource BodyTextBlockStyle}"
-                               Text="{x:Static res:Strings.SettingsMinimumLengthLabel}"
-                               TextWrapping="Wrap" />
+                <TextBlock Grid.Row="2"
+                           Grid.Column="0"
+                           Margin="0,7,16,6"
+                           Style="{StaticResource OffstreamFieldLabelStyle}"
+                           Text="{x:Static res:Strings.SettingsFormatLabel}" />
 
-                    <StackPanel Grid.Row="1"
-                                Grid.Column="1"
-                                Width="360"
-                                Margin="0,16,0,0">
-                        <DockPanel>
-                            <TextBlock Margin="8,0,0,0"
-                                       VerticalAlignment="Center"
-                                       DockPanel.Dock="Right"
-                                       Foreground="{StaticResource OffstreamIdleBrush}"
-                                       Style="{StaticResource BodyTextBlockStyle}"
-                                       Text="{x:Static res:Strings.SettingsSecondsUnit}" />
-                            <ui:TextBox x:Name="MinimumLengthBox"
-                                        AutomationProperties.AutomationId="SettingsMinimumLength"
-                                        AutomationProperties.Name="{x:Static res:Strings.SettingsMinimumLengthLabel}"
-                                        Text="{Binding MinimumLengthSeconds, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
-                        </DockPanel>
-                        <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=MinimumLengthBox, Path=(Validation.Errors)/ErrorContent}" />
-                    </StackPanel>
-                </Grid>
-            </ui:Card>
+                <ComboBox Grid.Row="2"
+                          Grid.Column="1"
+                          AutomationProperties.AutomationId="SettingsFormat"
+                          AutomationProperties.Name="{x:Static res:Strings.SettingsFormatLabel}"
+                          DisplayMemberPath="Name"
+                          ItemsSource="{Binding Formats, Mode=OneTime}"
+                          SelectedValue="{Binding Format, Mode=TwoWay}"
+                          SelectedValuePath="Value"
+                          Margin="{StaticResource OffstreamRowGap}"
+                          Width="{StaticResource OffstreamFieldWidth}" />
 
-            <TextBlock Style="{StaticResource OffstreamSectionHeaderStyle}" Text="{x:Static res:Strings.SettingsMetadataSection}" />
+                <TextBlock Grid.Row="3"
+                           Grid.Column="0"
+                           Margin="0,7,16,6"
+                           Style="{StaticResource OffstreamFieldLabelStyle}"
+                           Text="{x:Static res:Strings.SettingsBitrateLabel}" />
 
-            <ui:Card Margin="{StaticResource OffstreamStackGap}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" SharedSizeGroup="SettingsControl" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-
-                    <TextBlock Grid.Row="0"
-                               Grid.Column="0"
-                               Margin="0,0,16,0"
-                               VerticalAlignment="Center"
-                               Style="{StaticResource BodyTextBlockStyle}"
-                               Text="{x:Static res:Strings.SettingsProviderLabel}"
-                               TextWrapping="Wrap" />
-
-                    <ComboBox Grid.Row="0"
-                              Grid.Column="1"
-                              Width="360"
-                              AutomationProperties.AutomationId="SettingsProvider"
-                              AutomationProperties.Name="{x:Static res:Strings.SettingsProviderLabel}"
-                              DisplayMemberPath="Name"
-                              ItemsSource="{Binding Providers, Mode=OneTime}"
-                              SelectedValue="{Binding Provider, Mode=TwoWay}"
-                              SelectedValuePath="Value" />
+                <StackPanel Grid.Row="3"
+                            Grid.Column="1"
+                            Margin="{StaticResource OffstreamRowGap}"
+                            Width="{StaticResource OffstreamFieldWidth}">
+                    <ComboBox AutomationProperties.AutomationId="SettingsBitrate"
+                              AutomationProperties.Name="{x:Static res:Strings.SettingsBitrateLabel}"
+                              IsEnabled="{Binding SupportsBitrate, Mode=OneWay}"
+                              ItemStringFormat="{x:Static res:Strings.SettingsBitrateItem}"
+                              ItemsSource="{Binding Bitrates, Mode=OneWay}"
+                              SelectedValue="{Binding BitrateKbps, Mode=TwoWay}" />
 
                     <!--
-                        Each provider's credential row is absent for the others rather than
-                        disabled: it is not a setting they have.
+                        Shown only for the formats that have no bitrate to set, so the
+                        disabled control above explains itself instead of looking broken.
                     -->
-                    <TextBlock Grid.Row="1"
-                               Grid.Column="0"
-                               Margin="0,16,16,0"
-                               VerticalAlignment="Center"
-                               Style="{StaticResource BodyTextBlockStyle}"
-                               Text="{x:Static res:Strings.SettingsLastFmApiKeyLabel}"
-                               TextWrapping="Wrap"
-                               Visibility="{Binding IsLastFmProvider, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                    <TextBlock Text="{x:Static res:Strings.SettingsBitrateNotApplicable}">
+                        <TextBlock.Style>
+                            <Style BasedOn="{StaticResource OffstreamHintStyle}" TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SupportsBitrate, Mode=OneWay}" Value="False">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
 
-                    <StackPanel Grid.Row="1"
-                                Grid.Column="1"
-                                Width="360"
-                                Margin="0,16,0,0"
-                                Visibility="{Binding IsLastFmProvider, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
-                        <ui:TextBox x:Name="LastFmApiKeyBox"
-                                    AutomationProperties.AutomationId="SettingsLastFmApiKey"
-                                    AutomationProperties.Name="{x:Static res:Strings.SettingsLastFmApiKeyLabel}"
-                                    Text="{Binding LastFmApiKey, Mode=TwoWay}" />
+                <Border Grid.Row="4" Grid.ColumnSpan="2" Style="{StaticResource GroupRule}" />
 
-                        <!--
-                            A warning, not a validation error: Last.fm is the default provider, so
-                            a fresh install lands here untouched, and an error would block saving
-                            every unrelated setting until a key was pasted in.
-                        -->
-                        <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}"
-                                   Text="{x:Static res:Strings.SettingsLastFmApiKeyRequired}"
-                                   Visibility="{Binding NeedsLastFmApiKey, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                <!--  Recording  -->
 
-                        <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.SettingsLastFmApiKeyHint}" />
-                    </StackPanel>
+                <TextBlock Grid.Row="5"
+                           Grid.ColumnSpan="2"
+                           Style="{StaticResource OffstreamGroupHeaderStyle}"
+                           Text="{x:Static res:Strings.SettingsRecordingSection}" />
 
-                    <TextBlock Grid.Row="2"
-                               Grid.Column="0"
-                               Margin="0,16,16,0"
-                               VerticalAlignment="Center"
-                               Style="{StaticResource BodyTextBlockStyle}"
-                               Text="{x:Static res:Strings.SettingsClientIdLabel}"
-                               TextWrapping="Wrap"
-                               Visibility="{Binding IsSpotifyProvider, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                <TextBlock Grid.Row="6"
+                           Grid.Column="0"
+                           Margin="0,7,16,6"
+                           Style="{StaticResource OffstreamFieldLabelStyle}"
+                           Text="{x:Static res:Strings.SettingsDeviceLabel}" />
 
-                    <StackPanel Grid.Row="2"
-                                Grid.Column="1"
-                                Width="360"
-                                Margin="0,16,0,0"
-                                Visibility="{Binding IsSpotifyProvider, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
-                        <ui:TextBox x:Name="ClientIdBox"
-                                    AutomationProperties.AutomationId="SettingsClientId"
-                                    AutomationProperties.Name="{x:Static res:Strings.SettingsClientIdLabel}"
-                                    Text="{Binding SpotifyClientId, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
-                        <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=ClientIdBox, Path=(Validation.Errors)/ErrorContent}" />
-                        <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.SettingsClientIdHint}" />
+                <DockPanel Grid.Row="6"
+                           Grid.Column="1"
+                           Margin="{StaticResource OffstreamRowGap}"
+                           Width="{StaticResource OffstreamFieldWidth}">
+                    <ui:Button Margin="8,0,0,0"
+                               AutomationProperties.AutomationId="SettingsDeviceRefreshButton"
+                               Command="{Binding RefreshDevicesCommand}"
+                               Content="{x:Static res:Strings.SettingsDeviceRefresh}"
+                               DockPanel.Dock="Right"
+                               Icon="{ui:SymbolIcon ArrowClockwise24}" />
+                    <ComboBox AutomationProperties.AutomationId="SettingsDevice"
+                              AutomationProperties.Name="{x:Static res:Strings.SettingsDeviceLabel}"
+                              DisplayMemberPath="Name"
+                              ItemsSource="{Binding Devices, Mode=OneWay}"
+                              SelectedItem="{Binding SelectedDevice, Mode=TwoWay}" />
+                </DockPanel>
 
-                        <!--
-                            The Client ID identifies the app; it grants nothing. This button is
-                            what actually produces the token a recording presents, which is why
-                            the status line under it says plainly whether one exists.
-                        -->
-                        <ui:Button Margin="0,12,0,0"
-                                   AutomationProperties.AutomationId="SettingsSpotifySignIn"
-                                   Command="{Binding SignInToSpotifyCommand, Mode=OneTime}"
-                                   Content="{x:Static res:Strings.SettingsSpotifySignIn}" />
+                <TextBlock Grid.Row="7"
+                           Grid.Column="0"
+                           Margin="0,7,16,6"
+                           Style="{StaticResource OffstreamFieldLabelStyle}"
+                           Text="{x:Static res:Strings.SettingsMinimumLengthLabel}" />
 
-                        <TextBlock Style="{StaticResource OffstreamHintStyle}"
-                                   Text="{Binding SpotifyAccountStatus, Mode=OneWay}" />
+                <StackPanel Grid.Row="7"
+                            Grid.Column="1"
+                            Margin="{StaticResource OffstreamRowGap}"
+                            Width="{StaticResource OffstreamFieldWidth}">
+                    <DockPanel>
+                        <TextBlock Margin="8,0,0,0"
+                                   VerticalAlignment="Center"
+                                   DockPanel.Dock="Right"
+                                   Foreground="{StaticResource OffstreamIdleBrush}"
+                                   Style="{StaticResource BodyTextBlockStyle}"
+                                   Text="{x:Static res:Strings.SettingsSecondsUnit}" />
+                        <ui:TextBox x:Name="MinimumLengthBox"
+                                    AutomationProperties.AutomationId="SettingsMinimumLength"
+                                    AutomationProperties.Name="{x:Static res:Strings.SettingsMinimumLengthLabel}"
+                                    Text="{Binding MinimumLengthSeconds, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
+                    </DockPanel>
+                    <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=MinimumLengthBox, Path=(Validation.Errors)/ErrorContent}" />
+                </StackPanel>
 
-                        <TextBlock Style="{StaticResource OffstreamHintStyle}"
-                                   Text="{x:Static res:Strings.SettingsSpotifySigningIn}"
-                                   Visibility="{Binding IsSigningInToSpotify, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
-                    </StackPanel>
-                </Grid>
-            </ui:Card>
+                <Border Grid.Row="8" Grid.ColumnSpan="2" Style="{StaticResource GroupRule}" />
 
-            <!-- Where the file is, so it can be found, backed up, or deleted to start over. -->
-            <TextBlock Margin="0,4,0,0"
-                       Style="{StaticResource OffstreamHintStyle}"
-                       Text="{Binding SettingsPath, Mode=OneTime, StringFormat={x:Static res:Strings.SettingsStoredAt}}" />
-        </StackPanel>
-    </ScrollViewer>
+                <!--  Track details  -->
 
-</Page>
+                <TextBlock Grid.Row="9"
+                           Grid.ColumnSpan="2"
+                           Style="{StaticResource OffstreamGroupHeaderStyle}"
+                           Text="{x:Static res:Strings.SettingsMetadataSection}" />
+
+                <TextBlock Grid.Row="10"
+                           Grid.Column="0"
+                           Margin="0,7,16,6"
+                           Style="{StaticResource OffstreamFieldLabelStyle}"
+                           Text="{x:Static res:Strings.SettingsProviderLabel}" />
+
+                <ComboBox Grid.Row="10"
+                          Grid.Column="1"
+                          AutomationProperties.AutomationId="SettingsProvider"
+                          AutomationProperties.Name="{x:Static res:Strings.SettingsProviderLabel}"
+                          DisplayMemberPath="Name"
+                          ItemsSource="{Binding Providers, Mode=OneTime}"
+                          SelectedValue="{Binding Provider, Mode=TwoWay}"
+                          SelectedValuePath="Value"
+                          Margin="{StaticResource OffstreamRowGap}"
+                          Width="{StaticResource OffstreamFieldWidth}" />
+
+                <!--
+                    Each provider's credential row is absent for the others rather than
+                    disabled: it is not a setting they have.
+                -->
+                <TextBlock Grid.Row="11"
+                           Grid.Column="0"
+                           Margin="0,7,16,6"
+                           Style="{StaticResource OffstreamFieldLabelStyle}"
+                           Text="{x:Static res:Strings.SettingsLastFmApiKeyLabel}"
+                           Visibility="{Binding IsLastFmProvider, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+
+                <StackPanel Grid.Row="11"
+                            Grid.Column="1"
+                            Margin="{StaticResource OffstreamRowGap}"
+                            Visibility="{Binding IsLastFmProvider, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}"
+                            Width="{StaticResource OffstreamFieldWidth}">
+                    <ui:TextBox x:Name="LastFmApiKeyBox"
+                                AutomationProperties.AutomationId="SettingsLastFmApiKey"
+                                AutomationProperties.Name="{x:Static res:Strings.SettingsLastFmApiKeyLabel}"
+                                Text="{Binding LastFmApiKey, Mode=TwoWay}" />
+
+                    <!--
+                        A warning, not a validation error: Last.fm is the default provider, so
+                        a fresh install lands here untouched, and an error would block saving
+                        every unrelated setting until a key was pasted in.
+                    -->
+                    <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}"
+                               Text="{x:Static res:Strings.SettingsLastFmApiKeyRequired}"
+                               Visibility="{Binding NeedsLastFmApiKey, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+
+                    <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.SettingsLastFmApiKeyHint}" />
+                </StackPanel>
+
+                <TextBlock Grid.Row="12"
+                           Grid.Column="0"
+                           Margin="0,7,16,6"
+                           Style="{StaticResource OffstreamFieldLabelStyle}"
+                           Text="{x:Static res:Strings.SettingsClientIdLabel}"
+                           Visibility="{Binding IsSpotifyProvider, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+
+                <StackPanel Grid.Row="12"
+                            Grid.Column="1"
+                            Margin="{StaticResource OffstreamRowGap}"
+                            Visibility="{Binding IsSpotifyProvider, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}"
+                            Width="{StaticResource OffstreamFieldWidth}">
+                    <ui:TextBox x:Name="ClientIdBox"
+                                AutomationProperties.AutomationId="SettingsClientId"
+                                AutomationProperties.Name="{x:Static res:Strings.SettingsClientIdLabel}"
+                                Text="{Binding SpotifyClientId, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
+                    <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=ClientIdBox, Path=(Validation.Errors)/ErrorContent}" />
+                    <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.SettingsClientIdHint}" />
+
+                    <!--
+                        The Client ID identifies the app; it grants nothing. This button is
+                        what actually produces the token a recording presents, which is why
+                        the status line under it says plainly whether one exists.
+                    -->
+                    <ui:Button Margin="0,10,0,0"
+                               AutomationProperties.AutomationId="SettingsSpotifySignIn"
+                               Command="{Binding SignInToSpotifyCommand, Mode=OneTime}"
+                               Content="{x:Static res:Strings.SettingsSpotifySignIn}" />
+
+                    <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{Binding SpotifyAccountStatus, Mode=OneWay}" />
+
+                    <TextBlock Style="{StaticResource OffstreamHintStyle}"
+                               Text="{x:Static res:Strings.SettingsSpotifySigningIn}"
+                               Visibility="{Binding IsSigningInToSpotify, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Where the file is, so it can be found, backed up, or deleted to start over. -->
+        <TextBlock Grid.Row="2"
+                   Margin="4,10,0,0"
+                   Style="{StaticResource OffstreamHintStyle}"
+                   Text="{Binding SettingsPath, Mode=OneTime, StringFormat={x:Static res:Strings.SettingsStoredAt}}" />
+    </Grid>
+
+</UserControl>
