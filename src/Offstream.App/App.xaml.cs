@@ -31,6 +31,15 @@ public partial class App : Application
 
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Debug()
+
+            // HttpClient's own logging writes four Information lines per request — start,
+            // sending, headers received, end — none of which mean anything to the person
+            // reading the activity log. During a recording that is most of the traffic on the
+            // pane: every line is a dispatcher post, a realised list item and a scroll-to-end
+            // on the UI thread, for text like "End processing HTTP request after 501.7018ms".
+            // Warnings and failures still come through; the play-by-play does not.
+            .MinimumLevel.Override("System.Net.Http.HttpClient", Serilog.Events.LogEventLevel.Warning)
+            .MinimumLevel.Override("Microsoft.Extensions.Http", Serilog.Events.LogEventLevel.Warning)
             .WriteTo.Sink(LogSink)
             .WriteTo.File(
                 OffstreamPaths.LogFile,

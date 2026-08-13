@@ -5,17 +5,17 @@ using NAudio.Wave;
 namespace Offstream.Core.Audio;
 
 /// <summary>
-/// Tracks the loudest sample seen since it was last read, for a level display.
+/// Tracks how loud the audio has been since it was last read, for a level display.
 /// </summary>
 /// <remarks>
 /// <para>
 /// <b>Accumulate-and-drain, rather than an event per callback.</b> Capture fires roughly every
 /// 10 ms; a meter that raised an event each time would push 100 dispatcher marshals a second at
 /// the UI for a bar that can only redraw at 60 Hz. Instead the capture thread folds each buffer
-/// into a running peak with no allocation and no lock, and whoever is drawing calls
-/// <see cref="Read"/> at its own rate. The peak resets on read, so a slow reader sees the
-/// loudest moment in its interval instead of whatever happened to be playing at the instant it
-/// looked — which is what makes the display track transients rather than flicker.
+/// into a running energy total with no allocation, and whoever is drawing calls
+/// <see cref="Read"/> at its own rate. The total resets on read, so a slow reader sees the
+/// loudness of its whole interval rather than whatever happened to be playing at the instant it
+/// looked.
 /// </para>
 /// <para>
 /// <b>An unsupported format reads as silence rather than throwing.</b> This drives a decoration;
@@ -37,9 +37,20 @@ public sealed class AudioLevelMeter
     /// </summary>
     private delegate float SampleReader(ReadOnlySpan<byte> bytes);
 
-    private readonly SampleReader? _read;
+    /// <summary>
+    /// Quietest level the display distinguishes, in dBFS. Below this reads as silence.
+    /// </summary>
+    /// <remarks>
+    /// 60&#160;dB is the usual span for a music meter: it puts a quiet passage near the bottom
+    /// and a loud one near the top, which is the range the eye can actually read.
+    /// </remarks>
+    private const double FloorDecibels = -60;
 
-    private float _peak;
+    private readonly SampleReader? _read;
+    private readonly Lock _gate = new();
+
+    private double _sumOfSquares;
+    private long _samples;
 
     public AudioLevelMeter(WaveFormat format)
     {
@@ -62,49 +73,85 @@ public sealed class AudioLevelMeter
     /// <param name="data">Captured PCM, in <see cref="Format"/>.</param>
     public void Write(ReadOnlySpan<byte> data)
     {
-        var peak = PeakOf(data);
-        if (peak <= 0f) return;
+        var (sumOfSquares, samples) = EnergyOf(data);
+        if (samples == 0) return;
 
-        // Lock-free max. Contention is between one capture thread and one reader, and the
-        // reader only ever writes zero, so this settles in a pass or two.
-        var current = Volatile.Read(ref _peak);
-
-        while (peak > current)
+        // One capture thread and one reader, and the critical section is two additions — the
+        // hundred acquisitions a second this takes are far cheaper than the lock-free dance a
+        // running sum would otherwise need.
+        lock (_gate)
         {
-            var observed = Interlocked.CompareExchange(ref _peak, peak, current);
-            if (observed.Equals(current)) return;
-
-            current = observed;
+            _sumOfSquares += sumOfSquares;
+            _samples += samples;
         }
     }
 
     /// <summary>
-    /// Takes the loudest sample since the last read, as 0–1, and starts a new interval.
+    /// Takes the loudness of the interval just ended, as 0–1, and starts a new one.
     /// </summary>
-    public float Read() => Interlocked.Exchange(ref _peak, 0f);
+    /// <remarks>
+    /// <b>RMS on a decibel scale, not the peak sample.</b> The peak over an interval this short
+    /// is at or near full scale for essentially all mastered music, so a peak meter drew a solid
+    /// block that said only "audio is arriving" — a display with no information in it. RMS is
+    /// what loudness actually tracks, and mapping it through <see cref="FloorDecibels"/> spreads
+    /// the range a listener cares about across the height available instead of crowding it into
+    /// the top tenth, which is what a linear amplitude scale does.
+    /// </remarks>
+    public float Read()
+    {
+        double sumOfSquares;
+        long samples;
+
+        lock (_gate)
+        {
+            sumOfSquares = _sumOfSquares;
+            samples = _samples;
+            _sumOfSquares = 0;
+            _samples = 0;
+        }
+
+        if (samples == 0) return 0f;
+
+        var rms = Math.Sqrt(sumOfSquares / samples);
+        if (rms <= 0) return 0f;
+
+        var decibels = 20 * Math.Log10(rms);
+
+        return (float)Math.Clamp((decibels - FloorDecibels) / -FloorDecibels, 0, 1);
+    }
 
     /// <summary>Drops the current interval, for the end of a session.</summary>
-    public void Reset() => Interlocked.Exchange(ref _peak, 0f);
-
-    /// <summary>The loudest absolute sample in <paramref name="data"/>, as 0–1.</summary>
-    private float PeakOf(ReadOnlySpan<byte> data)
+    public void Reset()
     {
-        if (_read is null || data.IsEmpty) return 0f;
+        lock (_gate)
+        {
+            _sumOfSquares = 0;
+            _samples = 0;
+        }
+    }
+
+    /// <summary>Total squared amplitude in <paramref name="data"/>, and how many samples it covers.</summary>
+    private (double SumOfSquares, long Samples) EnergyOf(ReadOnlySpan<byte> data)
+    {
+        if (_read is null || data.IsEmpty) return (0, 0);
 
         var stride = Format.BitsPerSample / 8;
-        if (stride <= 0) return 0f;
+        if (stride <= 0) return (0, 0);
 
-        var peak = 0f;
+        var sumOfSquares = 0d;
+        var samples = 0L;
 
         // Whole samples only: a callback can end mid-sample, and a partial one read as a whole
         // is a spike the audio never contained.
         for (var offset = 0; offset + stride <= data.Length; offset += stride)
         {
-            var sample = Math.Abs(_read(data.Slice(offset, stride)));
-            if (sample > peak) peak = sample;
+            double sample = _read(data.Slice(offset, stride));
+
+            sumOfSquares += sample * sample;
+            samples++;
         }
 
-        return Math.Min(peak, 1f);
+        return (sumOfSquares, samples);
     }
 
     /// <summary>

@@ -20,15 +20,22 @@ namespace Offstream.App.Views.Controls;
 /// <para>
 /// <b>It pulls, it is not pushed.</b> Capture delivers a buffer roughly every ten milliseconds.
 /// Turning each into a dispatcher callback would put a hundred UI marshals a second behind a
-/// decoration; instead <see cref="AudioLevelMeter"/> accumulates the interval's peak and this
-/// control drains it on its own clock — one read per frame, and the peak survives whatever
-/// happened between frames.
+/// decoration; instead <see cref="AudioLevelMeter"/> accumulates the interval's loudness and
+/// this control drains it on its own clock — one read per bar, covering everything that
+/// happened since the last one.
 /// </para>
 /// <para>
-/// <b>Its clock is fixed, not the monitor's.</b> <see cref="CompositionTarget.Rendering"/> fires
-/// at the display's refresh rate, so sampling every tick would make the waveform scroll half as
-/// fast on 60&#160;Hz as on 120&#160;Hz. Bars are taken at <see cref="SamplesPerSecond"/> and the
-/// frame event is only the invitation to check.
+/// <b>Its clock is fixed, not the monitor's.</b> A <see cref="DispatcherTimer"/> at
+/// <see cref="SamplesPerSecond"/> keeps the scroll speed the same on a 60&#160;Hz panel and a
+/// 144&#160;Hz one. It replaced <see cref="CompositionTarget.Rendering"/>, which fires once per
+/// composed frame: that woke the UI thread at the refresh rate only to decide, most times, that
+/// no bar was due yet, and kept WPF composing continuously instead of idling.
+/// </para>
+/// <para>
+/// <b>Bars are RMS on a decibel scale, not peak amplitude.</b> A peak taken over a
+/// thirtieth of a second is at or near full scale for essentially all mastered music, so the
+/// control drew a solid block that conveyed only "audio is arriving". See
+/// <see cref="AudioLevelMeter.Read"/>.
 /// </para>
 /// </remarks>
 public sealed class WaveformView : FrameworkElement
@@ -64,10 +71,12 @@ public sealed class WaveformView : FrameworkElement
         nameof(Fill),
         typeof(Brush),
         typeof(WaveformView),
-        new FrameworkPropertyMetadata(Brushes.Gray, FrameworkPropertyMetadataOptions.AffectsRender));
+        new FrameworkPropertyMetadata(Brushes.Gray, FrameworkPropertyMetadataOptions.None, OnFillChanged));
 
     private readonly float[] _bars = new float[Capacity];
     private readonly DispatcherTimer _sampler;
+    private readonly DrawingVisual _barsVisual = new();
+    private readonly VisualCollection _children;
 
     private int _head;
     private int _count;
@@ -75,7 +84,9 @@ public sealed class WaveformView : FrameworkElement
 
     public WaveformView()
     {
-        _sampler = new DispatcherTimer(DispatcherPriority.Render)
+        _children = new VisualCollection(this) { _barsVisual };
+
+        _sampler = new DispatcherTimer(DispatcherPriority.Background)
         {
             Interval = TimeSpan.FromSeconds(1d / SamplesPerSecond),
         };
@@ -83,7 +94,12 @@ public sealed class WaveformView : FrameworkElement
         _sampler.Tick += OnSample;
 
         IsVisibleChanged += (_, _) => UpdateSubscription();
+        SizeChanged += (_, _) => Redraw();
     }
+
+    protected override int VisualChildrenCount => _children.Count;
+
+    protected override Visual GetVisualChild(int index) => _children[index];
 
     /// <summary>The meter to drain, or null when nothing is recording.</summary>
     public AudioLevelMeter? Level
@@ -111,11 +127,20 @@ public sealed class WaveformView : FrameworkElement
     /// </remarks>
     protected override AutomationPeer OnCreateAutomationPeer() => new WaveformViewAutomationPeer(this);
 
-    protected override void OnRender(DrawingContext drawingContext)
+    /// <summary>
+    /// Repaints the bars into their own visual.
+    /// </summary>
+    /// <remarks>
+    /// <b>Not <c>OnRender</c>, and deliberately so.</b> <see cref="UIElement.InvalidateVisual"/>
+    /// invalidates <em>arrange</em> as well as rendering, so driving this from
+    /// <c>OnRender</c> scheduled a layout pass thirty times a second — the page's whole visual
+    /// tree marked dirty, over and over, for a decoration whose size never changes. Rendering
+    /// into a child <see cref="DrawingVisual"/> re-composes that one visual and touches the
+    /// layout system not at all.
+    /// </remarks>
+    private void Redraw()
     {
-        ArgumentNullException.ThrowIfNull(drawingContext);
-
-        base.OnRender(drawingContext);
+        using var drawingContext = _barsVisual.RenderOpen();
 
         var width = ActualWidth;
         var height = ActualHeight;
@@ -160,6 +185,16 @@ public sealed class WaveformView : FrameworkElement
         drawingContext.DrawGeometry(Fill, pen: null, geometry);
     }
 
+    /// <summary>
+    /// Repaints on a brush change, which <c>AffectsRender</c> can no longer do for us.
+    /// </summary>
+    /// <remarks>
+    /// That flag invalidates the element's own rendering — the thing this control deliberately
+    /// no longer uses. The bars live in a child visual, so the repaint has to be explicit.
+    /// </remarks>
+    private static void OnFillChanged(DependencyObject sender, DependencyPropertyChangedEventArgs e) =>
+        ((WaveformView)sender).Redraw();
+
     private static void OnLevelChanged(DependencyObject sender, DependencyPropertyChangedEventArgs e)
     {
         var view = (WaveformView)sender;
@@ -170,7 +205,7 @@ public sealed class WaveformView : FrameworkElement
         view._count = 0;
 
         view.UpdateSubscription();
-        view.InvalidateVisual();
+        view.Redraw();
     }
 
     /// <summary>
@@ -213,7 +248,7 @@ public sealed class WaveformView : FrameworkElement
         _head = (_head + 1) % Capacity;
         _count = Math.Min(_count + 1, Capacity);
 
-        InvalidateVisual();
+        Redraw();
     }
 
     /// <summary>Reports the meter to automation clients as a named image.</summary>

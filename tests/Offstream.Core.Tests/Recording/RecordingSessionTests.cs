@@ -688,7 +688,9 @@ public sealed class RecordingSessionTests
 
         harness.Capture.Deliver(BitConverter.GetBytes((short)16384));
 
-        Assert.Equal(0.5f, harness.Session.Level.Read(), precision: 4);
+        // Half scale is -6.02 dBFS, which on the meter's 60 dB scale is 0.8997. What matters
+        // here is that capture reached the meter at all; the decoding is AudioLevelMeterTests.
+        Assert.Equal(0.8997f, harness.Session.Level.Read(), precision: 4);
     }
 
     /// <summary>
