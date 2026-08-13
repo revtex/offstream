@@ -4,18 +4,18 @@ using SpotifyAPI.Web;
 namespace Offstream.Core.Metadata.Providers;
 
 /// <summary>Fetches the currently-playing track and its album from Spotify, and maps them onto a <see cref="Track"/>.</summary>
-public interface ISpotifyMetadataProvider
-{
-    /// <summary>
-    /// Enriches <paramref name="track"/> in place.
-    /// </summary>
-    /// <returns>
-    /// Whether anything was written. False covers every case that is not an error — nothing is
-    /// playing, what is playing is a podcast episode rather than a track, or what Spotify
-    /// reports no longer matches the track that was detected from the window title.
-    /// </returns>
-    Task<bool> EnrichAsync(Track track, CancellationToken cancellationToken = default);
-}
+/// <remarks>
+/// <para>
+/// Narrower than <see cref="IMetadataProvider"/> on purpose: it names the Spotify provider
+/// specifically, for anything that needs that one rather than whichever one is configured.
+/// </para>
+/// <para>
+/// <see cref="IMetadataProvider.EnrichAsync"/> returns false here for every case that is not an
+/// error — nothing is playing, what is playing is a podcast episode rather than a track, or what
+/// Spotify reports no longer matches the track that was detected from the window title.
+/// </para>
+/// </remarks>
+public interface ISpotifyMetadataProvider : IMetadataProvider;
 
 /// <summary>
 /// The read half of the reference implementation's <c>SpotifyAPI.UpdateTrack</c>: given an
@@ -40,6 +40,9 @@ public interface ISpotifyMetadataProvider
 /// </remarks>
 public sealed class SpotifyMetadataProvider(ISpotifyClient client) : ISpotifyMetadataProvider
 {
+    /// <inheritdoc />
+    public MetadataProvider Kind => MetadataProvider.Spotify;
+
     /// <inheritdoc />
     public async Task<bool> EnrichAsync(Track track, CancellationToken cancellationToken = default)
     {

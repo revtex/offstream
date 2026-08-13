@@ -1,3 +1,4 @@
+using Offstream.Core.Encoding;
 using Offstream.Core.Metadata;
 using Offstream.Core.Naming;
 using Offstream.Core.Settings;
@@ -128,6 +129,24 @@ public sealed class RecordingSettingsTests
     [InlineData(MediaFormat.Mp3, "mp3")]
     [InlineData(MediaFormat.Wav, "wav")]
     [InlineData(MediaFormat.Opus, "opus")]
-    public void MediaFormatExtension_IsLowerCase(MediaFormat format, string expected) =>
+    [InlineData(MediaFormat.Flac, "flac")]
+    [InlineData(MediaFormat.Aac, "m4a")]
+    public void MediaFormatExtension_IsTheExtensionTheEncoderActuallyWrites(MediaFormat format, string expected) =>
         Assert.Equal(expected, new RecordingSettings { MediaFormat = format }.MediaFormatExtension);
+
+    /// <summary>
+    /// The file name and the encode must agree on the container, and for AAC they did not:
+    /// the name came from the lower-cased enum member ("aac") while the profile encodes into
+    /// an MP4 container. The result was an m4a file called <c>.aac</c>.
+    /// </summary>
+    [Theory]
+    [InlineData(MediaFormat.Mp3)]
+    [InlineData(MediaFormat.Wav)]
+    [InlineData(MediaFormat.Opus)]
+    [InlineData(MediaFormat.Flac)]
+    [InlineData(MediaFormat.Aac)]
+    public void MediaFormatExtension_MatchesTheEncodingProfile(MediaFormat format) =>
+        Assert.Equal(
+            EncodingProfiles.For(format).Extension,
+            new RecordingSettings { MediaFormat = format }.MediaFormatExtension);
 }

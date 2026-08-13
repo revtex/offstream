@@ -39,6 +39,14 @@ internal static class RecordingFakes
         return Store(fileSystem);
     }
 
+    /// <summary>A settings document over an empty file system: first run, no problems.</summary>
+    public static SettingsDocument Document() => new(Store());
+
+    public static SettingsDocument Document(IFileSystem fileSystem) => new(Store(fileSystem));
+
+    /// <summary>A document whose file is unreadable, so starting a session is refused.</summary>
+    public static SettingsDocument DocumentWithBrokenFile() => new(StoreWithBrokenFile());
+
     /// <summary>A session wired to fakes, equivalent to one the real factory would build.</summary>
     public static RecordingSession Session(IProgress<RecordingProgress> progress, ITrackSource? trackSource = null)
     {
@@ -57,7 +65,13 @@ internal static class RecordingFakes
         var source = trackSource ?? Mock.Of<ITrackSource>();
 
         return new RecordingSession(
-            new SilentCapture(), new SpotifyPoller(source), settings, new NoOpEncoder(), fileSystem, progress);
+            new SilentCapture(),
+            new SpotifyPoller(source),
+            settings,
+            new NoOpEncoder(),
+            fileSystem,
+            enricher: null,
+            progress);
     }
 }
 

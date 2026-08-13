@@ -26,13 +26,12 @@ namespace Offstream.App.Services;
 /// dialog.
 /// </para>
 /// </remarks>
-public sealed class RecordingController(IRecordingSessionFactory factory, SettingsStore settingsStore)
+public sealed class RecordingController(IRecordingSessionFactory factory, SettingsDocument settings)
     : IAsyncDisposable
 {
     private readonly IRecordingSessionFactory _factory = factory ?? throw new ArgumentNullException(nameof(factory));
 
-    private readonly SettingsStore _settingsStore =
-        settingsStore ?? throw new ArgumentNullException(nameof(settingsStore));
+    private readonly SettingsDocument _settings = settings ?? throw new ArgumentNullException(nameof(settings));
 
     /// <summary>
     /// Serialises start against stop.
@@ -78,7 +77,11 @@ public sealed class RecordingController(IRecordingSessionFactory factory, Settin
         {
             if (_session is not null) return null;
 
-            var settings = _settingsStore.LoadOrDefault(out var problem);
+            // Re-read rather than trust the copy the window opened with: a file corrected since
+            // startup should work without a restart, and the counter this session increments has
+            // to be written back onto what is on disk now.
+            var settings = _settings.Reload();
+            var problem = _settings.LoadProblem;
 
             if (problem is not null)
             {
@@ -136,7 +139,11 @@ public sealed class RecordingController(IRecordingSessionFactory factory, Settin
         }
         finally
         {
-            if (session is not null) await Release(session);
+            if (session is not null)
+            {
+                CaptureRuntimeState(session);
+                await Release(session);
+            }
 
             _gate.Release();
         }
@@ -181,6 +188,22 @@ public sealed class RecordingController(IRecordingSessionFactory factory, Settin
         }
 
         return session;
+    }
+
+    /// <summary>
+    /// Writes back the one thing a session changes while it runs: the file counter.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="RecordingSession"/> increments it per saved recording, on its own working copy
+    /// of the settings. Without this the increments died with the session, so the next run
+    /// restarted numbering at 1 — every night's recordings landing on the same names as the
+    /// previous night's, and the "already recorded?" check answering for the wrong file.
+    /// </remarks>
+    private void CaptureRuntimeState(RecordingSession session)
+    {
+        var problem = _settings.Update(current => current.CaptureRuntimeState(session.Settings));
+
+        if (problem is not null) Log.Warning("The file counter could not be saved: {Problem}", problem);
     }
 
     private async ValueTask Release(RecordingSession session)

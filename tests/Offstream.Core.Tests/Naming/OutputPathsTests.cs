@@ -77,6 +77,10 @@ public sealed class OutputPathsTests
     [InlineData(MediaFormat.Mp3, "mp3")]
     [InlineData(MediaFormat.Wav, "wav")]
     [InlineData(MediaFormat.Opus, "opus")]
+    [InlineData(MediaFormat.Flac, "flac")]
+
+    // Not "aac": the profile encodes AAC into an MP4 container, so the file is an m4a.
+    [InlineData(MediaFormat.Aac, "m4a")]
     public void OutputFile_UsesTheMediaFormatExtension(MediaFormat format, string extension)
     {
         _settings.MediaFormat = format;

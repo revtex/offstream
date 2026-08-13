@@ -172,11 +172,20 @@ public sealed record RecordingOptions(
 /// is what <see cref="SettingsStore"/> runs through <see cref="ISecretProtector"/> before
 /// writing. Never write a plaintext token here directly; go through the store.
 /// </param>
+/// <param name="LastFmApiKey">
+/// The user's own Last.fm API key, from https://www.last.fm/api/account/create. Not a secret in
+/// the DPAPI sense — it is sent as a query parameter on every request — but it is per-user, and
+/// deliberately so: the predecessor shipped three of its own keys hard-coded in its source and
+/// picked one at random per run. Offstream does not borrow another project's credentials, and a
+/// key that belongs to the user cannot be revoked or rate-limited out from under them by someone
+/// else's traffic.
+/// </param>
 /// <param name="WriteCounterToTrackNumber">
 /// Write the file counter into the track-number tag as well as the name.
 /// </param>
 public sealed record MetadataSettings(
     [property: JsonPropertyName("provider")] MetadataProvider Provider = MetadataProvider.LastFm,
+    [property: JsonPropertyName("lastFmApiKey")] string? LastFmApiKey = null,
     [property: JsonPropertyName("spotifyClientId")] string? SpotifyClientId = null,
     [property: JsonPropertyName("spotifyRefreshToken")] string? SpotifyRefreshToken = null,
     [property: JsonPropertyName("writeCounterToTrackNumber")] bool WriteCounterToTrackNumber = false);

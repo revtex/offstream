@@ -94,6 +94,31 @@ public sealed class RecordingSessionTests
         }
     }
 
+    /// <summary>A metadata lookup that answers immediately, from a script.</summary>
+    private sealed class FakeEnricher : ITrackEnricher
+    {
+        /// <summary>What to write onto the track, standing in for a provider's response.</summary>
+        public Action<Track>? Apply { get; set; }
+
+        /// <summary>The cover file the fetch "produced", or null for no art.</summary>
+        public string? CoverArtPath { get; set; }
+
+        public int Calls { get; private set; }
+
+        /// <summary>Which tracks were looked up, in order.</summary>
+        public List<string?> Tracks { get; } = [];
+
+        public Task<TrackEnrichment> EnrichAsync(Track track, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            Tracks.Add(track.Title);
+
+            Apply?.Invoke(track);
+
+            return Task.FromResult(new TrackEnrichment(Updated: true, CoverArtPath));
+        }
+    }
+
     private sealed class Harness : IAsyncDisposable
     {
         private readonly Mock<ITrackSource> _trackSource = new();
@@ -104,10 +129,15 @@ public sealed class RecordingSessionTests
         /// test can prove the fix deterministically instead of merely exercising the race and
         /// hoping to catch it.
         /// </param>
+        /// <param name="enricher">
+        /// The metadata lookup the session runs per track. Null is "no provider configured",
+        /// which is what most of these tests want: they are about the pipeline, not the tags.
+        /// </param>
         public Harness(
             Action<RecordingSettings>? configure = null,
             TimeSpan? fileSystemDelay = null,
-            WaveFormat? captureFormat = null)
+            WaveFormat? captureFormat = null,
+            ITrackEnricher? enricher = null)
         {
             Capture = new FakeCaptureSource(captureFormat);
 
@@ -137,7 +167,7 @@ public sealed class RecordingSessionTests
                 : FileSystem;
 
             Session = new RecordingSession(
-                Capture, Poller, Settings, Encoder, sessionFileSystem, Progress);
+                Capture, Poller, Settings, Encoder, sessionFileSystem, enricher, Progress);
 
             Session.TrackSaved += (_, e) => Saved.Enqueue(e);
             Session.TrackRecorded += (_, e) => Recorded.Enqueue(e);
@@ -269,6 +299,133 @@ public sealed class RecordingSessionTests
         Assert.Equal(MediaFormat.Flac, request!.Format);
         Assert.Equal(192, request.BitrateKbps);
         Assert.Equal("Title", request.Track?.Title);
+    }
+
+    /// <summary>
+    /// The bug this closes: a recording carried the window title's artist and title and nothing
+    /// else — no album, no track number, no year, no art — because nothing in the pipeline ever
+    /// called a metadata provider.
+    /// </summary>
+    [Fact]
+    public async Task Session_QueuesTheEncodeWithWhatTheProviderFoundAndTheCoverArtItFetched()
+    {
+        var enricher = new FakeEnricher
+        {
+            CoverArtPath = @"C:\temp\cover.jpg",
+            Apply = track =>
+            {
+                track.Album = "Album";
+                track.AlbumPosition = 7;
+                track.Disc = 2;
+                track.Year = 1997;
+                track.Genres = ["Post-rock"];
+                track.AlbumArtists = ["Album Artist"];
+            },
+        };
+
+        await using var harness = new Harness(enricher: enricher);
+
+        harness.Session.Start();
+
+        await RecordTrackAsync(harness, Harness.Playing("Artist", "Title"));
+        harness.Play(Harness.Playing("Artist", "Next"));
+
+        await WaitFor(() => !harness.Encoder.Requests.IsEmpty, "the encode to be queued");
+
+        Assert.True(harness.Encoder.Requests.TryDequeue(out var request));
+        Assert.Equal(@"C:\temp\cover.jpg", request!.CoverArtPath);
+        Assert.Equal("Album", request.Track?.Album);
+        Assert.Equal(7, request.Track?.AlbumPosition);
+        Assert.Equal(2, request.Track?.Disc);
+        Assert.Equal(1997, request.Track?.Year);
+
+        // The tag arguments are what actually reach ffmpeg, so assert those rather than trusting
+        // that a populated Track implies a populated file.
+        var arguments = FFmpegArguments.Build(request);
+
+        Assert.Contains("album=Album", arguments, StringComparer.Ordinal);
+        Assert.Contains("track=7", arguments, StringComparer.Ordinal);
+        Assert.Contains("disc=2", arguments, StringComparer.Ordinal);
+        Assert.Contains("date=1997", arguments, StringComparer.Ordinal);
+        Assert.Contains("genre=Post-rock", arguments, StringComparer.Ordinal);
+        Assert.Contains("album_artist=Album Artist", arguments, StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// Enrichment starts when the track does, so it overlaps the recording rather than delaying
+    /// the file — but the encode request is still built from what it found.
+    /// </summary>
+    [Fact]
+    public async Task Session_EnrichesEachTrackOnce()
+    {
+        var enricher = new FakeEnricher { Apply = track => track.Album = "Album" };
+
+        await using var harness = new Harness(enricher: enricher);
+
+        harness.Session.Start();
+
+        await RecordTrackAsync(harness, Harness.Playing("Artist", "One"));
+        await RecordTrackAsync(harness, Harness.Playing("Artist", "Two"));
+        harness.Play(Harness.Playing("Artist", "Three"));
+
+        await WaitFor(() => harness.Encoder.Requests.Count == 2, "both encodes to be queued");
+
+        // Three, not two: the track that ends the second one is itself recording by now, and is
+        // looked up as soon as it starts rather than when it finishes. What matters is that no
+        // track is looked up twice.
+        Assert.Equal(["One", "Two", "Three"], enricher.Tracks);
+        Assert.Equal(enricher.Tracks.Count, enricher.Tracks.Distinct().Count());
+    }
+
+    /// <summary>
+    /// The counter goes into the track-number tag when asked, without disturbing the
+    /// <c>{track}</c> filename token, which keeps meaning the position within the album.
+    /// </summary>
+    [Fact]
+    public async Task Session_WhenTheCounterIsTagged_OverridesTheTrackNumber()
+    {
+        var enricher = new FakeEnricher { Apply = track => track.AlbumPosition = 7 };
+
+        await using var harness = new Harness(
+            s =>
+            {
+                s.OrderNumberInMediaTagEnabled = true;
+                s.InternalOrderNumber = 42;
+            },
+            enricher: enricher);
+
+        harness.Session.Start();
+
+        await RecordTrackAsync(harness, Harness.Playing("Artist", "Title"));
+        harness.Play(Harness.Playing("Artist", "Next"));
+
+        await WaitFor(() => !harness.Encoder.Requests.IsEmpty, "the encode to be queued");
+
+        Assert.True(harness.Encoder.Requests.TryDequeue(out var request));
+        Assert.Equal(42, request!.TrackNumberOverride);
+        Assert.Contains("track=42", FFmpegArguments.Build(request), StringComparer.Ordinal);
+    }
+
+    /// <summary>The fetched cover is a scratch file, and goes the same way as the temp WAV.</summary>
+    [Fact]
+    public async Task Session_DeletesTheFetchedCoverArtOnceTheEncodeIsDone()
+    {
+        const string CoverPath = @"C:\temp\cover.jpg";
+
+        var enricher = new FakeEnricher { CoverArtPath = CoverPath, Apply = track => track.Album = "Album" };
+
+        await using var harness = new Harness(enricher: enricher);
+
+        harness.FileSystem.AddFile(CoverPath, new MockFileData([1, 2, 3]));
+
+        harness.Session.Start();
+
+        await RecordTrackAsync(harness, Harness.Playing("Artist", "Title"));
+        harness.Play(Harness.Playing("Artist", "Next"));
+
+        await WaitFor(() => !harness.Saved.IsEmpty, "the recording to be saved");
+
+        Assert.False(harness.FileSystem.File.Exists(CoverPath));
     }
 
     /// <summary>Ads are not tracks. Recording them is opt-in, and off by default.</summary>

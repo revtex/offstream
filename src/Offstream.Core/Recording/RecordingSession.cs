@@ -73,6 +73,7 @@ public sealed class RecordingSession : IAsyncDisposable
     private readonly RecordingSettings _settings;
     private readonly RecordingPolicy _policy;
     private readonly IFileSystem _fileSystem;
+    private readonly ITrackEnricher? _enricher;
     private readonly EncodeBacklog _backlog;
     private readonly IProgress<RecordingProgress>? _progress;
     private readonly TimeProvider _time;
@@ -90,12 +91,25 @@ public sealed class RecordingSession : IAsyncDisposable
     private bool _stopAfterCurrentTrack;
     private bool _disposed;
 
+    /// <param name="capture">The audio source feeding the shared buffer.</param>
+    /// <param name="poller">Where track changes come from.</param>
+    /// <param name="settings">The session's settings, including the counter it increments.</param>
+    /// <param name="encoder">What the encode backlog runs.</param>
+    /// <param name="fileSystem">Injected so naming and file moves are testable.</param>
+    /// <param name="enricher">
+    /// Looks each track up with the configured metadata provider. Null records exactly what the
+    /// window title says — an artist and a title — which is all Offstream knew before this
+    /// existed.
+    /// </param>
+    /// <param name="progress">Where stage changes are reported.</param>
+    /// <param name="timeProvider">Injected for the recording timer and for dated folder names.</param>
     public RecordingSession(
         IAudioCaptureSource capture,
         SpotifyPoller poller,
         RecordingSettings settings,
         IAudioEncoder encoder,
         IFileSystem fileSystem,
+        ITrackEnricher? enricher = null,
         IProgress<RecordingProgress>? progress = null,
         TimeProvider? timeProvider = null)
     {
@@ -110,6 +124,7 @@ public sealed class RecordingSession : IAsyncDisposable
         _settings = settings;
         _policy = new RecordingPolicy(settings);
         _fileSystem = fileSystem;
+        _enricher = enricher;
         _progress = progress;
         _time = timeProvider ?? TimeProvider.System;
 
@@ -141,6 +156,16 @@ public sealed class RecordingSession : IAsyncDisposable
 
     /// <summary>Whether the session is running.</summary>
     public bool IsRunning { get; private set; }
+
+    /// <summary>
+    /// The settings this session is running on — the live object, not a copy.
+    /// </summary>
+    /// <remarks>
+    /// Exposed for one reason: <see cref="RecordingSettings.InternalOrderNumber"/> is incremented
+    /// here as files are saved, and something has to write it back when the session ends or the
+    /// counter restarts from 1 on the next run. See <see cref="Settings.OffstreamSettings.CaptureRuntimeState"/>.
+    /// </remarks>
+    public RecordingSettings Settings => _settings;
 
     /// <summary>The track being recorded right now, if any.</summary>
     public Track? CurrentTrack
@@ -333,11 +358,29 @@ public sealed class RecordingSession : IAsyncDisposable
         StartRecorder(track, paths);
     }
 
-    private void StartRecorder(Track track, OutputPaths paths)
+    /// <summary>
+    /// Starts a recorder for <paramref name="track"/>, with its metadata lookup already in flight.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The track is snapshotted first.</b> The poller owns the instance it hands over and
+    /// keeps reporting against it; enrichment writes album, year and cover art onto the copy, so
+    /// the two cannot interfere.
+    /// </para>
+    /// <para>
+    /// <b>Enrichment starts here, not when the recording ends.</b> A lookup takes about a second
+    /// and the track plays for minutes, so overlapping them makes it free; doing it after the
+    /// recording would add that second to every track before its file appears.
+    /// </para>
+    /// </remarks>
+    private void StartRecorder(Track detected, OutputPaths paths)
     {
         if (_buffer is null) return;
 
-        var recorder = new TrackRecorder(_buffer, _settings, track, paths, _fileSystem);
+        var track = new Track(detected);
+        var enrichment = _enricher?.EnrichAsync(track, _stopping.Token);
+
+        var recorder = new TrackRecorder(_buffer, _settings, track, paths, _fileSystem, enrichment);
 
         // Now, on the poll loop, not when the recording task gets scheduled: everything captured
         // after this instant belongs to the new track.
@@ -509,6 +552,7 @@ public sealed class RecordingSession : IAsyncDisposable
 
             paths.RenameFile(e.Outcome.OutputPath, destination);
             paths.DeleteFile(recording.Encode!.InputPath);
+            TryDelete(recording.Encode.CoverArtPath);
 
             if (_settings.HasOrderNumberEnabled) _settings.InternalOrderNumber++;
 
@@ -554,6 +598,7 @@ public sealed class RecordingSession : IAsyncDisposable
         var track = recording?.Track ?? e.Request.Track ?? new Track();
 
         TryDelete(e.Request.OutputPath);
+        TryDelete(e.Request.CoverArtPath);
 
         RaiseFailed(
             track,
@@ -578,8 +623,10 @@ public sealed class RecordingSession : IAsyncDisposable
         }
     }
 
-    private void TryDelete(string path)
+    private void TryDelete(string? path)
     {
+        if (string.IsNullOrEmpty(path)) return;
+
         try
         {
             if (_fileSystem.File.Exists(path)) _fileSystem.File.Delete(path);

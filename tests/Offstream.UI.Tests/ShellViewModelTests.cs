@@ -214,5 +214,5 @@ public sealed class ShellViewModelTests
         new(controller ?? ControllerFor(), settings ?? SettingsFakes.Document());
 
     private static RecordingController ControllerFor(FakeSessionFactory? factory = null) =>
-        new(factory ?? new FakeSessionFactory(), RecordingFakes.Store());
+        new(factory ?? new FakeSessionFactory(), RecordingFakes.Document());
 }

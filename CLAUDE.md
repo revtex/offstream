@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 The two names are not interchangeable. "Offstream" is what is being built here; "Spytify" only ever means the app being retired.
 
-**Current state: phases 0–6 are done** — recording pipeline, Spotify Web API metadata, settings persistence, and the WPF shell (Record / Settings / Advanced tabs, tray, single-instance guard). Phase 7 (Windows integration polish) is next. `docs/MODERNIZATION-PLAN.md` is authoritative for architecture, phases, and acceptance criteria — read it before proposing work, and keep it updated when decisions change. Each phase's **findings** blocks there record what was learned building it, and are usually the fastest way to understand why something is the way it is.
+**Current state: phases 0–6 are done** — recording pipeline, metadata (Last.fm and Spotify Web API, wired into recording and writing real tags and cover art), settings persistence, and the WPF shell (Record / Settings / Advanced tabs, tray, single-instance guard). Phase 7 (Windows integration polish) is next. `docs/MODERNIZATION-PLAN.md` is authoritative for architecture, phases, and acceptance criteria — read it before proposing work, and keep it updated when decisions change. Each phase's **findings** blocks there record what was learned building it, and are usually the fastest way to understand why something is the way it is.
 
 ## Offstream owns every name — this is the rule that gets broken by accident
 
@@ -23,6 +23,8 @@ Code carries over from the predecessor. **Names never do.** No namespace, type, 
 Plan §0 holds the full table, and regression suite 7 (§9.2) is a test that fails the build on a forbidden identifier.
 
 **There is no settings migration.** Offstream does not read `%LOCALAPPDATA%\Spytify\user.config` and ships no importer — clean slate with good first-run defaults (plan §6). Do not add one back.
+
+**Provider credentials are the user's, never ours.** The predecessor shipped three of its own Last.fm API keys hard-coded in its source and picked one at random per run. Offstream asks for a key (`metadata.lastFmApiKey`) and a Spotify Client ID on the Settings page instead. Do not embed a key, a client ID, or any other borrowed credential in this repo — a shared one is rate-limited collectively and revocable by someone who is not the user, and it is not ours to distribute.
 
 ## The app being retired is a reference, not a dependency
 

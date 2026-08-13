@@ -206,10 +206,31 @@
     <value>Client ID Spotify</value>
   </data>
   <data name="SettingsClientIdHint" xml:space="preserve">
-    <value>Celui de votre application sur le Spotify Developer Dashboard. La connexion arrivera avec le reste des métadonnées.</value>
+    <value>Celui de votre application sur le Spotify Developer Dashboard. Enregistrez http://127.0.0.1:4002/callback comme URI de redirection, puis connectez-vous ci-dessous.</value>
   </data>
   <data name="SettingsClientIdRequired" xml:space="preserve">
     <value>Saisissez un Client ID, ou choisissez une autre source ci-dessus.</value>
+  </data>
+  <data name="SettingsLastFmApiKeyLabel" xml:space="preserve">
+    <value>Clé API Last.fm</value>
+  </data>
+  <data name="SettingsLastFmApiKeyHint" xml:space="preserve">
+    <value>Créez-en une sur last.fm/api/account/create. C'est gratuit et rapide.</value>
+  </data>
+  <data name="SettingsLastFmApiKeyRequired" xml:space="preserve">
+    <value>Sans clé, rien ne sera étiqueté. Saisissez-en une, ou choisissez une autre source ci-dessus.</value>
+  </data>
+  <data name="SettingsSpotifySignIn" xml:space="preserve">
+    <value>Se connecter à Spotify</value>
+  </data>
+  <data name="SettingsSpotifySigningIn" xml:space="preserve">
+    <value>En attente du navigateur…</value>
+  </data>
+  <data name="SettingsSpotifySignedIn" xml:space="preserve">
+    <value>Connecté. Les enregistrements seront étiquetés depuis Spotify.</value>
+  </data>
+  <data name="SettingsSpotifyNotSignedIn" xml:space="preserve">
+    <value>Non connecté. Rien ne sera étiqueté tant que ce n'est pas fait.</value>
   </data>
   <data name="AdvancedNamingSection" xml:space="preserve">
     <value>Noms de fichiers</value>

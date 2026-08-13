@@ -10,13 +10,19 @@ namespace Offstream.Core.Encoding;
 /// <param name="BitrateKbps">Target bitrate, ignored by lossless formats.</param>
 /// <param name="Track">Track metadata to write as tags, or null to write none.</param>
 /// <param name="CoverArtPath">A local image to embed, or null.</param>
+/// <param name="TrackNumberOverride">
+/// Written into the track-number tag instead of the album position, for the "number the files"
+/// setting. Only the tag is affected — the <c>{track}</c> filename token keeps meaning the
+/// position within the album, which is what the reference implementation did too.
+/// </param>
 public sealed record EncodeRequest(
     string InputPath,
     string OutputPath,
     MediaFormat Format,
     int BitrateKbps,
     Track? Track = null,
-    string? CoverArtPath = null);
+    string? CoverArtPath = null,
+    int? TrackNumberOverride = null);
 
 /// <summary>
 /// Builds the ffmpeg argument vector for an <see cref="EncodeRequest"/>.
@@ -73,7 +79,8 @@ public static class FFmpegArguments
                 StringComparison.Ordinal));
         }
 
-        if (request.Track is not null) args.AddRange(MetadataArguments(request.Track));
+        if (request.Track is not null)
+            args.AddRange(MetadataArguments(request.Track, request.TrackNumberOverride));
 
         args.Add(request.OutputPath);
 
@@ -87,7 +94,12 @@ public static class FFmpegArguments
     /// Empty values are omitted rather than written blank: an empty tag displays as a blank
     /// field in players, whereas an absent one lets them fall back to the file name.
     /// </remarks>
-    public static IReadOnlyList<string> MetadataArguments(Track track)
+    /// <param name="track">The track to tag.</param>
+    /// <param name="trackNumberOverride">
+    /// Takes the place of <see cref="Track.AlbumPosition"/> in the track-number tag when the
+    /// "number the files" setting is on.
+    /// </param>
+    public static IReadOnlyList<string> MetadataArguments(Track track, int? trackNumberOverride = null)
     {
         ArgumentNullException.ThrowIfNull(track);
 
@@ -99,7 +111,7 @@ public static class FFmpegArguments
         Add("album_artist", track.AlbumArtists is { Length: > 0 } ? string.Join(", ", track.AlbumArtists) : null);
         Add("genre", track.Genres is { Length: > 0 } ? string.Join(", ", track.Genres) : null);
         Add("date", track.Year?.ToString(CultureInfo.InvariantCulture));
-        Add("track", track.AlbumPosition?.ToString(CultureInfo.InvariantCulture));
+        Add("track", (trackNumberOverride ?? track.AlbumPosition)?.ToString(CultureInfo.InvariantCulture));
         Add("disc", track.Disc?.ToString(CultureInfo.InvariantCulture));
 
         return args;

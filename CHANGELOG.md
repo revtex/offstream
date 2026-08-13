@@ -91,7 +91,18 @@ phase plan these entries follow.
 - **A single-instance guard that surfaces the running window** instead of exiting silently. The
   claim is per logon session and per data directory, so a second Windows user gets their own
   Offstream, and `OFFSTREAM_HOME` relocates settings for portable use and for the UI suite.
-- **771 tests**, 13 of which drive the real window through FlaUI and are excluded from CI.
+- **Metadata actually reaches the file.** A `Last.fm` provider (`LastFmMetadataProvider`) and the
+  existing Spotify one are selected from the settings, run against each track as it starts
+  recording, and joined immediately before the encode is queued — so album, track number, disc,
+  year, genre and album artists reach ffmpeg's `-metadata` arguments, and the cover art is fetched
+  to a temp file and embedded. Enrichment overlaps the recording rather than following it, is
+  bounded by a deadline, and can never fail a recording.
+- **Spotify sign-in, on the Settings page.** The Client ID identifies an app and grants nothing;
+  this is what produces the refresh token a recording session presents. Spotify rotates that token
+  on every renewal, and the replacement is written back.
+- **A Last.fm API key setting** (`metadata.lastFmApiKey`), the user's own. The predecessor shipped
+  three of its own keys hard-coded in its source and picked one at random per run.
+- **811 tests**, 13 of which drive the real window through FlaUI and are excluded from CI.
 
 ### Changed
 
@@ -172,6 +183,24 @@ phase plan these entries follow.
 - **The last chunk of a recording could be lost on a fast track change.** Two recorders share one
   capture buffer across a change, and the incoming one discarded its contents without waiting for
   the outgoing one to finish reading its own tail out of it.
+- **No metadata was written to any recording.** The provider dropdown was read, validated and
+  saved, and then consulted by nobody: the recorder built its encode request straight from the
+  `Track` scraped from the Spotify window title, so every file carried an artist and a title and
+  nothing else. `SpotifyMetadataProvider` existed but nothing resolved it, no Last.fm provider
+  class existed at all, and the cover-art path was always null because nothing fetched the art.
+- **The Spotify provider could never have worked**, whatever was configured. Nothing resolved
+  `SpotifyAuthenticator`, so no refresh token was ever obtained, so a session had nothing to
+  present to the API.
+- **AAC output was named `.aac` but was an m4a file.** The file name came from the lower-cased
+  enum member while the encoding profile writes an MP4 container, producing a file Windows and
+  most players refuse to open. The extension now comes from the profile.
+- **The file counter restarted at 1 on every run.** The session increments it as recordings land,
+  on its own working copy of the settings, and nothing wrote it back — so each night's recordings
+  landed on the previous night's names and the "have I already recorded this?" check answered for
+  the wrong file.
+- **The "write the counter to the track number" setting did nothing.** It is now applied to the
+  tag, without disturbing the `{track}` filename token, which keeps meaning the position within
+  the album.
 
 ### Security
 

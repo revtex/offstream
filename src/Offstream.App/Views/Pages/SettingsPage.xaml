@@ -204,6 +204,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0"
@@ -225,10 +226,41 @@
                               SelectedValuePath="Value" />
 
                     <!--
-                        The Client ID only exists for one of the providers, so the row is absent
-                        rather than disabled for the other two - it is not a setting they have.
+                        Each provider's credential row is absent for the others rather than
+                        disabled: it is not a setting they have.
                     -->
                     <TextBlock Grid.Row="1"
+                               Grid.Column="0"
+                               Margin="0,16,16,0"
+                               VerticalAlignment="Center"
+                               Style="{StaticResource BodyTextBlockStyle}"
+                               Text="{x:Static res:Strings.SettingsLastFmApiKeyLabel}"
+                               TextWrapping="Wrap"
+                               Visibility="{Binding IsLastFmProvider, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+
+                    <StackPanel Grid.Row="1"
+                                Grid.Column="1"
+                                Width="360"
+                                Margin="0,16,0,0"
+                                Visibility="{Binding IsLastFmProvider, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                        <ui:TextBox x:Name="LastFmApiKeyBox"
+                                    AutomationProperties.AutomationId="SettingsLastFmApiKey"
+                                    AutomationProperties.Name="{x:Static res:Strings.SettingsLastFmApiKeyLabel}"
+                                    Text="{Binding LastFmApiKey, Mode=TwoWay}" />
+
+                        <!--
+                            A warning, not a validation error: Last.fm is the default provider, so
+                            a fresh install lands here untouched, and an error would block saving
+                            every unrelated setting until a key was pasted in.
+                        -->
+                        <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}"
+                                   Text="{x:Static res:Strings.SettingsLastFmApiKeyRequired}"
+                                   Visibility="{Binding NeedsLastFmApiKey, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+
+                        <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.SettingsLastFmApiKeyHint}" />
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="2"
                                Grid.Column="0"
                                Margin="0,16,16,0"
                                VerticalAlignment="Center"
@@ -237,7 +269,7 @@
                                TextWrapping="Wrap"
                                Visibility="{Binding IsSpotifyProvider, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
 
-                    <StackPanel Grid.Row="1"
+                    <StackPanel Grid.Row="2"
                                 Grid.Column="1"
                                 Width="360"
                                 Margin="0,16,0,0"
@@ -248,6 +280,23 @@
                                     Text="{Binding SpotifyClientId, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
                         <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=ClientIdBox, Path=(Validation.Errors)/ErrorContent}" />
                         <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.SettingsClientIdHint}" />
+
+                        <!--
+                            The Client ID identifies the app; it grants nothing. This button is
+                            what actually produces the token a recording presents, which is why
+                            the status line under it says plainly whether one exists.
+                        -->
+                        <ui:Button Margin="0,12,0,0"
+                                   AutomationProperties.AutomationId="SettingsSpotifySignIn"
+                                   Command="{Binding SignInToSpotifyCommand, Mode=OneTime}"
+                                   Content="{x:Static res:Strings.SettingsSpotifySignIn}" />
+
+                        <TextBlock Style="{StaticResource OffstreamHintStyle}"
+                                   Text="{Binding SpotifyAccountStatus, Mode=OneWay}" />
+
+                        <TextBlock Style="{StaticResource OffstreamHintStyle}"
+                                   Text="{x:Static res:Strings.SettingsSpotifySigningIn}"
+                                   Visibility="{Binding IsSigningInToSpotify, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
                     </StackPanel>
                 </Grid>
             </ui:Card>

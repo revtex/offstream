@@ -44,13 +44,31 @@ public sealed class SettingsDocument
     public OffstreamSettings Current { get; private set; }
 
     /// <summary>Why the file could not be read, or null. The shell shows this at startup.</summary>
-    public string? LoadProblem { get; }
+    public string? LoadProblem { get; private set; }
 
     /// <summary>Where the file lives, for the "settings are stored here" line on the page.</summary>
     public string Path => _store.Path;
 
     /// <summary>Raised after a change is written, so the other page can pick it up.</summary>
     public event EventHandler? Changed;
+
+    /// <summary>Re-reads the file, replacing <see cref="Current"/> and <see cref="LoadProblem"/>.</summary>
+    /// <remarks>
+    /// Called when a recording session starts, for two reasons. It is what makes a settings file
+    /// corrected outside the app — or corrected and re-saved after the shell reported a problem
+    /// at startup — usable without a restart. And it means the counter the session is about to
+    /// increment, and the Spotify token it may rotate, are written back onto what is actually on
+    /// disk rather than onto a copy read when the window opened.
+    /// </remarks>
+    public OffstreamSettings Reload()
+    {
+        Current = _store.LoadOrDefault(out var problem);
+        LoadProblem = problem;
+
+        Changed?.Invoke(this, EventArgs.Empty);
+
+        return Current;
+    }
 
     /// <summary>Applies a change and writes it.</summary>
     /// <param name="change">Produces the new settings from the current ones.</param>

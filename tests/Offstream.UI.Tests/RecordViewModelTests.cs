@@ -275,7 +275,7 @@ public sealed class RecordViewModelTests
         new(sink ?? new InMemoryLogSink(), ControllerFor(factory));
 
     private static RecordingController ControllerFor(FakeSessionFactory? factory = null) =>
-        new(factory ?? new FakeSessionFactory(), RecordingFakes.Store());
+        new(factory ?? new FakeSessionFactory(), RecordingFakes.Document());
 
     private static Logger LoggerFor(InMemoryLogSink sink) =>
         new LoggerConfiguration().MinimumLevel.Debug().WriteTo.Sink(sink).CreateLogger();

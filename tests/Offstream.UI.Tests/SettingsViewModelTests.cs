@@ -5,6 +5,7 @@ using Offstream.Core.Audio;
 using Offstream.Core.Encoding;
 using Offstream.Core.Metadata;
 using Offstream.Core.Settings;
+using Offstream.Core.Spotify.Auth;
 using Xunit;
 
 namespace Offstream.UI.Tests;
@@ -289,6 +290,115 @@ public sealed class SettingsViewModelTests
         var saved = SettingsFakes.Reload(fileSystem).Metadata;
         Assert.Equal(MetadataProvider.Spotify, saved.Provider);
         Assert.Equal("0123456789abcdef", saved.SpotifyClientId);
+    }
+
+    /// <summary>
+    /// Last.fm is the default provider, so a fresh install lands on it with no key. A missing key
+    /// is therefore a warning, not a validation error — an error would block saving the output
+    /// folder, the format and everything else on a first run, because a save is refused whenever
+    /// any field is in error.
+    /// </summary>
+    [Fact]
+    public void LastFmApiKey_WhenMissing_WarnsWithoutBlockingOtherSettings()
+    {
+        var fileSystem = new MockFileSystem();
+        var viewModel = SettingsFakes.Settings(SettingsFakes.Document(fileSystem));
+
+        Assert.True(viewModel.IsLastFmProvider);
+        Assert.True(viewModel.NeedsLastFmApiKey);
+        Assert.False(viewModel.HasErrors);
+
+        viewModel.OutputPath = @"E:\Captures";
+
+        Assert.Equal(@"E:\Captures", SettingsFakes.Reload(fileSystem).Output.Path);
+    }
+
+    [Fact]
+    public void LastFmApiKey_ReachesTheFileAndClearsTheWarning()
+    {
+        var fileSystem = new MockFileSystem();
+        var viewModel = SettingsFakes.Settings(SettingsFakes.Document(fileSystem));
+
+        viewModel.LastFmApiKey = "  0123456789abcdef  ";
+
+        Assert.False(viewModel.NeedsLastFmApiKey);
+        Assert.Equal("0123456789abcdef", SettingsFakes.Reload(fileSystem).Metadata.LastFmApiKey);
+    }
+
+    /// <summary>The key is not Spotify's problem, and vice versa.</summary>
+    [Fact]
+    public void LastFmApiKey_WhenAnotherProviderIsChosen_IsNotWarnedAbout()
+    {
+        var viewModel = SettingsFakes.Settings(SettingsFakes.Document());
+
+        viewModel.Provider = MetadataProvider.None;
+
+        Assert.False(viewModel.NeedsLastFmApiKey);
+    }
+
+    /// <summary>
+    /// The sign-in is what makes the Spotify provider work at all: the Client ID identifies an
+    /// app, and grants nothing on its own.
+    /// </summary>
+    [Fact]
+    public async Task SignInToSpotify_StoresTheRefreshToken()
+    {
+        var fileSystem = new MockFileSystem();
+        var account = new FakeSpotifyAccount { RefreshToken = "a-refresh-token" };
+        var document = SettingsFakes.Document(fileSystem);
+        var viewModel = SettingsFakes.Settings(document, spotifyAccount: account);
+
+        viewModel.Provider = MetadataProvider.Spotify;
+        viewModel.SpotifyClientId = " 0123456789abcdef ";
+
+        await viewModel.SignInToSpotifyCommand.ExecuteAsync(null);
+
+        Assert.Equal("0123456789abcdef", account.SignedInWith);
+        Assert.True(viewModel.IsSignedInToSpotify);
+
+        // Asserted on the document rather than on the file: the token goes through
+        // ISecretProtector on the way to disk, and these fakes protect with a stub.
+        Assert.Equal("a-refresh-token", document.Current.Metadata.SpotifyRefreshToken);
+        Assert.Equal(MetadataProvider.Spotify, SettingsFakes.Reload(fileSystem).Metadata.Provider);
+    }
+
+    /// <summary>
+    /// The user is standing at the browser waiting to find out whether it worked, so a declined
+    /// or abandoned sign-in says so on the page rather than only in the log.
+    /// </summary>
+    [Fact]
+    public async Task SignInToSpotify_WhenDeclined_SaysSoOnThePage()
+    {
+        var account = new FakeSpotifyAccount
+        {
+            SignInFailure = new SpotifyAuthException("Spotify declined the sign-in: access_denied"),
+        };
+
+        var viewModel = SettingsFakes.Settings(SettingsFakes.Document(), spotifyAccount: account);
+
+        viewModel.Provider = MetadataProvider.Spotify;
+        viewModel.SpotifyClientId = "0123456789abcdef";
+
+        await viewModel.SignInToSpotifyCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.IsSignedInToSpotify);
+        Assert.True(viewModel.HasSaveProblem);
+        Assert.Contains("access_denied", viewModel.SaveProblem, StringComparison.Ordinal);
+    }
+
+    /// <summary>Signing in without an app to sign in to is not an offer worth making.</summary>
+    [Fact]
+    public void SignInToSpotify_WithoutAClientId_CannotBeStarted()
+    {
+        var viewModel = SettingsFakes.Settings(SettingsFakes.Document());
+
+        Assert.False(viewModel.SignInToSpotifyCommand.CanExecute(null));
+
+        viewModel.Provider = MetadataProvider.Spotify;
+        Assert.False(viewModel.SignInToSpotifyCommand.CanExecute(null));
+
+        viewModel.SpotifyClientId = "0123456789abcdef";
+        Assert.True(viewModel.SignInToSpotifyCommand.CanExecute(null));
     }
 
     /// <summary>A Client ID left over from Spotify is not an error once another provider is chosen.</summary>
