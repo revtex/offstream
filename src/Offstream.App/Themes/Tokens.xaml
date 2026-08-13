@@ -79,6 +79,30 @@
         <GradientStop Offset="1" Color="#B6BDB5" />
     </LinearGradientBrush>
 
+    <!--
+        The meter's colour, and the one place the display is not monochrome.
+
+        Read it as pigment, not as light: these are the muted inks a colour e-paper panel can hold,
+        chosen to sit on the pale grey ground above rather than to glow off it. A saturated LED
+        palette would make the meter the brightest object in the window and turn an instrument face
+        into a toy.
+
+        The stops are placed on the decibel scale, not spaced evenly. Position is
+        (dB + 50) / 50, so 0.40 is −30 dB, 0.76 is −12 dB and 0.88 is −6 dB — which is why the warm
+        half of the spectrum is compressed into the right quarter. That is where the numbers matter:
+        the last twelve decibels before clipping are the ones a recordist is watching, and giving
+        them their own colours is what makes a glance enough.
+    -->
+    <LinearGradientBrush x:Key="OffstreamLcdSpectrumBrush" StartPoint="0,0" EndPoint="1,0">
+        <GradientStop Offset="0" Color="#3A6EA5" />
+        <GradientStop Offset="0.22" Color="#2F8C8C" />
+        <GradientStop Offset="0.44" Color="#4E9455" />
+        <GradientStop Offset="0.62" Color="#8E9B3C" />
+        <GradientStop Offset="0.76" Color="#C2992F" />
+        <GradientStop Offset="0.88" Color="#BE7134" />
+        <GradientStop Offset="1" Color="#A63A31" />
+    </LinearGradientBrush>
+
     <DrawingBrush x:Key="OffstreamLcdScanlineBrush"
                   TileMode="Tile"
                   Viewport="0,0,2,3"

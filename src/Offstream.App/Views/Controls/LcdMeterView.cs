@@ -211,6 +211,34 @@ public sealed class LcdMeterView : FrameworkElement
         typeof(LcdMeterView),
         new PropertyMetadata(Brushes.Black, OnAppearanceChanged));
 
+    /// <summary>
+    /// Colours the bars across the decibel scale — cool at the floor, warm at clipping.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The gradient is keyed to the scale, not to the bar.</b> A cell's colour says where on the
+    /// ruler it sits, so a signal at −20&#160;dB is the same green whether it is peaking there or
+    /// passing through. Painting the lit rectangle with an ordinary brush would stretch the whole
+    /// spectrum into whatever the bar currently measures, which would put clipping red on a bar
+    /// that is nowhere near clipping. <see cref="RemapToScale"/> pins the gradient to the grid's
+    /// own pixels to prevent exactly that.
+    /// </para>
+    /// <para>
+    /// The palette is pigment rather than light — the muted inks of a colour e-paper panel, not the
+    /// saturated LEDs of a rack meter. It has to sit on a pale grey ground and stay readable, and
+    /// the display is meant to look like something printed and held rather than something lit.
+    /// </para>
+    /// <para>
+    /// Null falls back to <see cref="SegmentBrush"/>, which is the monochrome display this started
+    /// as.
+    /// </para>
+    /// </remarks>
+    public static readonly DependencyProperty SpectrumBrushProperty = DependencyProperty.Register(
+        nameof(SpectrumBrush),
+        typeof(Brush),
+        typeof(LcdMeterView),
+        new PropertyMetadata(null, OnSpectrumChanged));
+
     public static readonly DependencyProperty InkBrushProperty = DependencyProperty.Register(
         nameof(InkBrush),
         typeof(Brush),
@@ -252,6 +280,11 @@ public sealed class LcdMeterView : FrameworkElement
     private DrawingBrush? _cellMask;
     private double _maskPitch;
     private bool _running;
+
+    /// <summary>The spectrum pinned to the current grid, and the grid it was pinned to.</summary>
+    private Brush? _scaledSpectrum;
+    private double _spectrumLeft;
+    private double _spectrumWidth;
 
     /// <summary>What the text layer was last drawn for, so it can be skipped when nothing moved.</summary>
     private string _drawnReadout = string.Empty;
@@ -318,11 +351,18 @@ public sealed class LcdMeterView : FrameworkElement
         set => SetValue(GhostBrushProperty, value);
     }
 
-    /// <summary>Lit cells and the peak marker.</summary>
+    /// <summary>Lit cells and the peak marker, when no <see cref="SpectrumBrush"/> is set.</summary>
     public Brush SegmentBrush
     {
         get => (Brush)GetValue(SegmentBrushProperty);
         set => SetValue(SegmentBrushProperty, value);
+    }
+
+    /// <inheritdoc cref="SpectrumBrushProperty"/>
+    public Brush? SpectrumBrush
+    {
+        get => (Brush?)GetValue(SpectrumBrushProperty);
+        set => SetValue(SpectrumBrushProperty, value);
     }
 
     /// <summary>The ruler, its numbers, and the channel letters.</summary>
@@ -387,6 +427,15 @@ public sealed class LcdMeterView : FrameworkElement
         view._cellMask = null;
         view._maskPitch = 0;
         view._textDirty = true;
+        view.Redraw();
+    }
+
+    private static void OnSpectrumChanged(DependencyObject sender, DependencyPropertyChangedEventArgs e)
+    {
+        var view = (LcdMeterView)sender;
+
+        view._scaledSpectrum = null;
+        view._spectrumWidth = 0;
         view.Redraw();
     }
 
@@ -522,7 +571,7 @@ public sealed class LcdMeterView : FrameworkElement
     {
         var gridWidth = cells * pitch;
         var gap = Math.Max(1, Math.Round(pitch * CellGapRatio));
-
+        var lit = LitBrush(barLeft, gridWidth);
 
         using var context = _barsVisual.RenderOpen();
 
@@ -545,20 +594,22 @@ public sealed class LcdMeterView : FrameworkElement
 
             // Whole cells only. A segment meter that lights half a cell is a bar with stripes on
             // it; the quantisation is what makes the eye read discrete steps.
-            var lit = _displayed[row] > 0 ? Math.Max(1, (int)(_displayed[row] * cells)) : 0;
+            var cellsLit = _displayed[row] > 0 ? Math.Max(1, (int)(_displayed[row] * cells)) : 0;
 
-            if (lit > 0)
+            if (cellsLit > 0)
             {
                 context.DrawRectangle(
-                    SegmentBrush, pen: null, new Rect(barLeft, top, lit * pitch, BarHeight));
+                    lit, pen: null, new Rect(barLeft, top, cellsLit * pitch, BarHeight));
             }
 
             if (_peaks[row] > 0)
             {
                 var cell = Math.Clamp((int)(_peaks[row] * cells), 0, cells - 1);
 
+                // Painted from the same scale-pinned brush, so a held peak carries the colour of
+                // the decibel it is holding at rather than a colour of its own.
                 context.DrawRectangle(
-                    SegmentBrush,
+                    lit,
                     pen: null,
                     new Rect(barLeft + (cell * pitch), top, pitch - gap, BarHeight));
             }
@@ -663,6 +714,60 @@ public sealed class LcdMeterView : FrameworkElement
             size,
             brush,
             VisualTreeHelper.GetDpi(this).PixelsPerDip);
+
+    /// <summary>
+    /// What lit cells are painted in: the spectrum pinned to the grid, or the plain segment brush.
+    /// </summary>
+    /// <remarks>
+    /// Cached against the grid it was built for. The gradient is rebuilt on a resize and on
+    /// nothing else — sampling at 30&#160;Hz must not allocate a brush per frame.
+    /// </remarks>
+    private Brush LitBrush(double barLeft, double gridWidth)
+    {
+        if (SpectrumBrush is not { } spectrum) return SegmentBrush;
+
+        if (_scaledSpectrum is not null && _spectrumLeft == barLeft && _spectrumWidth == gridWidth)
+        {
+            return _scaledSpectrum;
+        }
+
+        _scaledSpectrum = RemapToScale(spectrum, barLeft, gridWidth);
+        _spectrumLeft = barLeft;
+        _spectrumWidth = gridWidth;
+
+        return _scaledSpectrum;
+    }
+
+    /// <summary>
+    /// Pins a gradient to the grid's pixels, so its stops mean decibels rather than proportions.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A brush with the default relative mapping is stretched across the bounding box of whatever
+    /// it fills, which for a level meter is the reading itself — so the bar would run the full
+    /// spectrum at every height and clipping red would appear on a signal at −40&#160;dB. Absolute
+    /// mapping across the whole grid makes a cell's colour a function of its position on the ruler,
+    /// which is the only reading that means anything.
+    /// </para>
+    /// <para>
+    /// Anything that is not a <see cref="LinearGradientBrush"/> is used as it comes: a solid colour
+    /// has no mapping to fix, and a caller who supplies something more exotic has said what they
+    /// want.
+    /// </para>
+    /// </remarks>
+    private static Brush RemapToScale(Brush brush, double left, double width)
+    {
+        if (brush is not LinearGradientBrush gradient) return brush;
+
+        var pinned = gradient.Clone();
+
+        pinned.MappingMode = BrushMappingMode.Absolute;
+        pinned.StartPoint = new Point(left, 0);
+        pinned.EndPoint = new Point(left + width, 0);
+        pinned.Freeze();
+
+        return pinned;
+    }
 
     /// <summary>One vertical stripe of panel colour, tiled at the cell pitch.</summary>
     private DrawingBrush BuildCellMask(double pitch, double gap)

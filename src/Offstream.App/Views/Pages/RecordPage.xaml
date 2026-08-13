@@ -213,7 +213,8 @@
                                        MaskBrush="{StaticResource OffstreamLcdPanelBrush}"
                                        PanelBrush="Transparent"
                                        SegmentBrush="{StaticResource OffstreamLcdSegmentBrush}"
-                                       ShowReadout="False" />
+                                       ShowReadout="False"
+                                       SpectrumBrush="{StaticResource OffstreamLcdSpectrumBrush}" />
 
                 <!--
                     The scanlines go over everything, last child and spanning every row, because

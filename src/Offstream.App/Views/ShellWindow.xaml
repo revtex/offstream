@@ -119,18 +119,32 @@
                         <TextBlock VerticalAlignment="Center" Text="{x:Static res:Strings.NavRecord}" />
 
                         <!--
-                            The recording badge. It is on the tab rather than beside the button
+                            The recording lamp. It is on the tab rather than beside the button
                             because it answers a question asked from the other two tabs: a session
                             keeps running while the user is editing settings, and this is the only
                             thing on those screens that says so.
+
+                            Always present, and it changes colour rather than appearing: a lamp
+                            that is dark when nothing is running is a lamp, and one that is only
+                            there sometimes is a layout that moves. Red is the app's recording
+                            colour, spent here and on the Stop button and nowhere else.
                         -->
                         <Border Width="18"
                                 Height="8"
                                 Margin="8,1,0,0"
                                 VerticalAlignment="Center"
-                                Background="{StaticResource OffstreamAccentBrush}"
-                                CornerRadius="4"
-                                Visibility="{Binding IsRecording, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                                CornerRadius="4">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="{StaticResource OffstreamSurfaceBorderBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsRecording, Mode=OneWay}" Value="True">
+                                            <Setter Property="Background" Value="{StaticResource OffstreamRecordingBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                        </Border>
                     </StackPanel>
                 </RadioButton>
 
@@ -173,8 +187,25 @@
             <Grid Grid.Column="1"
                   Margin="16,0,0,10"
                   VerticalAlignment="Bottom"
-                  DataContext="{Binding Record}"
-                  Visibility="{Binding DataContext.IsRecordTab, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BooleanToVisibility}}">
+                  DataContext="{Binding Record}">
+
+                <!--
+                    Hidden, never collapsed. Collapsing takes the button out of the measure as
+                    well as out of the picture, and it is the tallest thing in this row — so the
+                    whole tab strip stepped up on the way to Settings and back down on the way to
+                    Record. Reserving the space costs nothing and stops the header moving.
+                -->
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Visibility" Value="Hidden" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding DataContext.IsRecordTab, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+
                 <Button AutomationProperties.AutomationId="RecordStartButton"
                         Command="{Binding StartCommand}"
                         Style="{StaticResource OffstreamTransportButtonStyle}"
