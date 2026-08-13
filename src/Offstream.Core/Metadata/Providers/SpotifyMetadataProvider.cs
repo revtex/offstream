@@ -139,9 +139,13 @@ public sealed class SpotifyMetadataProvider(ISpotifyClient client, SpotifyPollin
                 return false;
 
             case HttpStatusCode.Forbidden:
+                // Spotify returns 403 both for a missing permission and for an app that has run
+                // past the user quota its dashboard mode allows, and the body is the only thing
+                // that tells them apart — which is why the message is quoted rather than replaced.
                 Log.Warning(
                     "Spotify refused the request for {Track} ({Message}). This usually means the "
-                    + "signed-in account lacks the permission the app asked for.",
+                    + "signed-in account is not on the dashboard app's allowlist, or the app has "
+                    + "reached its user quota.",
                     track,
                     ex.Message);
 
@@ -149,10 +153,11 @@ public sealed class SpotifyMetadataProvider(ISpotifyClient client, SpotifyPollin
 
             case HttpStatusCode.TooManyRequests:
                 // Only reachable once SpotifyRetryHandler has waited out every Retry-After it was
-                // given, so the throttle has outlasted the enrichment deadline.
+                // given, so the throttle has outlasted the enrichment deadline. The handler has
+                // already said how long it waited; this adds the consequence.
                 Log.Warning(
-                    "Spotify is still rate-limiting Offstream after several waits; {Track} is "
-                    + "recorded untagged.",
+                    "Spotify's rate limit is still in force, so {Track} is recorded untagged. "
+                    + "Recording itself is unaffected.",
                     track);
 
                 return false;

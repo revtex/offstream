@@ -711,6 +711,22 @@ invisible at compile time and both silent at runtime.
   signed-out state and puts the sign-in button in front of the user. **Only a 401 does this** —
   treating a rate limit or an outage as an expired token would sign the user out over a transient
   fault, and there is a test for each.
+- **Being throttled is logged as a warning, and that level is the feature.** The first cut logged
+  it at `Debug`, which is invisible: the Record page's activity log shows Information and above by
+  default, so the one condition a user most needs explained — files coming out untagged — was
+  reported only to whoever thought to switch the filter to "All". 429 is now a `Warning` naming the
+  wait Spotify asked for; a throttle that outlasts the retry budget gets a second, louder line
+  saying the lookup was abandoned and that recording itself is unaffected. Transient 5xx stays at
+  `Information` on purpose: it usually clears on the next attempt, and promoting it would make the
+  Problems filter noisy enough to stop being read.
+- **Quota and rate limit are different failures and read differently.** A 429 is Spotify throttling
+  request rate; a 403 can mean the signed-in account is not on the dashboard app's allowlist *or*
+  that the app has run past the user quota its mode allows. The body is the only thing that
+  distinguishes them, so it is quoted rather than replaced.
+- **The retry handler takes its logger the way it takes its delay.** `Log.Logger` is static, so
+  asserting on these lines by reassigning it would leak into every test running beside it. Injecting
+  `ILogger` keeps the log assertions honest and resolves per call, so production picks up whatever
+  Serilog is configured with rather than whatever existed when the client was built.
 - **The API's own error message is the user-facing one.** Spotify sends a reason in the error body
   and the SDK surfaces it as `Exception.Message`; that beats anything writable from a status code
   alone. These land in the Record page's activity log, so the wording is the user's answer rather
@@ -724,7 +740,7 @@ invisible at compile time and both silent at runtime.
 - **No deprecated endpoint is in use**, and none of the rule sheet's named ones (`/playlists/{id}/tracks`,
   the type-specific library endpoints) is reachable from anything Offstream does.
 
-**899 tests green** (731 core + 168 UI), up from 864: 21 for the retry schedule — asserted on the
+**906 tests green** (738 core + 168 UI), up from 864: 28 for the retry schedule and what it reports — asserted on the
 intervals it *produces*, with the delay function injected so no test spends one — plus the provider's
 error paths and the scope list.
 

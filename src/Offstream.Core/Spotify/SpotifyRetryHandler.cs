@@ -55,13 +55,28 @@ public sealed class SpotifyRetryHandler : IRetryHandler
     ];
 
     private readonly Func<TimeSpan, CancellationToken, Task> _delay;
+    private readonly ILogger? _logger;
 
     /// <param name="delay">
     /// How to wait. Injectable so tests can assert the schedule without spending it — the
     /// recording pipeline always takes the default.
     /// </param>
-    public SpotifyRetryHandler(Func<TimeSpan, CancellationToken, Task>? delay = null) =>
+    /// <param name="logger">
+    /// Where to report throttling. Injectable for the same reason as <paramref name="delay"/>:
+    /// these lines are a feature, so they are asserted, and reassigning the static
+    /// <see cref="Log.Logger"/> from a test would leak into every other test running beside it.
+    /// </param>
+    public SpotifyRetryHandler(Func<TimeSpan, CancellationToken, Task>? delay = null, ILogger? logger = null)
+    {
         _delay = delay ?? Task.Delay;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Resolved per call rather than captured, so the handler picks up whatever Serilog is
+    /// configured with by the time a request runs, not whatever existed when it was built.
+    /// </summary>
+    private ILogger Logger => _logger ?? Log.Logger;
 
     /// <summary>The first backoff step. Doubles per attempt.</summary>
     public TimeSpan InitialBackoff { get; init; } = DefaultInitialBackoff;
@@ -82,39 +97,103 @@ public sealed class SpotifyRetryHandler : IRetryHandler
         ArgumentNullException.ThrowIfNull(response);
         ArgumentNullException.ThrowIfNull(retry);
 
+        var waited = TimeSpan.Zero;
+
         for (var attempt = 1; attempt <= MaximumRetries; attempt++)
         {
             var wait = DelayFor(response, attempt);
 
             if (wait is not { } interval) return response;
 
-            Log.Debug(
-                "Spotify answered {Status}; waiting {Seconds:F1}s before attempt {Attempt} of {Total}.",
-                (int)response.StatusCode,
-                interval.TotalSeconds,
-                attempt + 1,
-                MaximumRetries + 1);
+            Announce(response, interval, attempt);
+            waited += interval;
 
             await _delay(interval, cancel);
 
             response = await retry(request, cancel);
         }
 
+        // The budget is spent. If the last answer is one we would still have retried, the caller
+        // is about to see a failure caused by a condition that outlasted us, and that is worth
+        // saying plainly rather than leaving them to infer it from a bare status code.
+        if (IsRateLimited(response) || IsTransientFault(response)) AnnounceGivingUp(response, waited);
+
         return response;
+    }
+
+    /// <summary>
+    /// Says that a wait is happening, and why.
+    /// </summary>
+    /// <remarks>
+    /// <b>Rate limiting is a warning, not a debug line.</b> It is a real condition with a real
+    /// consequence — tags missing from files the user is about to keep — and the Record page's
+    /// activity log shows Information and above by default, so anything quieter is invisible to
+    /// everyone who has not gone looking for it. Transient server faults stay at Information: they
+    /// are Spotify having a moment, they usually clear on the next attempt, and promoting them
+    /// would make the Problems filter noisy enough to stop being read.
+    /// </remarks>
+    private void Announce(IResponse response, TimeSpan interval, int attempt)
+    {
+        if (IsRateLimited(response))
+        {
+            Logger.Warning(
+                "Spotify is rate-limiting Offstream. Waiting {Seconds:F0}s as instructed before "
+                + "retry {Attempt} of {Total}.",
+                interval.TotalSeconds,
+                attempt,
+                MaximumRetries);
+
+            return;
+        }
+
+        Logger.Information(
+            "Spotify answered {Status}. Waiting {Seconds:F0}s before retry {Attempt} of {Total}.",
+            (int)response.StatusCode,
+            interval.TotalSeconds,
+            attempt,
+            MaximumRetries);
+    }
+
+    private void AnnounceGivingUp(IResponse response, TimeSpan waited)
+    {
+        if (IsRateLimited(response))
+        {
+            Logger.Warning(
+                "Spotify is still rate-limiting Offstream after {Retries} retries and {Seconds:F0}s "
+                + "of waiting. This lookup is being abandoned; recordings will keep working but may "
+                + "go untagged until the limit clears.",
+                MaximumRetries,
+                waited.TotalSeconds);
+
+            return;
+        }
+
+        Logger.Warning(
+            "Spotify is still answering {Status} after {Retries} retries and {Seconds:F0}s of "
+            + "waiting. This lookup is being abandoned.",
+            (int)response.StatusCode,
+            MaximumRetries,
+            waited.TotalSeconds);
     }
 
     /// <summary>How long to wait before <paramref name="attempt"/>, or null to stop retrying.</summary>
     private TimeSpan? DelayFor(IResponse response, int attempt)
     {
-        if (response.StatusCode == HttpStatusCode.TooManyRequests)
+        if (IsRateLimited(response))
         {
             // Spotify's own instruction wins. It is measured in seconds and can legitimately be
             // large; the caller's deadline is what bounds the total, not a number invented here.
             return Cap(RetryAfter(response) ?? Backoff(attempt));
         }
 
-        return Array.IndexOf(TransientFaults, response.StatusCode) >= 0 ? Cap(Backoff(attempt)) : null;
+        return IsTransientFault(response) ? Cap(Backoff(attempt)) : null;
     }
+
+    private static bool IsRateLimited(IResponse response) =>
+        response.StatusCode == HttpStatusCode.TooManyRequests;
+
+    private static bool IsTransientFault(IResponse response) =>
+        Array.IndexOf(TransientFaults, response.StatusCode) >= 0;
 
     /// <summary>Doubles from <see cref="InitialBackoff"/>: 1s, 2s, 4s, 8s.</summary>
     private TimeSpan Backoff(int attempt) => InitialBackoff * Math.Pow(2, attempt - 1);
