@@ -4,6 +4,7 @@
                     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
     <conv:EnumToBooleanConverter x:Key="EnumToBoolean" />
+    <conv:UpperCaseConverter x:Key="UpperCase" />
 
     <!--
         Offstream's design tokens: the values every page reuses so spacing and colour are a
@@ -158,28 +159,67 @@
         preferences dialog that happens to be bundled with it. Values stay in the UI face, so the
         two halves of a row are told apart by more than position.
     -->
+    <!--
+        Field labels sit above their control, not beside it.
+
+        Beside it is what the mockup showed and what the first build did, and at this window width
+        it failed badly: the label went hard left, the control hard right, and six hundred pixels
+        of nothing sat between them, so nothing on the page said which value belonged to which
+        name. Stacking closes that gap to four pixels at any width and lets the control take the
+        whole column, which is where the wasted space went.
+    -->
     <Style x:Key="OffstreamFieldLabelStyle" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource OffstreamMonoFontFamily}" />
-        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontSize" Value="12.5" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
-
-        <!--
-            Top-aligned with a nudge, not centred. On a one-control row the nudge lands the text
-            on the control's own centre line anyway; on a row whose control carries a hint or a
-            validation message under it, centring pushed the label halfway down a stack and left
-            it pointing at nothing. Wrapped rather than trimmed for the same reason — a label
-            ending in an ellipsis is a setting the user has to click to identify.
-        -->
-        <Setter Property="VerticalAlignment" Value="Top" />
-        <Setter Property="Margin" Value="0,7,0,0" />
+        <Setter Property="Margin" Value="0,0,0,4" />
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
-    <Style x:Key="OffstreamGroupHeaderStyle" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="{StaticResource OffstreamMonoFontFamily}" />
-        <Setter Property="FontSize" Value="15" />
-        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
-        <Setter Property="Margin" Value="0,0,0,8" />
+    <!--
+        A section band: an accent tick, the name in small caps, and a rule running out to the edge.
+
+        The rule is the working part. Sections used to be a line of text with a separate separator
+        above them, which read as two unrelated pieces of furniture; carrying the rule inside the
+        header ties the label to the span it introduces and means a section is one element in the
+        markup as well as one thing on the page. Upper case rather than a bigger size, because a
+        band that is heavier than the settings under it starts competing with them.
+    -->
+    <Style x:Key="OffstreamGroupHeaderStyle" TargetType="ContentControl">
+        <Setter Property="Margin" Value="0,4,0,12" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContentControl">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Width="3"
+                                Height="13"
+                                VerticalAlignment="Center"
+                                Background="{StaticResource OffstreamAccentBrush}"
+                                CornerRadius="1.5" />
+
+                        <TextBlock Grid.Column="1"
+                                   Margin="9,0,12,0"
+                                   VerticalAlignment="Center"
+                                   FontFamily="{StaticResource OffstreamMonoFontFamily}"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                   Text="{Binding Content, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource UpperCase}}" />
+
+                        <Border Grid.Column="2"
+                                Height="1"
+                                VerticalAlignment="Center"
+                                Background="{StaticResource OffstreamRowSeparatorBrush}" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <!--
