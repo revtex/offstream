@@ -118,7 +118,39 @@ public sealed class RecordingSessionFactory(
 
         return new TrackEnricher(
             CreateProvider(settings, httpClient),
-            new CoverArtFetcher(httpClient, _fileSystem));
+            new CoverArtFetcher(httpClient, _fileSystem),
+            deadline: null,
+            CreateGenreFallback(settings, httpClient));
+    }
+
+    /// <summary>
+    /// The second source for genre, or null when there is nothing to fall back to.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Only for Spotify, and only when a Last.fm key is already configured. Spotify has no genre
+    /// on a track at any endpoint — it models genre as an attribute of the artist — so the best
+    /// it can say about a track is what its performer is generally known for, and for a good part
+    /// of the catalogue it says nothing at all. Last.fm's per-track tags answer the question that
+    /// was actually asked, so a user who has both configured gets Spotify's albums and Last.fm's
+    /// genres rather than having to pick.
+    /// </para>
+    /// <para>
+    /// Not offered the other way round: when Last.fm is the chosen provider it has already
+    /// supplied its own tags, and Spotify's artist-level answer would be strictly worse. Nor is
+    /// it offered without a key — that is the same "nothing will be tagged" case the provider
+    /// switch warns about, and warning twice for one missing key helps nobody.
+    /// </para>
+    /// </remarks>
+    private static ProviderGenreFallback? CreateGenreFallback(OffstreamSettings settings, HttpClient httpClient)
+    {
+        if (settings.Metadata.Provider != MetadataProvider.Spotify) return null;
+
+        var apiKey = settings.Metadata.LastFmApiKey;
+
+        return string.IsNullOrWhiteSpace(apiKey)
+            ? null
+            : new ProviderGenreFallback(new LastFmMetadataProvider(httpClient, apiKey));
     }
 
     private IMetadataProvider CreateProvider(OffstreamSettings settings, HttpClient httpClient)

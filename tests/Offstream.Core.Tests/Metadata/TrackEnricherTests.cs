@@ -47,6 +47,24 @@ public sealed class TrackEnricherTests
         }
     }
 
+    private sealed class FakeGenreFallback : IGenreFallback
+    {
+        public string[] Result { get; set; } = ["fallback genre"];
+
+        public Exception? Failure { get; set; }
+
+        public int Calls { get; private set; }
+
+        public Task<string[]> GetGenresAsync(Track track, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+
+            return Failure is not null
+                ? Task.FromException<string[]>(Failure)
+                : Task.FromResult(Result);
+        }
+    }
+
     private sealed class FakeCoverArtFetcher : ICoverArtFetcher
     {
         public string? Result { get; set; } = @"C:\Temp\cover.jpg";
@@ -143,5 +161,102 @@ public sealed class TrackEnricherTests
             .EnrichAsync(Detected(), stopping.Token);
 
         Assert.False(result.Updated);
+    }
+
+    // ---- genre fallback: Spotify's artist genres first, then Last.fm, then nothing ----
+
+    /// <summary>The gap this fills — the provider tagged the track but had no genre for it.</summary>
+    [Fact]
+    public async Task EnrichAsync_WhenTheProviderLeavesGenresEmpty_TakesThemFromTheFallback()
+    {
+        var provider = new FakeProvider { Apply = track => track.Album = "Album" };
+        var fallback = new FakeGenreFallback { Result = ["trip hop"] };
+
+        var track = Detected();
+        await new TrackEnricher(provider, new FakeCoverArtFetcher(), deadline: null, fallback)
+            .EnrichAsync(track);
+
+        Assert.Equal(["trip hop"], track.Genres!);
+        Assert.Equal(1, fallback.Calls);
+    }
+
+    /// <summary>A provider that answered is not second-guessed, and costs no second request.</summary>
+    [Fact]
+    public async Task EnrichAsync_WhenTheProviderSuppliedGenres_DoesNotAskTheFallback()
+    {
+        var provider = new FakeProvider { Apply = track => track.Genres = ["shoegaze"] };
+        var fallback = new FakeGenreFallback();
+
+        var track = Detected();
+        await new TrackEnricher(provider, new FakeCoverArtFetcher(), deadline: null, fallback)
+            .EnrichAsync(track);
+
+        Assert.Equal(["shoegaze"], track.Genres!);
+        Assert.Equal(0, fallback.Calls);
+    }
+
+    /// <summary>
+    /// A bare recording is not worth a second request for one tag, so the fallback is a
+    /// success-path step only.
+    /// </summary>
+    [Fact]
+    public async Task EnrichAsync_WhenTheProviderFoundNothing_DoesNotAskTheFallback()
+    {
+        var provider = new FakeProvider { Result = false };
+        var fallback = new FakeGenreFallback();
+
+        await new TrackEnricher(provider, new FakeCoverArtFetcher(), deadline: null, fallback)
+            .EnrichAsync(Detected());
+
+        Assert.Equal(0, fallback.Calls);
+    }
+
+    /// <summary>The final rung: nobody has a genre, and the rest of the tags still stand.</summary>
+    [Fact]
+    public async Task EnrichAsync_WhenTheFallbackHasNoGenresEither_LeavesTheTagEmpty()
+    {
+        var provider = new FakeProvider { Apply = track => track.Album = "Album" };
+        var fallback = new FakeGenreFallback { Result = [] };
+
+        var track = Detected();
+        var result = await new TrackEnricher(provider, new FakeCoverArtFetcher(), deadline: null, fallback)
+            .EnrichAsync(track);
+
+        Assert.True(result.Updated);
+        Assert.Equal("Album", track.Album);
+        Assert.True(track.Genres is null or { Length: 0 });
+    }
+
+    /// <summary>
+    /// The tail must not wag the dog: a genre lookup that throws cannot cost the album, the year
+    /// and the cover art that the primary provider already established.
+    /// </summary>
+    [Fact]
+    public async Task EnrichAsync_WhenTheFallbackFails_KeepsEverythingElse()
+    {
+        var provider = new FakeProvider { Apply = track => track.Album = "Album" };
+        var fallback = new FakeGenreFallback { Failure = new InvalidOperationException("boom") };
+        var coverArt = new FakeCoverArtFetcher();
+
+        var track = Detected();
+        var result = await new TrackEnricher(provider, coverArt, deadline: null, fallback)
+            .EnrichAsync(track);
+
+        Assert.True(result.Updated);
+        Assert.Equal("Album", track.Album);
+        Assert.Equal(@"C:\Temp\cover.jpg", result.CoverArtPath);
+    }
+
+    /// <summary>With nothing configured the chain is one rung, and nothing changes.</summary>
+    [Fact]
+    public async Task EnrichAsync_WithNoFallbackConfigured_StillEnriches()
+    {
+        var provider = new FakeProvider { Apply = track => track.Album = "Album" };
+
+        var track = Detected();
+        var result = await new TrackEnricher(provider, new FakeCoverArtFetcher()).EnrichAsync(track);
+
+        Assert.True(result.Updated);
+        Assert.Equal("Album", track.Album);
     }
 }

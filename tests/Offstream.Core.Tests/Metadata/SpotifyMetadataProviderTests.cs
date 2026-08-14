@@ -24,10 +24,13 @@ public sealed class SpotifyMetadataProviderTests
 
         public Mock<IAlbumsClient> Albums { get; } = new();
 
+        public Mock<IArtistsClient> Artists { get; } = new();
+
         public Harness()
         {
             Client.SetupGet(x => x.Player).Returns(Player.Object);
             Client.SetupGet(x => x.Albums).Returns(Albums.Object);
+            Client.SetupGet(x => x.Artists).Returns(Artists.Object);
         }
 
         /// <summary>Real behaviour, test timings: the delays are the only thing shortened.</summary>
@@ -62,6 +65,14 @@ public sealed class SpotifyMetadataProviderTests
 
         public void ReturnsAlbum(string albumId, FullAlbum album) =>
             Albums.Setup(x => x.Get(albumId, It.IsAny<CancellationToken>())).ReturnsAsync(album);
+
+        public void ReturnsArtist(string artistId, params string[] genres) =>
+            Artists
+                .Setup(x => x.Get(artistId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new FullArtist { Id = artistId, Genres = [.. genres] });
+
+        public void ArtistWasAskedFor(string artistId, Times times) =>
+            Artists.Verify(x => x.Get(artistId, It.IsAny<CancellationToken>()), times);
     }
 
     private static FullTrack PlayingTrack(string name, string albumId = "album-1") => new()
@@ -285,5 +296,127 @@ public sealed class SpotifyMetadataProviderTests
         await provider.EnrichAsync(DetectedTrack());
 
         Assert.Equal(0, raised);
+    }
+
+    // ---- genre, which Spotify hangs off the artist rather than the track ----
+
+    /// <summary>
+    /// The reason this exists: Spotify stopped populating album genres for most of the
+    /// catalogue, so the tag was empty on every Spotify-tagged recording.
+    /// </summary>
+    [Fact]
+    public async Task EnrichAsync_WhenTheAlbumHasNoGenres_TakesThemFromTheArtist()
+    {
+        var harness = new Harness();
+        var spotifyTrack = PlayingTrack("Title");
+        spotifyTrack.Artists = [new SimpleArtist { Id = "artist-1", Name = "Artist" }];
+
+        harness.ReturnsPlayback(new CurrentlyPlaying { IsPlaying = true, Item = spotifyTrack });
+        harness.ReturnsAlbum("album-1", new FullAlbum { Name = "Album", Genres = [] });
+        harness.ReturnsArtist("artist-1", "trance", "eurodance");
+
+        var track = DetectedTrack();
+        await harness.Provider.EnrichAsync(track);
+
+        Assert.Equal(["trance", "eurodance"], track.Genres!);
+    }
+
+    /// <summary>An album that does have genres is the better answer, and is not second-guessed.</summary>
+    [Fact]
+    public async Task EnrichAsync_WhenTheAlbumHasGenres_DoesNotAskTheArtist()
+    {
+        var harness = new Harness();
+        var spotifyTrack = PlayingTrack("Title");
+        spotifyTrack.Artists = [new SimpleArtist { Id = "artist-1", Name = "Artist" }];
+
+        harness.ReturnsPlayback(new CurrentlyPlaying { IsPlaying = true, Item = spotifyTrack });
+        harness.ReturnsAlbum("album-1", new FullAlbum { Name = "Album", Genres = ["ambient"] });
+
+        var track = DetectedTrack();
+        await harness.Provider.EnrichAsync(track);
+
+        Assert.Equal(["ambient"], track.Genres!);
+        harness.ArtistWasAskedFor("artist-1", Times.Never());
+    }
+
+    /// <summary>
+    /// The cache earning its place: an album is one artist over and over, and without this each
+    /// track spends a request against the shared rate limit to be told the same thing.
+    /// </summary>
+    [Fact]
+    public async Task EnrichAsync_AsksAboutAnArtistOncePerSession()
+    {
+        var harness = new Harness();
+        var spotifyTrack = PlayingTrack("Title");
+        spotifyTrack.Artists = [new SimpleArtist { Id = "artist-1", Name = "Artist" }];
+
+        harness.ReturnsPlayback(new CurrentlyPlaying { IsPlaying = true, Item = spotifyTrack });
+        harness.ReturnsAlbum("album-1", new FullAlbum { Name = "Album", Genres = [] });
+        harness.ReturnsArtist("artist-1", "trance");
+
+        var provider = harness.Provider;
+
+        foreach (var _ in Enumerable.Range(0, 5))
+        {
+            await provider.EnrichAsync(DetectedTrack());
+        }
+
+        harness.ArtistWasAskedFor("artist-1", Times.Once());
+    }
+
+    /// <summary>An artist with no genres is cached too, or the miss is paid for on every track.</summary>
+    [Fact]
+    public async Task EnrichAsync_CachesAnArtistThatHasNoGenres()
+    {
+        var harness = new Harness();
+        var spotifyTrack = PlayingTrack("Title");
+        spotifyTrack.Artists = [new SimpleArtist { Id = "artist-1", Name = "Artist" }];
+
+        harness.ReturnsPlayback(new CurrentlyPlaying { IsPlaying = true, Item = spotifyTrack });
+        harness.ReturnsAlbum("album-1", new FullAlbum { Name = "Album", Genres = [] });
+        harness.ReturnsArtist("artist-1");
+
+        var provider = harness.Provider;
+        await provider.EnrichAsync(DetectedTrack());
+        var track = DetectedTrack();
+        await provider.EnrichAsync(track);
+
+        Assert.Empty(track.Genres!);
+        harness.ArtistWasAskedFor("artist-1", Times.Once());
+    }
+
+    /// <summary>Spotify lists many for a well-known artist; the tag takes the first few.</summary>
+    [Fact]
+    public async Task EnrichAsync_TakesAtMostThreeArtistGenres()
+    {
+        var harness = new Harness();
+        var spotifyTrack = PlayingTrack("Title");
+        spotifyTrack.Artists = [new SimpleArtist { Id = "artist-1", Name = "Artist" }];
+
+        harness.ReturnsPlayback(new CurrentlyPlaying { IsPlaying = true, Item = spotifyTrack });
+        harness.ReturnsAlbum("album-1", new FullAlbum { Name = "Album", Genres = [] });
+        harness.ReturnsArtist("artist-1", "trance", "eurodance", "progressive trance", "german trance");
+
+        var track = DetectedTrack();
+        await harness.Provider.EnrichAsync(track);
+
+        Assert.Equal(["trance", "eurodance", "progressive trance"], track.Genres!);
+    }
+
+    /// <summary>No id to ask about means no request, rather than a request for nothing.</summary>
+    [Fact]
+    public async Task EnrichAsync_WithNoArtistId_LeavesGenresEmptyWithoutAsking()
+    {
+        var harness = new Harness();
+        var spotifyTrack = PlayingTrack("Title");
+
+        harness.ReturnsPlayback(new CurrentlyPlaying { IsPlaying = true, Item = spotifyTrack });
+        harness.ReturnsAlbum("album-1", new FullAlbum { Name = "Album", Genres = [] });
+
+        var track = DetectedTrack();
+        await harness.Provider.EnrichAsync(track);
+
+        Assert.Empty(track.Genres!);
+        harness.Artists.Verify(x => x.Get(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never());
     }
 }
