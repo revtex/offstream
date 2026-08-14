@@ -148,6 +148,19 @@ public sealed class Track
 
     public bool IsUnknownPlaying => IsUnknown && Playing;
 
+    /// <summary>
+    /// A title arrived without an artist — a source part-way through reading, not a track.
+    /// </summary>
+    /// <remarks>
+    /// The Windows media session populates its fields as they arrive, so the first read after
+    /// Spotify registers a session can carry a title and nothing else. That is not an
+    /// advertisement and not a new track; it is the track already playing, a moment before the
+    /// rest of it becomes readable. The window-title parser cannot produce this shape at all —
+    /// with no <c>" - "</c> to split on it puts the whole string in <see cref="Artist"/> — so
+    /// title-without-artist only ever means "not read yet".
+    /// </remarks>
+    public bool IsPartiallyRead => string.IsNullOrEmpty(Artist) && !string.IsNullOrEmpty(Title);
+
     public void SetArtistFromApi(string? value)
     {
         if (!string.IsNullOrWhiteSpace(value)) _apiArtist = value;

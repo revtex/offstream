@@ -205,7 +205,9 @@ public sealed class SpotifyMetadataProvider(ISpotifyClient client, SpotifyPollin
     {
         await Task.Delay(_polling.SettleDelay, cancellationToken);
 
-        for (var attempt = 1; ; attempt++)
+        var attempts = 0;
+
+        while (true)
         {
             var playback = await client.Player.GetCurrentlyPlaying(
                 new PlayerCurrentlyPlayingRequest(), cancellationToken);
@@ -219,25 +221,47 @@ public sealed class SpotifyMetadataProvider(ISpotifyClient client, SpotifyPollin
             // A podcast episode is not a track and never will be, whatever we ask again.
             if (playback?.Item is not null && reported is null) return false;
 
-            if (attempt >= _polling.MaximumAttempts)
+            if (IsAdvertisement(playback))
+            {
+                // An advertisement is not a mismatch — it is Spotify saying the track has not
+                // started on its side yet, and it will. So it must not spend the attempt budget:
+                // a free-tier break runs far longer than the three seconds four attempts buy, and
+                // every poll landing inside one is exactly how a recording ends up untagged with
+                // nothing in the log above Debug to say why. The wait is bounded by the deadline
+                // TrackEnricher imposes on the whole lookup, not by a count.
+                Log.Debug("Spotify is playing an advertisement; waiting for {Track} to start.", track);
+            }
+            else if (++attempts >= _polling.MaximumAttempts)
             {
                 Log.Debug(
                     "Spotify still reported {Reported} for {Track} after {Attempts} attempts.",
                     Describe(reported),
                     track,
-                    attempt);
+                    attempts);
 
                 return false;
             }
-
-            Log.Debug(
-                "Spotify reported {Reported} while {Track} was detected; asking again.",
-                Describe(reported),
-                track);
+            else
+            {
+                Log.Debug(
+                    "Spotify reported {Reported} while {Track} was detected; asking again.",
+                    Describe(reported),
+                    track);
+            }
 
             await Task.Delay(_polling.RetryDelay, cancellationToken);
         }
     }
+
+    /// <summary>Whether Spotify is playing an advertisement rather than anything tagged.</summary>
+    /// <remarks>
+    /// Free accounts play these between tracks, and the response carries no item at all — which
+    /// is otherwise indistinguishable from "nothing is playing", a state that never resolves into
+    /// the detected track. <c>currently_playing_type</c> is the schema's own field for this and
+    /// takes <c>track</c>, <c>episode</c>, <c>ad</c> or <c>unknown</c>.
+    /// </remarks>
+    private static bool IsAdvertisement(CurrentlyPlaying? playback) =>
+        string.Equals(playback?.CurrentlyPlayingType, "ad", StringComparison.OrdinalIgnoreCase);
 
     private async Task<bool> ApplyAsync(Track track, FullTrack spotifyTrack, CancellationToken cancellationToken)
     {

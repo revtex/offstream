@@ -375,6 +375,20 @@ phase plan these entries follow.
   exactly this.
 - **The session total read "0 saved" forever.** The count was right the whole time; only the
   derived string was never refreshed.
+- **A free account's advertisements cost it every tag.** Spotify's `currently-playing` reports
+  the advertisement rather than the track that is about to start, and the lookup counted each
+  such answer as a failed match — so the four attempts it allows were spent inside a break that
+  runs far longer, and the recording was saved bare. An advertisement is now a reason to keep
+  waiting rather than a mismatch to count, bounded by the enrichment deadline instead of by an
+  attempt budget. That deadline moves from 20s to 45s so it can outlast a break; the recording it
+  runs alongside is unaffected either way, since enrichment starts when the track does.
+- **One song could be recorded twice, and enriched twice.** The Windows media session fills its
+  fields as they arrive, so the first read after it becomes available can carry a title and no
+  artist. That counted as a track change: the take in progress ended, was reported as an
+  advertisement, was discarded for falling under the minimum length, and a second recording of
+  the same song started a moment later when the artist arrived. A title without an artist is now
+  read as a source part-way through reading — which is the only thing it can mean, since the
+  window-title parser puts an unsplittable title in the artist field instead.
 
 ### Security
 

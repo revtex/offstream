@@ -173,6 +173,60 @@ public sealed class SpotifyMetadataProviderTests
         Assert.Equal(4, track.AlbumPosition);
     }
 
+    /// <summary>
+    /// A free account plays advertisements between tracks, and the break runs far longer than the
+    /// attempt budget buys. Spending an attempt on each poll meant every poll landed inside the
+    /// break and the recording was saved bare — so an advertisement is a reason to keep waiting
+    /// rather than a mismatch to count.
+    /// </summary>
+    [Fact]
+    public async Task EnrichAsync_WhileAnAdvertisementIsPlaying_KeepsWaitingWithoutSpendingAttempts()
+    {
+        var harness = new Harness();
+
+        // One more advertisement than MaximumAttempts allows, so the old loop gave up here.
+        harness.ReturnsPlaybackInTurn(
+            Advertisement(),
+            Advertisement(),
+            Advertisement(),
+            Advertisement(),
+            Advertisement(),
+            new CurrentlyPlaying { IsPlaying = true, Item = PlayingTrack("Title") });
+
+        harness.ReturnsAlbum("album-1", new FullAlbum
+        {
+            Name = "Album Name",
+            Artists = [],
+            Genres = [],
+            Images = [],
+            ReleaseDate = "2020",
+        });
+
+        var track = DetectedTrack();
+
+        Assert.True(await harness.Provider.EnrichAsync(track));
+        Assert.Equal("Album Name", track.Album);
+    }
+
+    /// <summary>
+    /// The budget still applies to genuine mismatches, or a backend stuck on the previous track
+    /// would be polled until the enricher's deadline instead of giving up and saving the file.
+    /// </summary>
+    [Fact]
+    public async Task EnrichAsync_WhenSpotifyNeverCatchesUp_GivesUpAfterTheAttemptBudget()
+    {
+        var harness = new Harness();
+
+        harness.ReturnsPlayback(
+            new CurrentlyPlaying { IsPlaying = true, Item = PlayingTrack("The Previous Song") });
+
+        Assert.False(await harness.Provider.EnrichAsync(DetectedTrack()));
+    }
+
+    /// <summary>An advertisement carries no item, which is what makes the type field necessary.</summary>
+    private static CurrentlyPlaying Advertisement() =>
+        new() { IsPlaying = true, CurrentlyPlayingType = "ad" };
+
     /// <summary>A 204 at the boundary is the same race, not an answer of "nothing is playing".</summary>
     [Fact]
     public async Task EnrichAsync_WhenPlaybackIsMomentarilyEmpty_AsksAgainAndTags()

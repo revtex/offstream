@@ -140,6 +140,11 @@ public sealed class RecordingPolicyTests
         Assert.False(RecordingPolicy.IsNewTrack(current, new Track()));
         Assert.False(RecordingPolicy.IsNewTrack(current, new Track { Artist = SpotifyWindowTitles.SpotifyFree }));
         Assert.True(RecordingPolicy.IsNewTrack(current, new Track { Artist = "Artist", Title = "Title" }));
+
+        // A title with no artist is the media session part-way through a read, not a track
+        // change. Treating it as one ended the take mid-song and started a second recording of
+        // the same track when the artist arrived a moment later.
+        Assert.False(RecordingPolicy.IsNewTrack(current, new Track { Title = "Title" }));
     }
 
     [Fact]
