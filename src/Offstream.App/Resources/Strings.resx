@@ -319,7 +319,7 @@
   </data>
   <data name="AdvancedPreviewLabel" xml:space="preserve">
     <value>Next file</value>
-    <comment>Label over the live preview of the rendered file name.</comment>
+    <comment>Prefix inside the live preview of the rendered file name.</comment>
   </data>
   <data name="AdvancedPreviewUnavailable" xml:space="preserve">
     <value>This template does not produce a file name.</value>

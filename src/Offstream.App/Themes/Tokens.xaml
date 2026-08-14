@@ -134,6 +134,15 @@
     <SolidColorBrush x:Key="OffstreamSurfaceBorderBrush" Color="#282C33" />
     <SolidColorBrush x:Key="OffstreamRowSeparatorBrush" Color="#22262C" />
 
+    <!--
+        A well: read-only output shown inside a card, recessed rather than raised.
+
+        Darker than the card it sits in, which is the direction that reads as "this is a result,
+        not a control". Lighter than the window, so it stays part of the card rather than a hole
+        cut through it.
+    -->
+    <SolidColorBrush x:Key="OffstreamWellBrush" Color="#101216" />
+
     <Color x:Key="OffstreamAccentColor">#2563EB</Color>
     <SolidColorBrush x:Key="OffstreamAccentBrush" Color="{StaticResource OffstreamAccentColor}" />
     <SolidColorBrush x:Key="OffstreamAccentHoverBrush" Color="#3B76F0" />
