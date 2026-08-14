@@ -36,7 +36,7 @@ public sealed class InMemoryLogSink : ILogEventSink
         var line = new LogLine(
             logEvent.Timestamp,
             logEvent.Level,
-            logEvent.RenderMessage(formatProvider: null));
+            Describe(logEvent));
 
         _lines.Enqueue(line);
         while (_lines.Count > Capacity && _lines.TryDequeue(out _))
@@ -49,6 +49,33 @@ public sealed class InMemoryLogSink : ILogEventSink
 
     /// <summary>Snapshot of the retained lines, oldest first.</summary>
     public IReadOnlyList<LogLine> Snapshot() => [.. _lines];
+
+    /// <summary>
+    /// The rendered message, with the exception's type and message appended when there is one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Without this the pane silently discards every reason.</b> <c>RenderMessage</c> expands the
+    /// template and nothing else, so <c>Log.Warning(ex, "X failed")</c> displayed as "X failed" and
+    /// the exception — the only part saying <em>why</em> — went nowhere. Reported exactly that way:
+    /// repeated warnings "with no reason on why", while the answer sat in the file sink all along.
+    /// </para>
+    /// <para>
+    /// Type and message only, never the stack trace. This is a one-line-per-entry list beside a
+    /// recording, and a trace would push everything else off the screen; the file keeps the full
+    /// detail for whoever needs it. The type name earns its place because it is often the whole
+    /// diagnosis on its own — <c>ArgumentException</c> against <c>HttpRequestException</c>
+    /// separates a bug in Offstream from the network being down.
+    /// </para>
+    /// </remarks>
+    private static string Describe(LogEvent logEvent)
+    {
+        var message = logEvent.RenderMessage(formatProvider: null);
+
+        return logEvent.Exception is { } error
+            ? $"{message} — {error.GetType().Name}: {error.Message}"
+            : message;
+    }
 
     public void Clear()
     {
