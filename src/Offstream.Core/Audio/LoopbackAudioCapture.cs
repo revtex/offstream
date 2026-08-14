@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
+using Serilog;
 
 namespace Offstream.Core.Audio;
 
@@ -76,6 +77,8 @@ public sealed class LoopbackAudioCapture : IAudioCaptureSource
     private readonly MMDevice _device;
     private readonly WasapiLoopbackCapture _capture;
     private readonly bool _keepEndpointAlive;
+    private readonly string? _requestedDeviceId;
+    private readonly IAudioEndpointWatcher? _endpoints;
 
     private WasapiOut? _keepAlive;
     private bool _disposed;
@@ -84,14 +87,65 @@ public sealed class LoopbackAudioCapture : IAudioCaptureSource
     /// <param name="keepEndpointAlive">
     /// Play silence into the endpoint so capture keeps delivering while nothing else plays.
     /// </param>
-    public LoopbackAudioCapture(string? deviceId = null, bool keepEndpointAlive = true)
+    /// <param name="endpoints">
+    /// Watches for the endpoint disappearing. Injectable so the hot-plug path can be exercised
+    /// without unplugging anything; the recording pipeline passes the real one.
+    /// </param>
+    public LoopbackAudioCapture(
+        string? deviceId = null,
+        bool keepEndpointAlive = true,
+        IAudioEndpointWatcher? endpoints = null)
     {
         _device = AudioEndpoints.Resolve(deviceId);
         _keepEndpointAlive = keepEndpointAlive;
+        _requestedDeviceId = deviceId;
 
         _capture = new WasapiLoopbackCapture(_device) { ShareMode = AudioClientShareMode.Shared };
         _capture.DataAvailable += OnDataAvailable;
         _capture.RecordingStopped += OnRecordingStopped;
+
+        _endpoints = endpoints;
+        if (_endpoints is not null) _endpoints.Changed += OnEndpointChanged;
+    }
+
+    /// <summary>
+    /// Ends the capture when the endpoint it was reading goes away.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Without this, losing the endpoint is silent: WASAPI simply stops delivering buffers, the
+    /// recording continues believing it is capturing, and the file that lands is however many
+    /// seconds of audio arrived before the headphones came out. Stopping deliberately means the
+    /// recording is finished and saved rather than left running against a dead stream.
+    /// </para>
+    /// <para>
+    /// <b>It stops rather than re-routes</b>, deliberately — see <see cref="AudioEndpointWatcher"/>.
+    /// The replacement endpoint can have a different sample rate and channel count, so continuing
+    /// into it would put a seam in the middle of the file or encode a tail that the header does
+    /// not describe.
+    /// </para>
+    /// <para>
+    /// The notification arrives on a system thread from inside the audio stack, so this must not
+    /// block: <c>StopCapture</c> is what the ordinary stop path already calls, and the
+    /// <see cref="Stopped"/> event carries the reason on to whoever is recording.
+    /// </para>
+    /// </remarks>
+    private void OnEndpointChanged(object? sender, AudioEndpointChange change)
+    {
+        if (!IsCapturing) return;
+        if (!AudioEndpointRelevance.EndsTheCapture(_requestedDeviceId, change)) return;
+
+        Log.Warning(
+            "The audio endpoint being recorded ({Device}) is no longer available; stopping capture.",
+            DeviceName);
+
+        StopCapture();
+
+        Stopped?.Invoke(
+            this,
+            new CaptureStoppedEventArgs(
+                new InvalidOperationException(
+                    $"The audio endpoint '{DeviceName}' became unavailable during recording.")));
     }
 
     /// <inheritdoc />
@@ -139,6 +193,12 @@ public sealed class LoopbackAudioCapture : IAudioCaptureSource
         _disposed = true;
 
         StopCapture();
+
+        if (_endpoints is not null)
+        {
+            _endpoints.Changed -= OnEndpointChanged;
+            _endpoints.Dispose();
+        }
 
         _capture.DataAvailable -= OnDataAvailable;
         _capture.RecordingStopped -= OnRecordingStopped;
