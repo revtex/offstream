@@ -419,4 +419,82 @@ public sealed class SpotifyMetadataProviderTests
         Assert.Empty(track.Genres!);
         harness.Artists.Verify(x => x.Get(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never());
     }
+
+    // ---- the floor holds when the provider cannot ----
+
+    /// <summary>
+    /// The failure this is really about: the match guard rejecting every attempt used to leave a
+    /// recording with nothing, even though the media session had already said — with certainty,
+    /// because it is the client playing the track — what the album and position were.
+    /// </summary>
+    [Fact]
+    public async Task EnrichAsync_WhenNothingMatches_LeavesTheDetectedMetadataIntact()
+    {
+        var harness = new Harness();
+        harness.ReturnsPlayback(new CurrentlyPlaying
+        {
+            IsPlaying = true,
+            Item = PlayingTrack("Some Entirely Different Song"),
+        });
+
+        var track = new Track
+        {
+            Artist = "Artist",
+            Title = "Title",
+            Album = "Detected Album",
+            AlbumArtists = ["Detected Album Artist"],
+            AlbumPosition = 7,
+        };
+
+        var enriched = await harness.Provider.EnrichAsync(track);
+
+        Assert.False(enriched);
+        Assert.Equal("Detected Album", track.Album);
+        Assert.Equal(["Detected Album Artist"], track.AlbumArtists!);
+        Assert.Equal(7, track.AlbumPosition);
+    }
+
+    /// <summary>An API fault is the same story: tags degrade to what the client already knew.</summary>
+    [Fact]
+    public async Task EnrichAsync_WhenSpotifyFails_LeavesTheDetectedMetadataIntact()
+    {
+        var harness = new Harness();
+        harness.Fails(HttpStatusCode.InternalServerError, "Spotify is having a moment.");
+
+        var track = new Track
+        {
+            Artist = "Artist",
+            Title = "Title",
+            Album = "Detected Album",
+            AlbumArtists = ["Detected Album Artist"],
+            AlbumPosition = 7,
+        };
+
+        await harness.Provider.EnrichAsync(track);
+
+        Assert.Equal("Detected Album", track.Album);
+        Assert.Equal(["Detected Album Artist"], track.AlbumArtists!);
+        Assert.Equal(7, track.AlbumPosition);
+    }
+
+    /// <summary>
+    /// A partial answer fills its gaps from the floor rather than blanking them: Spotify knew the
+    /// album but reported no position, so the media session's position stands.
+    /// </summary>
+    [Fact]
+    public async Task EnrichAsync_WithAnAnswerThatHasNoPosition_KeepsTheDetectedOne()
+    {
+        var harness = new Harness();
+        var spotifyTrack = PlayingTrack("Title");
+        spotifyTrack.TrackNumber = 0; // The SDK's "not populated".
+
+        harness.ReturnsPlayback(new CurrentlyPlaying { IsPlaying = true, Item = spotifyTrack });
+        harness.ReturnsAlbum("album-1", new FullAlbum { Name = "Real Album", Genres = [], Images = [] });
+
+        var track = new Track { Artist = "Artist", Title = "Title", AlbumPosition = 7 };
+        await harness.Provider.EnrichAsync(track);
+
+        Assert.Equal("Real Album", track.Album);
+        Assert.Equal(7, track.AlbumPosition);
+    }
 }
