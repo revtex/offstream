@@ -131,7 +131,13 @@ public sealed partial class SettingsViewModel : ObservableValidator
     /// <summary>Whether a Spotify refresh token is on file, i.e. whether sign-in has happened.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SpotifyAccountStatus))]
+    [NotifyPropertyChangedFor(nameof(SpotifySignInLabel))]
     private bool _isSignedInToSpotify;
+
+    /// <summary>Which Spotify account is signed in, when it could be established.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSpotifyAccountName))]
+    private string _spotifyAccountName = string.Empty;
 
     /// <summary>Set while the browser sign-in is open, so the button cannot be pressed twice.</summary>
     [ObservableProperty]
@@ -248,6 +254,71 @@ public sealed partial class SettingsViewModel : ObservableValidator
     public string SpotifyAccountStatus =>
         IsSignedInToSpotify ? Strings.SettingsSpotifySignedIn : Strings.SettingsSpotifyNotSignedIn;
 
+    /// <summary>
+    /// What the sign-in button says, which is not the same thing once there is an account.
+    /// </summary>
+    /// <remarks>
+    /// It read "Sign in to Spotify" beside the words "Signed in", which is the button offering to
+    /// do something already done. Pressing it does have a use — it is the only way to move the
+    /// install to a different account, which is exactly what someone whose recordings are coming
+    /// back untagged needs — so the label names that instead of being disabled or hidden.
+    /// </remarks>
+    public string SpotifySignInLabel =>
+        IsSignedInToSpotify ? Strings.SettingsSpotifySwitchAccount : Strings.SettingsSpotifySignIn;
+
+    /// <summary>Whether <see cref="SpotifyAccountName"/> has anything to show.</summary>
+    public bool HasSpotifyAccountName => !string.IsNullOrWhiteSpace(SpotifyAccountName);
+
+    /// <summary>
+    /// Refreshes the line naming the signed-in account.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Silent about its own failures by design — see
+    /// <see cref="ISpotifyAccount.DescribeAccountAsync"/>. An existing install's refresh token
+    /// predates the scopes this needs and will answer 403 until the user signs in again, and that
+    /// is not a fault worth reporting beside an account that is still tagging recordings.
+    /// </para>
+    /// <para>
+    /// The rotated token is persisted like everywhere else. Asking who is signed in redeems the
+    /// refresh token, and Spotify rotates it on redemption, so dropping the replacement here would
+    /// break the next lookup — the exact failure the recording path already guards against.
+    /// </para>
+    /// </remarks>
+    private async Task RefreshSpotifyAccountNameAsync(CancellationToken cancellationToken = default)
+    {
+        if (!IsSignedInToSpotify)
+        {
+            SpotifyAccountName = string.Empty;
+            return;
+        }
+
+        try
+        {
+            var describing = await _spotifyAccount.DescribeAccountAsync(
+                _document.Current.Metadata.SpotifyClientId,
+                _document.Current.Metadata.SpotifyRefreshToken,
+                rotated => _document.Update(settings => settings with
+                {
+                    Metadata = settings.Metadata with { SpotifyRefreshToken = rotated },
+                }),
+                cancellationToken);
+
+            SpotifyAccountName = describing ?? string.Empty;
+        }
+        catch (OperationCanceledException)
+        {
+            // Navigating away. The label simply does not arrive.
+        }
+#pragma warning disable CA1031 // A label on a settings page is never worth surfacing a fault for.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            Log.Debug(ex, "Could not establish which Spotify account is signed in.");
+            SpotifyAccountName = string.Empty;
+        }
+    }
+
     /// <summary>Whether <see cref="SaveProblem"/> has anything worth showing.</summary>
     public bool HasSaveProblem => !string.IsNullOrWhiteSpace(SaveProblem);
 
@@ -267,6 +338,10 @@ public sealed partial class SettingsViewModel : ObservableValidator
             LastFmApiKey = settings.Metadata.LastFmApiKey ?? string.Empty;
             SpotifyClientId = settings.Metadata.SpotifyClientId ?? string.Empty;
             IsSignedInToSpotify = !string.IsNullOrWhiteSpace(settings.Metadata.SpotifyRefreshToken);
+
+            // Not awaited: this is a network round trip, and the page must not wait on it to open.
+            // The method swallows its own failures, so nothing is dropped by letting it run on.
+            _ = RefreshSpotifyAccountNameAsync();
 
             LoadBitrates(settings.Output.BitrateKbps);
             LoadDevices(settings.Recording.AudioEndpointDeviceId);
@@ -411,6 +486,10 @@ public sealed partial class SettingsViewModel : ObservableValidator
             });
 
             IsSignedInToSpotify = SaveProblem is null;
+
+            // The sign-in that just ran is the one that carries the scopes this needs, so this is
+            // the moment the account line can first be filled in on an install that predates them.
+            await RefreshSpotifyAccountNameAsync(cancellationToken);
         }
         catch (SpotifyAuthException ex)
         {

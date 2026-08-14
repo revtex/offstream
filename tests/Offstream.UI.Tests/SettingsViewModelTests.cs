@@ -449,6 +449,77 @@ public sealed class SettingsViewModelTests
     }
 
     /// <summary>
+    /// The button read "Sign in to Spotify" beside the words "Signed in" — offering to do a thing
+    /// already done. It still has a use once there is an account, and that use is what it now
+    /// names.
+    /// </summary>
+    [Fact]
+    public async Task SpotifySignInLabel_FollowsWhetherAnAccountIsStored()
+    {
+        var account = new FakeSpotifyAccount { RefreshToken = "a-refresh-token" };
+        var viewModel = SettingsFakes.Settings(SettingsFakes.Document(), spotifyAccount: account);
+
+        Assert.Equal(Strings.SettingsSpotifySignIn, viewModel.SpotifySignInLabel);
+
+        viewModel.Provider = MetadataProvider.Spotify;
+        viewModel.SpotifyClientId = "0123456789abcdef";
+
+        await viewModel.SignInToSpotifyCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.IsSignedInToSpotify);
+        Assert.Equal(Strings.SettingsSpotifySwitchAccount, viewModel.SpotifySignInLabel);
+    }
+
+    /// <summary>
+    /// Which account, not just whether there is one. Recordings go untagged when this is not the
+    /// account the music plays on, and nothing on screen used to say which it was.
+    /// </summary>
+    [Fact]
+    public async Task SignInToSpotify_ShowsWhichAccountIsSignedIn()
+    {
+        var account = new FakeSpotifyAccount
+        {
+            RefreshToken = "a-refresh-token",
+            AccountDescription = "Alex (alex_9x2)",
+        };
+
+        var viewModel = SettingsFakes.Settings(SettingsFakes.Document(), spotifyAccount: account);
+
+        Assert.False(viewModel.HasSpotifyAccountName);
+
+        viewModel.Provider = MetadataProvider.Spotify;
+        viewModel.SpotifyClientId = "0123456789abcdef";
+
+        await viewModel.SignInToSpotifyCommand.ExecuteAsync(null);
+
+        Assert.Equal("Alex (alex_9x2)", viewModel.SpotifyAccountName);
+        Assert.True(viewModel.HasSpotifyAccountName);
+
+        // The token just stored is the one the lookup must present, not the one the page began with.
+        Assert.Equal("a-refresh-token", account.DescribedWith);
+    }
+
+    /// <summary>
+    /// A refresh token minted before these scopes existed answers 403. That sign-in still tags
+    /// recordings, so the line is simply absent rather than the page reporting a fault.
+    /// </summary>
+    [Fact]
+    public async Task SignInToSpotify_WhenTheAccountCannotBeNamed_ShowsNoLineAndNoError()
+    {
+        var account = new FakeSpotifyAccount { RefreshToken = "a-refresh-token", AccountDescription = null };
+        var viewModel = SettingsFakes.Settings(SettingsFakes.Document(), spotifyAccount: account);
+
+        viewModel.Provider = MetadataProvider.Spotify;
+        viewModel.SpotifyClientId = "0123456789abcdef";
+
+        await viewModel.SignInToSpotifyCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.IsSignedInToSpotify);
+        Assert.False(viewModel.HasSpotifyAccountName);
+        Assert.False(viewModel.HasSaveProblem);
+    }
+
+    /// <summary>
     /// The user is standing at the browser waiting to find out whether it worked, so a declined
     /// or abandoned sign-in says so on the page rather than only in the log.
     /// </summary>

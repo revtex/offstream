@@ -225,8 +225,34 @@ phase plan these entries follow.
   resource key, setting or path carries the old naming, and a test fails the build if one
   reappears.
 
+### Added
+
+- **The Settings page names which Spotify account is signed in**, as display name and account id
+  — not just that one exists. Recordings go untagged when the signed-in account is not the one
+  the music plays on, and nothing on screen said which it was, so the only way to find out was
+  to read the logs. Costs one scope, `user-read-private`, and existing installs show nothing
+  here until they sign in again, since a refresh token predating the scope cannot read the
+  profile. The id is there because a display name is not an identifier: two accounts can share
+  one, and telling exactly those apart is what this is for. `user-read-email` would be the
+  obvious way to do that and is deliberately not requested — Spotify removed the `email` field
+  in its late-2024 cull, so that permission now covers data the endpoint no longer returns.
+
 ### Fixed
 
+- **An advertisement showed the previous song's cover art, album and save path.** The three
+  details describing the track being written arrive together from the metadata lookup and were
+  cleared only when the session stopped, so anything never enriched — an advertisement above
+  all, but equally a lookup that found nothing — inherited the last song's and displayed them
+  under its own name. Not a cosmetic fault: the card named a file path that nothing was being
+  written to. They are now dropped the moment the displayed track changes.
+- **The Spotify sign-in button said "Sign in to Spotify" beside the words "Signed in".** It
+  offered to do something already done. Pressing it does have a use once an account is
+  stored — it is the only way to move the install to a different account, which is exactly what
+  someone whose recordings are coming back untagged needs — so it now says "Sign in as a
+  different account" instead of being disabled or hidden. The button and its status line are
+  also stacked rather than side by side: the row sized itself off whichever label was current
+  and clipped the sentence beside it as soon as either grew, which the longer label and the
+  French translation both do.
 - **Spotify's own error message reached the log as `Exception of type
   'SpotifyAPI.Web.APIException' was thrown`.** The SDK parses the error body into
   `Exception.Message` only when it recognises the shape and leaves .NET's placeholder there

@@ -235,6 +235,9 @@
   <data name="SettingsSpotifySigningIn" xml:space="preserve">
     <value>En attente du navigateur…</value>
   </data>
+  <data name="SettingsSpotifySwitchAccount" xml:space="preserve">
+    <value>Se connecter avec un autre compte</value>
+  </data>
   <data name="SettingsSpotifySignedIn" xml:space="preserve">
     <value>Connecté. Les enregistrements seront étiquetés depuis Spotify.</value>
   </data>
