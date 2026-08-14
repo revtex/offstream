@@ -143,6 +143,15 @@
     -->
     <SolidColorBrush x:Key="OffstreamWellBrush" Color="#101216" />
 
+    <!--
+        "Nothing wrong here", for the readiness pills.
+
+        Deliberately not the accent: the accent means "this is the control that does the thing",
+        and five green dots claiming that would spend it on rows nobody clicks. Muted enough to
+        read as a resting state — the pills worth noticing are the amber and red ones.
+    -->
+    <SolidColorBrush x:Key="OffstreamReadyBrush" Color="#3E9B62" />
+
     <Color x:Key="OffstreamAccentColor">#2563EB</Color>
     <SolidColorBrush x:Key="OffstreamAccentBrush" Color="{StaticResource OffstreamAccentColor}" />
     <SolidColorBrush x:Key="OffstreamAccentHoverBrush" Color="#3B76F0" />

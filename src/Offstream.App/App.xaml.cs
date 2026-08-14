@@ -40,6 +40,12 @@ public partial class App : Application
             // Warnings and failures still come through; the play-by-play does not.
             .MinimumLevel.Override("System.Net.Http.HttpClient", Serilog.Events.LogEventLevel.Warning)
             .MinimumLevel.Override("Microsoft.Extensions.Http", Serilog.Events.LogEventLevel.Warning)
+
+            // The generic host announcing itself: "Application started. Press Ctrl+C to shut
+            // down.", the hosting environment, and the content root. All three were the first
+            // thing in the activity log on every launch, and none of them is Offstream talking —
+            // the Ctrl+C line is advice for a console application, which this is not.
+            .MinimumLevel.Override("Microsoft.Hosting.Lifetime", Serilog.Events.LogEventLevel.Warning)
             .WriteTo.Sink(LogSink)
             .WriteTo.File(
                 OffstreamPaths.LogFile,

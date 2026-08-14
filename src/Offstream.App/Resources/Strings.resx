@@ -529,4 +529,92 @@
     <value>Get VB-CABLE from vb-audio.com</value>
     <comment>Link beside the missing-cable notice. Offstream never bundles the vendor's installer.</comment>
   </data>
+  <data name="ReadyFfmpeg" xml:space="preserve">
+    <value>ffmpeg</value>
+    <comment>Readiness check name. Recording cannot start without it.</comment>
+  </data>
+  <data name="ReadyFfmpegMissing" xml:space="preserve">
+    <value>Not found — set its location in Settings</value>
+    <comment>Readiness detail when no ffmpeg could be resolved.</comment>
+  </data>
+  <data name="ReadyOutput" xml:space="preserve">
+    <value>Library</value>
+    <comment>Readiness check name for the folder recordings are written to.</comment>
+  </data>
+  <data name="ReadyOutputUnset" xml:space="preserve">
+    <value>No folder chosen</value>
+    <comment>Readiness detail when the output path is empty.</comment>
+  </data>
+  <data name="ReadyDevice" xml:space="preserve">
+    <value>Recording from</value>
+    <comment>Readiness check name for the audio endpoint being captured.</comment>
+  </data>
+  <data name="ReadyDeviceNone" xml:space="preserve">
+    <value>No playback device</value>
+    <comment>Readiness detail when no render endpoint exists at all.</comment>
+  </data>
+  <data name="ReadyDeviceGone" xml:space="preserve">
+    <value>Chosen device not connected</value>
+    <comment>Readiness detail when the stored device is absent. Recording still works, on the default.</comment>
+  </data>
+  <data name="ReadyMetadata" xml:space="preserve">
+    <value>Track details</value>
+    <comment>Readiness check name for the metadata provider.</comment>
+  </data>
+  <data name="ReadyMetadataOff" xml:space="preserve">
+    <value>Off — recordings will be untagged</value>
+    <comment>Readiness detail when no provider is selected.</comment>
+  </data>
+  <data name="ReadyMetadataNoKey" xml:space="preserve">
+    <value>Last.fm needs an API key</value>
+    <comment>Readiness detail when Last.fm is selected without a key.</comment>
+  </data>
+  <data name="ReadyMetadataSignedOut" xml:space="preserve">
+    <value>Spotify needs sign-in</value>
+    <comment>Readiness detail when Spotify is selected but nobody is signed in.</comment>
+  </data>
+  <data name="ReadyCable" xml:space="preserve">
+    <value>VB-CABLE</value>
+    <comment>Readiness check name for the virtual audio cable.</comment>
+  </data>
+  <data name="ReadyCableFound" xml:space="preserve">
+    <value>Installed</value>
+    <comment>Readiness detail when a virtual cable endpoint exists.</comment>
+  </data>
+  <data name="ReadyCableMissing" xml:space="preserve">
+    <value>Not installed — other apps will be recorded too</value>
+    <comment>Readiness detail when no virtual cable exists. This is the consequence, not a failure.</comment>
+  </data>
+  <data name="RecordSavedSection" xml:space="preserve">
+    <value>Saved this session</value>
+    <comment>Heading over the list of files written since Start.</comment>
+  </data>
+  <data name="RecordSavedEmpty" xml:space="preserve">
+    <value>Nothing saved yet.</value>
+    <comment>Placeholder shown while the saved list is empty.</comment>
+  </data>
+  <data name="RecordSavedOpen" xml:space="preserve">
+    <value>Show in Explorer</value>
+    <comment>Context action on a saved recording.</comment>
+  </data>
+  <data name="RecordSessionTracks" xml:space="preserve">
+    <value>{0} saved</value>
+    <comment>Session total. {0} is the number of files written this session.</comment>
+  </data>
+  <data name="RecordSessionDuration" xml:space="preserve">
+    <value>{0} recorded</value>
+    <comment>Session total. {0} is the combined duration, already formatted.</comment>
+  </data>
+  <data name="RecordDestinationLabel" xml:space="preserve">
+    <value>Saving to</value>
+    <comment>Prefix on the live destination of the track being recorded.</comment>
+  </data>
+  <data name="RecordActivitySection" xml:space="preserve">
+    <value>Activity log</value>
+    <comment>Heading on the collapsible log panel.</comment>
+  </data>
+  <data name="RecordNoArt" xml:space="preserve">
+    <value>No cover art</value>
+    <comment>Accessible name for the album art placeholder.</comment>
+  </data>
 </root>

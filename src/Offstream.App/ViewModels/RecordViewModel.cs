@@ -1,12 +1,18 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Globalization;
+using System.IO;
+using System.Text;
 using System.Windows;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Offstream.App.Resources;
 using Offstream.App.Services;
 using Offstream.Core.Audio;
 using Offstream.Core.Diagnostics;
+using Offstream.Core.Recording;
 using Serilog;
 using Serilog.Events;
 
@@ -38,6 +44,13 @@ public sealed record LogEntry(LogEventLevel Level, string Text);
 /// <summary>One entry in the log filter dropdown.</summary>
 public sealed record LogFilterOption(LogFilter Value, string Name);
 
+/// <summary>A file this session has written, as the list shows it.</summary>
+/// <param name="Title">Artist and title, as the recorder knew them.</param>
+/// <param name="Detail">Where it landed, relative to the library root.</param>
+/// <param name="Duration">Formatted length, so the view needs no converter.</param>
+/// <param name="Path">Full path, for opening it.</param>
+public sealed record SavedRecording(string Title, string Detail, string Duration, string Path);
+
 /// <summary>
 /// Backs the Record page: transport, now-playing, level, and the activity log.
 /// </summary>
@@ -58,8 +71,27 @@ public sealed record LogFilterOption(LogFilter Value, string Name);
 /// </remarks>
 public sealed partial class RecordViewModel : ObservableObject
 {
+    /// <summary>
+    /// How many saved recordings the session list keeps.
+    /// </summary>
+    /// <remarks>
+    /// The list answers "what has this session done lately", and the library answers everything
+    /// beyond that. An overnight run saves hundreds of tracks and none of them are worth an
+    /// unbounded collection on the UI thread.
+    /// </remarks>
+    private const int SavedLimit = 50;
+
+    /// <summary>Parsed once: these are formatted on every save, and the pattern never changes.</summary>
+    private static readonly CompositeFormat TracksFormat =
+        CompositeFormat.Parse(Strings.RecordSessionTracks);
+
+    /// <inheritdoc cref="TracksFormat" />
+    private static readonly CompositeFormat DurationFormat =
+        CompositeFormat.Parse(Strings.RecordSessionDuration);
+
     private readonly InMemoryLogSink _logSink;
     private readonly RecordingController _controller;
+    private readonly ReadinessProbe _readiness;
 
     /// <summary>Every line received, before filtering. The pane shows a subset of this.</summary>
     private readonly List<LogLine> _received = [];
@@ -131,13 +163,50 @@ public sealed partial class RecordViewModel : ObservableObject
     [ObservableProperty]
     private LogFilter _filter = LogFilter.Activity;
 
-    public RecordViewModel(InMemoryLogSink logSink, RecordingController controller)
+    /// <summary>
+    /// The current track's cover art, already decoded.
+    /// </summary>
+    /// <remarks>
+    /// Decoded eagerly rather than bound to the file path, because the file is a temporary the
+    /// encode deletes as soon as it is done with it — often within a second of this being set.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCoverArt))]
+    private ImageSource? _coverArt;
+
+    /// <summary>Album and year for the current track, when the lookup found them.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAlbum))]
+    private string _album = string.Empty;
+
+    /// <summary>Where the track being recorded is going to land.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasDestination))]
+    private string _destination = string.Empty;
+
+    /// <summary>Files written this session.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSaved))]
+    private int _savedCount;
+
+    /// <summary>Combined length of everything saved this session.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SavedDurationText))]
+    private TimeSpan _savedDuration;
+
+    /// <summary>Whether the activity log is expanded. Collapsed by default — it is diagnostics.</summary>
+    [ObservableProperty]
+    private bool _isLogExpanded;
+
+    public RecordViewModel(InMemoryLogSink logSink, RecordingController controller, ReadinessProbe readiness)
     {
         ArgumentNullException.ThrowIfNull(logSink);
         ArgumentNullException.ThrowIfNull(controller);
+        ArgumentNullException.ThrowIfNull(readiness);
 
         _logSink = logSink;
         _controller = controller;
+        _readiness = readiness;
 
         // Startup logs before this page is ever shown, so replay what is already there before
         // subscribing - otherwise the first thing the user sees is an empty log.
@@ -148,14 +217,30 @@ public sealed partial class RecordViewModel : ObservableObject
 
         controller.Progress += OnProgress;
         controller.StateChanged += OnStateChanged;
+        controller.TrackSaved += OnTrackSaved;
+        controller.TrackEnriched += OnTrackEnriched;
 
         // Seeds the format line, which describes what pressing Start would produce and so has
         // something to say before anything is running.
         Sync();
+        RefreshReadiness();
     }
 
     /// <summary>Lines currently shown, after <see cref="Filter"/>.</summary>
     public ObservableCollection<LogEntry> LogLines { get; } = [];
+
+    /// <summary>
+    /// What this session has written, newest first.
+    /// </summary>
+    /// <remarks>
+    /// The page's answer to "what has it done?", which the activity log answers only by being
+    /// read line by line. Newest first because the interesting entry is the one that just
+    /// appeared, and a list that grows downward puts it wherever the scroll happens to be.
+    /// </remarks>
+    public ObservableCollection<SavedRecording> Saved { get; } = [];
+
+    /// <summary>Whether recording will work, and what will be missing if it half-works.</summary>
+    public ObservableCollection<ReadinessCheck> Readiness { get; } = [];
 
     /// <summary>The filter dropdown's items.</summary>
     public IReadOnlyList<LogFilterOption> FilterOptions { get; } =
@@ -194,6 +279,26 @@ public sealed partial class RecordViewModel : ObservableObject
     /// </summary>
     public bool IsIdle => !IsRecording;
 
+    public bool HasCoverArt => CoverArt is not null;
+
+    public bool HasAlbum => !string.IsNullOrWhiteSpace(Album);
+
+    public bool HasDestination => !string.IsNullOrWhiteSpace(Destination);
+
+    public bool HasSaved => SavedCount > 0;
+
+    /// <summary>Session total, as a sentence rather than a clock — it is a sum, not a counter.</summary>
+    public string SavedCountText =>
+        string.Format(CultureInfo.CurrentCulture, TracksFormat, SavedCount);
+
+    /// <inheritdoc cref="SavedCountText" />
+    public string SavedDurationText => string.Format(
+        CultureInfo.CurrentCulture,
+        DurationFormat,
+        SavedDuration.TotalHours >= 1
+            ? string.Create(CultureInfo.CurrentCulture, $"{(int)SavedDuration.TotalHours}h {SavedDuration.Minutes}m")
+            : string.Create(CultureInfo.CurrentCulture, $"{SavedDuration.Minutes}m {SavedDuration.Seconds}s"));
+
     /// <summary>Whether <see cref="Problem"/> has anything worth interrupting for.</summary>
     public bool HasProblem => !string.IsNullOrWhiteSpace(Problem);
 
@@ -217,6 +322,12 @@ public sealed partial class RecordViewModel : ObservableObject
     private async Task Start()
     {
         IsBusy = true;
+
+        // A session's totals and list are that session's. Carrying the previous run's numbers
+        // into a new one makes the strip meaningless the second time it is read.
+        Saved.Clear();
+        SavedCount = 0;
+        SavedDuration = TimeSpan.Zero;
 
         try
         {
@@ -256,6 +367,12 @@ public sealed partial class RecordViewModel : ObservableObject
         Transport = Strings.RecordTransportStopped;
         IsCapturing = false;
 
+        // The saved list and its totals survive a stop — they are what the session produced, and
+        // that is worth reading after it ends. What describes a track in flight does not.
+        Album = string.Empty;
+        Destination = string.Empty;
+        CoverArt = null;
+
         Sync();
     }
 
@@ -281,6 +398,37 @@ public sealed partial class RecordViewModel : ObservableObject
             // The Windows clipboard is a single shared lock and any process can hold it. Losing
             // that race must not take down the page the user is reading.
             Log.Warning(ex, "The clipboard was unavailable.");
+        }
+    }
+
+    /// <summary>
+    /// Shows a saved recording in Explorer, selected.
+    /// </summary>
+    /// <remarks>
+    /// <c>/select,</c> rather than opening the folder, so the file the user clicked is the one
+    /// highlighted — a folder holding a night of recordings is not an answer to "where did that
+    /// one go". The path is passed as a separate argument, never concatenated into a command
+    /// string: it is built from a Spotify window title, which is untrusted.
+    /// </remarks>
+    [RelayCommand]
+    private static void ShowInExplorer(SavedRecording? recording)
+    {
+        if (recording is null || !File.Exists(recording.Path)) return;
+
+        try
+        {
+            using var explorer = new Process
+            {
+                StartInfo = new ProcessStartInfo("explorer.exe") { UseShellExecute = false },
+            };
+
+            explorer.StartInfo.ArgumentList.Add("/select,");
+            explorer.StartInfo.ArgumentList.Add(recording.Path);
+            explorer.Start();
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            Log.Warning(ex, "Explorer could not be opened for {Path}.", recording.Path);
         }
     }
 
@@ -380,7 +528,110 @@ public sealed partial class RecordViewModel : ObservableObject
         };
     });
 
-    private void OnStateChanged(object? sender, EventArgs e) => Dispatch(Sync);
+    private void OnStateChanged(object? sender, EventArgs e) => Dispatch(() =>
+    {
+        Sync();
+        RefreshReadiness();
+    });
+
+    /// <summary>Adds a finished file to the session list and the totals.</summary>
+    private void OnTrackSaved(object? sender, TrackSavedEventArgs e) => Dispatch(() =>
+    {
+        Saved.Insert(0, new SavedRecording(
+            e.Track.ToString(),
+            Relative(e.Path),
+            string.Create(CultureInfo.CurrentCulture, $"{(int)e.Duration.TotalMinutes}:{e.Duration.Seconds:00}"),
+            e.Path));
+
+        // The list is a session view, not an archive: the library itself is the archive, and an
+        // unbounded list is one more thing growing for the length of an overnight run.
+        while (Saved.Count > SavedLimit) Saved.RemoveAt(Saved.Count - 1);
+
+        SavedCount++;
+        SavedDuration += e.Duration;
+    });
+
+    /// <summary>
+    /// Applies the metadata lookup to the display: art, album and where the file is going.
+    /// </summary>
+    /// <remarks>
+    /// Arrives a second or so into a track rather than at the end of one, which is what makes it
+    /// worth showing at all — see <see cref="TrackEnrichedEventArgs"/>.
+    /// </remarks>
+    private void OnTrackEnriched(object? sender, TrackEnrichedEventArgs e) => Dispatch(() =>
+    {
+        Album = DescribeAlbum(e.Track);
+        Destination = e.Destination is null ? string.Empty : Relative(e.Destination);
+        CoverArt = Decode(e.CoverArtPath);
+    });
+
+    /// <summary>Album and year, as one line, from whichever of the two the lookup found.</summary>
+    private static string DescribeAlbum(Offstream.Core.Metadata.Track track) => (track.Album, track.Year) switch
+    {
+        ({ } album, { } year) when !string.IsNullOrWhiteSpace(album) =>
+            string.Create(CultureInfo.CurrentCulture, $"{album} ({year})"),
+        ({ } album, _) when !string.IsNullOrWhiteSpace(album) => album,
+        _ => string.Empty,
+    };
+
+    /// <summary>
+    /// Reads a cover-art temp file into an image that no longer needs it.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="BitmapCacheOption.OnLoad"/> and the explicit stream are both load-bearing.
+    /// WPF's default is to keep the source open and decode lazily, which would hold a lock on a
+    /// file the encode is about to delete — and then fail to draw once it had been. This reads
+    /// the bytes now and lets go.
+    /// </remarks>
+    private static BitmapImage? Decode(string? path)
+    {
+        if (string.IsNullOrEmpty(path)) return null;
+
+        try
+        {
+            using var stream = File.OpenRead(path);
+
+            var image = new BitmapImage();
+
+            image.BeginInit();
+            image.CacheOption = BitmapCacheOption.OnLoad;
+            image.StreamSource = stream;
+
+            // Decoded to roughly the size it is drawn at. A Spotify cover is 640px square and
+            // this panel shows it at 64.
+            image.DecodePixelWidth = 128;
+            image.EndInit();
+            image.Freeze();
+
+            return image;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException
+                                       or ArgumentException)
+        {
+            // The art is decoration. A file already deleted, or bytes that are not an image,
+            // costs the thumbnail and nothing else.
+            Log.Debug(ex, "Cover art could not be shown.");
+            return null;
+        }
+    }
+
+    /// <summary>Shortens a path to what it is under the library root, since the root never varies.</summary>
+    private string Relative(string path)
+    {
+        var root = _controller.OutputPath;
+
+        return !string.IsNullOrEmpty(root)
+               && path.StartsWith(root, StringComparison.OrdinalIgnoreCase)
+            ? path[root.Length..].TrimStart('\\', '/')
+            : path;
+    }
+
+    private void RefreshReadiness()
+    {
+        Readiness.Clear();
+
+        foreach (var check in _readiness.Run()) Readiness.Add(check);
+    }
 
     /// <summary>Pulls the controller's state onto the page.</summary>
     private void Sync()

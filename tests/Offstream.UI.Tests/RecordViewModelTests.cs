@@ -343,7 +343,7 @@ public sealed class RecordViewModelTests
     {
         var factory = new FakeSessionFactory();
         var controller = ControllerFor(factory);
-        var viewModel = new RecordViewModel(new InMemoryLogSink(), controller);
+        var viewModel = new RecordViewModel(new InMemoryLogSink(), controller, RecordingFakes.Readiness());
 
         var expected = stage switch
         {
@@ -368,7 +368,7 @@ public sealed class RecordViewModelTests
     {
         var factory = new FakeSessionFactory();
         var controller = ControllerFor(factory);
-        var viewModel = new RecordViewModel(new InMemoryLogSink(), controller);
+        var viewModel = new RecordViewModel(new InMemoryLogSink(), controller, RecordingFakes.Readiness());
 
         // Not running at all is not armed - a stopped display must not blink.
         Assert.False(viewModel.IsArmed);
@@ -420,7 +420,7 @@ public sealed class RecordViewModelTests
     {
         var factory = new FakeSessionFactory();
         var controller = ControllerFor(factory);
-        var viewModel = new RecordViewModel(new InMemoryLogSink(), controller);
+        var viewModel = new RecordViewModel(new InMemoryLogSink(), controller, RecordingFakes.Readiness());
 
         await viewModel.StartCommand.ExecuteAsync(null);
         await ReportAsync(
@@ -452,14 +452,15 @@ public sealed class RecordViewModelTests
     [Fact]
     public void Constructor_RejectsNulls()
     {
-        Assert.Throws<ArgumentNullException>(() => new RecordViewModel(null!, ControllerFor()));
-        Assert.Throws<ArgumentNullException>(() => new RecordViewModel(new InMemoryLogSink(), null!));
+        Assert.Throws<ArgumentNullException>(() => new RecordViewModel(null!, ControllerFor(), RecordingFakes.Readiness()));
+        Assert.Throws<ArgumentNullException>(() => new RecordViewModel(new InMemoryLogSink(), null!, RecordingFakes.Readiness()));
+        Assert.Throws<ArgumentNullException>(() => new RecordViewModel(new InMemoryLogSink(), ControllerFor(), null!));
     }
 
     private static RecordViewModel ViewModelFor(
         InMemoryLogSink? sink = null,
         FakeSessionFactory? factory = null) =>
-        new(sink ?? new InMemoryLogSink(), ControllerFor(factory));
+        new(sink ?? new InMemoryLogSink(), ControllerFor(factory), RecordingFakes.Readiness());
 
     private static RecordingController ControllerFor(FakeSessionFactory? factory = null) =>
         new(factory ?? new FakeSessionFactory(), RecordingFakes.Document());

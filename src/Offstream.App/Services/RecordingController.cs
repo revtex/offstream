@@ -56,6 +56,9 @@ public sealed class RecordingController(IRecordingSessionFactory factory, Settin
     /// <summary>A finished file landed in the library.</summary>
     public event EventHandler<TrackSavedEventArgs>? TrackSaved;
 
+    /// <summary>The current track's metadata lookup came back, art and destination with it.</summary>
+    public event EventHandler<TrackEnrichedEventArgs>? TrackEnriched;
+
     /// <summary>Whether a session is running.</summary>
     public bool IsRunning => _session?.IsRunning == true;
 
@@ -99,6 +102,9 @@ public sealed class RecordingController(IRecordingSessionFactory factory, Settin
             return string.Join(' ', parts);
         }
     }
+
+    /// <summary>The library root, so paths can be shown relative to it rather than in full.</summary>
+    public string? OutputPath => _settings.Current.Output.Path;
 
     /// <summary>Starts recording.</summary>
     /// <returns>Null when a session started; otherwise why one did not.</returns>
@@ -210,6 +216,7 @@ public sealed class RecordingController(IRecordingSessionFactory factory, Settin
         var session = _factory.Create(settings, new Progress<RecordingProgress>(OnProgress));
 
         session.TrackSaved += OnTrackSaved;
+        session.TrackEnriched += OnTrackEnriched;
         session.Failed += OnFailed;
 
         try
@@ -244,6 +251,7 @@ public sealed class RecordingController(IRecordingSessionFactory factory, Settin
     private async ValueTask Release(RecordingSession session)
     {
         session.TrackSaved -= OnTrackSaved;
+        session.TrackEnriched -= OnTrackEnriched;
         session.Failed -= OnFailed;
 
         await session.DisposeAsync();
@@ -263,6 +271,8 @@ public sealed class RecordingController(IRecordingSessionFactory factory, Settin
     }
 
     private void OnTrackSaved(object? sender, TrackSavedEventArgs e) => TrackSaved?.Invoke(this, e);
+
+    private void OnTrackEnriched(object? sender, TrackEnrichedEventArgs e) => TrackEnriched?.Invoke(this, e);
 
     private static void OnFailed(object? sender, RecordingFailedEventArgs e) =>
         Log.Error(e.Exception, "{Message}", e.Message);
