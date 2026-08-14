@@ -213,6 +213,15 @@
                                   ItemsSource="{Binding Providers, Mode=OneTime}"
                                   SelectedValue="{Binding Provider, Mode=TwoWay}"
                                   SelectedValuePath="Value" />
+
+                        <!--
+                            What the selection above actually changes. The dropdown named three
+                            providers and said nothing about how they differ, so the only way to
+                            find out was to record something and run ffprobe over it.
+                        -->
+                        <TextBlock AutomationProperties.AutomationId="SettingsProviderSummary"
+                                   Style="{StaticResource OffstreamHintStyle}"
+                                   Text="{Binding ProviderSummary, Mode=OneWay}" />
                     </StackPanel>
 
                     <!--

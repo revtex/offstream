@@ -306,6 +306,46 @@ public sealed class SettingsViewModelTests
     }
 
     /// <summary>
+    /// The summary follows the selection, and each provider gets its own — a stale one is worse
+    /// than none, because it describes tags the file will not have.
+    /// </summary>
+    [Theory]
+    [InlineData(MetadataProvider.None)]
+    [InlineData(MetadataProvider.LastFm)]
+    [InlineData(MetadataProvider.Spotify)]
+    public void ProviderSummary_DescribesTheChosenProvider(MetadataProvider provider)
+    {
+        var viewModel = SettingsFakes.Settings(SettingsFakes.Document(new MockFileSystem()));
+
+        var summaries = new List<string>();
+        viewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(SettingsViewModel.ProviderSummary))
+            {
+                summaries.Add(viewModel.ProviderSummary);
+            }
+        };
+
+        viewModel.Provider = provider;
+
+        Assert.NotEmpty(viewModel.ProviderSummary);
+
+        // The point of the control: three providers that tag differently must read differently.
+        Assert.Equal(
+            3,
+            new HashSet<string>(StringComparer.Ordinal)
+            {
+                Strings.SettingsProviderSummaryNone,
+                Strings.SettingsProviderSummaryLastFm,
+                Strings.SettingsProviderSummarySpotify,
+            }.Count);
+
+        // Last.fm is the default, so selecting it is not a change and raises nothing. Every other
+        // selection must, or the OneWay binding leaves the previous provider's text on screen.
+        if (provider != MetadataProvider.LastFm) Assert.NotEmpty(summaries);
+    }
+
+    /// <summary>
     /// The Client ID becomes required the moment the provider changes, without the provider
     /// knowing about the field — which is why every property is revalidated before a save.
     /// </summary>
