@@ -40,7 +40,6 @@ public static partial class LastFmTrackMapper
 
         // Last.fm reports milliseconds; everything downstream works in seconds.
         track.Length = response.Duration is > 0 ? response.Duration / 1000 : null;
-        track.Genres = ChooseGenres(response.TopTags);
         track.AlbumArtUrl = ChooseCoverUrl(response.Album);
 
         // An artist-less track yields an empty array rather than a one-element array of null:

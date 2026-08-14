@@ -33,9 +33,9 @@ public interface IGenreFallback
 /// </summary>
 /// <remarks>
 /// <para>
-/// It asks about the track first and the artist second, because Last.fm frequently has no tags
-/// at all for a given recording while carrying a rich set for whoever made it — see
-/// <see cref="LastFmMetadataProvider.GetGenresAsync"/>.
+/// It asks about the artist and not the recording, because Last.fm has no track tags at all for
+/// a great many recordings — so asking per track answered for some tracks on an album and not
+/// others. See <see cref="LastFmMetadataProvider.GetGenresAsync"/>.
 /// </para>
 /// <para>
 /// <b>This replaced a wrapper that ran the whole provider over a throwaway copy of the track.</b>
@@ -58,6 +58,6 @@ public sealed class LastFmGenreFallback(LastFmMetadataProvider provider) : IGenr
     {
         ArgumentNullException.ThrowIfNull(track);
 
-        return _provider.GetGenresAsync(track.Artist, track.Title, cancellationToken);
+        return _provider.GetGenresAsync(track.Artist, cancellationToken);
     }
 }

@@ -163,21 +163,19 @@ public sealed partial class LastFmMetadataProvider : IMetadataProvider
         return track.Genres is { Length: > 0 };
     }
 
-    /// <summary>Maps a response onto a track, then fills the genre gap Last.fm usually leaves.</summary>
+    /// <summary>Maps a response onto a track, then tags its genre from the artist.</summary>
     /// <remarks>
-    /// The mapper takes genres from the track's own tag cloud, which Last.fm leaves empty for a
-    /// great many tracks — so as the chosen provider it would tag album, position and artwork
-    /// correctly and then hand back no genre at all. The artist's tags are the same second
-    /// question the genre fallback asks, and this is the same answer.
+    /// A second request rather than something read off the response already in hand, because
+    /// <c>track.getInfo</c> carries only the recording's own tag cloud and that is no longer what
+    /// genre means here — see <see cref="GetGenresAsync"/>. It is the same question the genre
+    /// fallback asks, answered the same way and out of the same per-artist cache, so an album's
+    /// worth of tracks costs one request between them.
     /// </remarks>
     private async Task ApplyAsync(Track track, LastFmTrack response, CancellationToken cancellationToken)
     {
         LastFmTrackMapper.Apply(track, response);
 
-        if (track.Genres is null or { Length: 0 })
-        {
-            track.Genres = await ArtistTagsAsync(track.Artist, cancellationToken);
-        }
+        track.Genres = await ArtistTagsAsync(track.Artist, cancellationToken);
     }
 
     /// <summary>
@@ -206,54 +204,35 @@ public sealed partial class LastFmMetadataProvider : IMetadataProvider
     }
 
     /// <summary>
-    /// Genres for one recording, asked for directly rather than as a side effect of a full lookup.
+    /// Genres for an artist, asked for directly rather than as a side effect of a full lookup.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Track tags first, then the artist's.</b> Track-level tags are the better answer — they
-    /// describe this recording rather than its performer — but Last.fm simply does not have them
-    /// for a great many tracks, and returns an empty cloud rather than an error. ATB's
-    /// "9Pm (Till I Come)" is the case that prompted this: no track tags at all, while the artist
-    /// carries trance, electronic and dance. Stopping at the empty track answer threw away a
-    /// perfectly good one sitting behind it.
+    /// <b>The artist's tags, never the track's.</b> Last.fm does carry a per-recording tag cloud
+    /// and it used to be asked first, on the reasoning that a tag describing this recording beats
+    /// one describing its performer. In practice that is not the trade being made: Last.fm has no
+    /// track tags at all for a great many recordings and returns an empty cloud rather than an
+    /// error, so the first rung answered for some tracks on an album and not others — and a
+    /// library where one track is "trance" and the next is untagged sorts worse than one where
+    /// every track carries the artist's genre.
+    /// </para>
+    /// <para>
+    /// It also puts this provider on the same footing as Spotify, which has no track-level genre
+    /// to offer at all — genre is an attribute of the artist there — so the two now answer the
+    /// same question the same way instead of disagreeing by provider.
     /// </para>
     /// <para>
     /// This deliberately does not go through <see cref="EnrichAsync(Track, CancellationToken)"/>.
-    /// That path only maps anything — genres included — when Last.fm also returns an
-    /// <i>album</i>, which is the wrong gate for a question that never asked about albums, and it
-    /// fetches a release, its artwork and its track listing to read three strings off the side.
+    /// That path fetches a release, its artwork and its track listing to read three strings off
+    /// the side, and gates all of it on an album this question never asked about.
     /// </para>
     /// <para>
-    /// <c>autocorrect=1</c> on both, so Last.fm canonicalises the spelling it was given rather
-    /// than missing on punctuation or case.
+    /// <c>autocorrect=1</c>, so Last.fm canonicalises the spelling it was given rather than
+    /// missing on punctuation or case.
     /// </para>
     /// </remarks>
-    public async Task<string[]> GetGenresAsync(
-        string? artist,
-        string? title,
-        CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(artist)) return [];
-
-        if (!string.IsNullOrWhiteSpace(title))
-        {
-            var trackTags = await FetchAsync(TrackTagsUri(artist, title), cancellationToken);
-            var genres = LastFmTrackMapper.ChooseGenres(trackTags?.TopTags);
-
-            if (genres.Length > 0)
-            {
-                Log.Debug("Last.fm tagged the track {Artist} - {Title}: {Genres}.", artist, title, genres);
-                return genres;
-            }
-
-            Log.Debug(
-                "Last.fm has no tags for the track {Artist} - {Title}; asking about the artist.",
-                artist,
-                title);
-        }
-
-        return await ArtistTagsAsync(artist, cancellationToken);
-    }
+    public Task<string[]> GetGenresAsync(string? artist, CancellationToken cancellationToken = default) =>
+        ArtistTagsAsync(artist, cancellationToken);
 
     /// <summary>The artist's own tags, from cache when this session has already asked.</summary>
     private async Task<string[]> ArtistTagsAsync(string? artist, CancellationToken cancellationToken)
@@ -276,12 +255,6 @@ public sealed partial class LastFmMetadataProvider : IMetadataProvider
 
         return genres;
     }
-
-    private Uri TrackTagsUri(string artist, string title) => BuildUri(
-        "track.getTopTags",
-        ("artist", artist),
-        ("track", title),
-        ("autocorrect", "1"));
 
     private Uri ArtistTagsUri(string artist) => BuildUri(
         "artist.getTopTags",

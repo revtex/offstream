@@ -11,8 +11,10 @@ namespace Offstream.Core.Tests.Metadata;
 /// <remarks>
 /// The case these exist for is real and was found in the wild: ATB's "9Pm (Till I Come)" has no
 /// track tags on Last.fm at all — an empty cloud, not an error — while the artist carries trance,
-/// electronic and dance. Asking only about the track threw away a perfectly good answer sitting
-/// one request behind it.
+/// electronic and dance. That was first fixed by asking about the track and falling through to
+/// the artist; it now asks about the artist only, which is the same answer for one request
+/// instead of two, consistent across an album, and consistent with Spotify — where genre is an
+/// attribute of the artist and there is no track-level answer to prefer.
 /// </remarks>
 public sealed class LastFmGenreFallbackTests
 {
@@ -28,40 +30,51 @@ public sealed class LastFmGenreFallbackTests
     private static LastFmGenreFallback FallbackOver(HttpClient httpClient) =>
         new(new LastFmMetadataProvider(httpClient, ApiKey));
 
-    /// <summary>Track tags are the better answer, so they are asked for first and used when present.</summary>
+    /// <summary>
+    /// The artist is the only thing asked about — one request, and never <c>track.getTopTags</c>.
+    /// </summary>
     [Fact]
-    public async Task GetGenresAsync_PrefersTheTracksOwnTags()
+    public async Task GetGenresAsync_AsksAboutTheArtistOnly()
     {
-        using var handler = StubHttpMessageHandler.Xml(Tags("big beat", "breakbeat"));
-        using var httpClient = new HttpClient(handler);
-
-        Assert.Equal(["big beat", "breakbeat"], await FallbackOver(httpClient).GetGenresAsync(Detected()));
-    }
-
-    /// <summary>The regression: an empty track cloud falls through to the artist's tags.</summary>
-    [Fact]
-    public async Task GetGenresAsync_WhenTheTrackHasNoTags_FallsBackToTheArtists()
-    {
-        using var handler = StubHttpMessageHandler.Xml(NoTags, Tags("trance", "electronic", "dance"));
+        using var handler = StubHttpMessageHandler.Xml(Tags("trance", "electronic", "dance"));
         using var httpClient = new HttpClient(handler);
 
         Assert.Equal(
             ["trance", "electronic", "dance"],
             await FallbackOver(httpClient).GetGenresAsync(Detected()));
 
-        Assert.Equal(2, handler.Requests.Count);
-        Assert.Contains("track.getTopTags", handler.Requests[0].Query, StringComparison.Ordinal);
-        Assert.Contains("artist.getTopTags", handler.Requests[1].Query, StringComparison.Ordinal);
+        var request = Assert.Single(handler.Requests);
+        Assert.Contains("artist.getTopTags", request.Query, StringComparison.Ordinal);
+        Assert.DoesNotContain("track.getTopTags", request.Query, StringComparison.Ordinal);
     }
 
-    /// <summary>The last rung really is the last one: nothing anywhere means an empty tag.</summary>
+    /// <summary>An artist Last.fm has no tags for means an empty tag, not a second question.</summary>
     [Fact]
-    public async Task GetGenresAsync_WhenNeitherHasTags_ReturnsEmpty()
+    public async Task GetGenresAsync_WhenTheArtistHasNoTags_ReturnsEmpty()
     {
-        using var handler = StubHttpMessageHandler.Xml(NoTags, NoTags);
+        using var handler = StubHttpMessageHandler.Xml(NoTags);
         using var httpClient = new HttpClient(handler);
 
         Assert.Empty(await FallbackOver(httpClient).GetGenresAsync(Detected()));
+        Assert.Single(handler.Requests);
+    }
+
+    /// <summary>
+    /// An album is one artist repeated, so the per-artist cache is what keeps a fifteen-track
+    /// album to a single request — misses included, since an untagged artist stays untagged.
+    /// </summary>
+    [Fact]
+    public async Task GetGenresAsync_AsksAboutEachArtistOnce()
+    {
+        using var handler = StubHttpMessageHandler.Xml(Tags("trance"));
+        using var httpClient = new HttpClient(handler);
+
+        var fallback = FallbackOver(httpClient);
+
+        Assert.Equal(["trance"], await fallback.GetGenresAsync(Detected()));
+        Assert.Equal(["trance"], await fallback.GetGenresAsync(new Track { Artist = "ATB", Title = "Killer" }));
+
+        Assert.Single(handler.Requests);
     }
 
     /// <summary>Last.fm's clouds run long; the tag takes the same few the rest of the app does.</summary>
@@ -74,10 +87,7 @@ public sealed class LastFmGenreFallbackTests
         Assert.Equal(["trance", "electronic", "dance"], await FallbackOver(httpClient).GetGenresAsync(Detected()));
     }
 
-    /// <summary>
-    /// With no title there is no track to ask about, but the artist alone is still a question
-    /// worth asking — so it goes straight to the second rung rather than giving up.
-    /// </summary>
+    /// <summary>The title is not part of the question, so a track without one is not a problem.</summary>
     [Fact]
     public async Task GetGenresAsync_WithNoTitle_StillAsksAboutTheArtist()
     {

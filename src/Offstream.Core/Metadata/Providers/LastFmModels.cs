@@ -84,9 +84,6 @@ public sealed class LastFmTrack
 
     [XmlElement(ElementName = "album")]
     public LastFmAlbum? Album { get; set; }
-
-    [XmlElement(ElementName = "toptags")]
-    public LastFmTopTags? TopTags { get; set; }
 }
 
 /// <summary>
@@ -148,14 +145,11 @@ public sealed class LastFmNode
     [XmlElement(ElementName = "album")]
     public LastFmAlbumInfo? Album { get; set; }
 
-    /// <summary>
-    /// The tag cloud, when the response came from <c>track.getTopTags</c> or
-    /// <c>artist.getTopTags</c> rather than from <c>track.getInfo</c>.
-    /// </summary>
+    /// <summary>The tag cloud, when the response came from <c>artist.getTopTags</c>.</summary>
     /// <remarks>
-    /// Those two put it directly under the root, where <c>track.getInfo</c> nests it inside the
-    /// track node. Same shape, different depth, so it needs its own property rather than reusing
-    /// <see cref="LastFmTrack.TopTags"/>.
+    /// That method puts it directly under the root, where <c>track.getInfo</c> nests its own
+    /// inside the track node — so it belongs here rather than on <see cref="LastFmTrack"/>,
+    /// which no longer carries one at all now that genre comes from the artist.
     /// </remarks>
     [XmlElement(ElementName = "toptags")]
     public LastFmTopTags? TopTags { get; set; }
