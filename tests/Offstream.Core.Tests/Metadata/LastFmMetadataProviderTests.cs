@@ -93,7 +93,10 @@ public sealed class LastFmMetadataProviderTests
         await new LastFmMetadataProvider(httpClient, ApiKey).EnrichAsync(
             new Track { Artist = "Sigur Rós", Title = "Hoppípolla" });
 
-        var query = Assert.Single(handler.Requests).Query;
+        // The first request, not the only one: this fixture carries no tag cloud, so the provider
+        // goes on to ask about the artist as well. That second question is covered by
+        // LastFmGenreFallbackTests; this one is about the shape of the lookup that opens it.
+        var query = handler.Requests[0].Query;
 
         Assert.Contains("method=track.getInfo", query, StringComparison.Ordinal);
         Assert.Contains($"api_key={ApiKey}", query, StringComparison.Ordinal);
@@ -243,5 +246,50 @@ public sealed class LastFmMetadataProviderTests
         using var httpClient = handler.Client();
 
         Assert.Throws<ArgumentException>(() => new LastFmMetadataProvider(httpClient, " "));
+    }
+
+    /// <summary>
+    /// As the chosen provider it has to come back with a genre, not just an album.
+    /// </summary>
+    /// <remarks>
+    /// The mapper reads genres from the track's own tag cloud, which Last.fm leaves empty for a
+    /// great many tracks — ATB's "9Pm (Till I Come)" among them, which is the case that found
+    /// this. Without the artist's tags behind it, Last.fm-as-primary tagged album, position and
+    /// artwork correctly and then handed back no genre at all.
+    /// </remarks>
+    [Fact]
+    public async Task EnrichAsync_WhenTheTrackHasNoTags_TakesGenresFromTheArtist()
+    {
+        using var handler = StubHttpMessageHandler.Xml(
+            TrackResponse(),
+            """<lfm status="ok"><toptags><tag><name>trance</name></tag></toptags></lfm>""");
+
+        using var httpClient = handler.Client();
+
+        var track = Detected();
+        await new LastFmMetadataProvider(httpClient, ApiKey).EnrichAsync(track);
+
+        Assert.Equal(["trance"], track.Genres!);
+        Assert.Contains("artist.getTopTags", handler.Requests[^1].Query, StringComparison.Ordinal);
+    }
+
+    /// <summary>An artist is asked about once a session, however many of its tracks are recorded.</summary>
+    [Fact]
+    public async Task EnrichAsync_AsksAboutAnArtistsTagsOncePerSession()
+    {
+        using var handler = StubHttpMessageHandler.Xml(
+            TrackResponse(),
+            """<lfm status="ok"><toptags><tag><name>trance</name></tag></toptags></lfm>""",
+            TrackResponse());
+
+        using var httpClient = handler.Client();
+        var provider = new LastFmMetadataProvider(httpClient, ApiKey);
+
+        await provider.EnrichAsync(Detected());
+        var second = Detected();
+        await provider.EnrichAsync(second);
+
+        Assert.Equal(["trance"], second.Genres!);
+        Assert.Single(handler.Requests, r => r.Query.Contains("artist.getTopTags", StringComparison.Ordinal));
     }
 }

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net.Http;
 using System.Text.RegularExpressions;
@@ -57,6 +58,17 @@ public sealed partial class LastFmMetadataProvider : IMetadataProvider
     private readonly HttpClient _httpClient;
     private readonly string _apiKey;
 
+    /// <summary>
+    /// Artist to tags, for the life of this provider — which is the life of one session.
+    /// </summary>
+    /// <remarks>
+    /// An artist's tags do not move while a session runs, and recording an album asks about the
+    /// same artist once per track. Keyed by name rather than id because Last.fm has no ids;
+    /// compared case-insensitively, since it is the name as some source spelled it.
+    /// </remarks>
+    private readonly ConcurrentDictionary<string, string[]> _artistTags =
+        new(StringComparer.OrdinalIgnoreCase);
+
     /// <param name="httpClient">Used for every request; the caller owns its lifetime and timeout.</param>
     /// <param name="apiKey">The user's Last.fm API key, from settings.</param>
     public LastFmMetadataProvider(HttpClient httpClient, string apiKey)
@@ -100,6 +112,16 @@ public sealed partial class LastFmMetadataProvider : IMetadataProvider
         if (response.Album is not null)
         {
             LastFmTrackMapper.Apply(track, response);
+
+            // The mapper takes genres from the track's own tag cloud, which Last.fm leaves empty
+            // for a great many tracks — so as the chosen provider it would tag album, position and
+            // artwork correctly and then hand back no genre at all. The artist's tags are the same
+            // second question the genre fallback asks, and this is the same answer.
+            if (track.Genres is null or { Length: 0 })
+            {
+                track.Genres = await ArtistTagsAsync(track.Artist, cancellationToken);
+            }
+
             return true;
         }
 
@@ -186,15 +208,29 @@ public sealed partial class LastFmMetadataProvider : IMetadataProvider
                 title);
         }
 
+        return await ArtistTagsAsync(artist, cancellationToken);
+    }
+
+    /// <summary>The artist's own tags, from cache when this session has already asked.</summary>
+    private async Task<string[]> ArtistTagsAsync(string? artist, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(artist)) return [];
+
+        if (_artistTags.TryGetValue(artist, out var cached)) return cached;
+
         var artistTags = await FetchAsync(ArtistTagsUri(artist), cancellationToken);
-        var artistGenres = LastFmTrackMapper.ChooseGenres(artistTags?.TopTags);
+        var genres = LastFmTrackMapper.ChooseGenres(artistTags?.TopTags);
+
+        // Cached even when empty, for the same reason Spotify's is: an artist Last.fm has no tags
+        // for still has none on the next track, and re-asking every track is the cost this avoids.
+        _artistTags[artist] = genres;
 
         Log.Debug(
             "Last.fm gave the artist {Artist} the tags: {Genres}.",
             artist,
-            artistGenres.Length == 0 ? "none" : string.Join(", ", artistGenres));
+            genres.Length == 0 ? "none" : string.Join(", ", genres));
 
-        return artistGenres;
+        return genres;
     }
 
     private Uri TrackTagsUri(string artist, string title) => BuildUri(
