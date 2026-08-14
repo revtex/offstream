@@ -1,5 +1,6 @@
 using System.Globalization;
 using Offstream.Core.Metadata;
+using Offstream.Core.Naming;
 
 namespace Offstream.Core.Encoding;
 
@@ -84,7 +85,11 @@ public static class FFmpegArguments
         if (request.Track is not null)
             args.AddRange(MetadataArguments(request.Track, request.TrackNumberOverride));
 
-        args.Add(request.OutputPath);
+        // Extended form when it is long enough to need it. ffmpeg is a separate process with its
+        // own manifest, so it does not inherit any long-path opt-in of ours; the \\?\ prefix is
+        // what carries past MAX_PATH, and it survives ArgumentList untouched. Verified with
+        // ffmpeg 8.1 writing to a 298-character destination. See LongPath.
+        args.Add(LongPath.Extended(request.OutputPath));
 
         return args;
     }

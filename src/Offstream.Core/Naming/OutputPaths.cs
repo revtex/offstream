@@ -32,7 +32,13 @@ public sealed class OutputPaths(
     IFileSystem fileSystem,
     DateTime now)
 {
-    private const int MaxPathLength = 260;
+    /// <summary>
+    /// The total path budget. Extended-length now, rather than the legacy 260 — see
+    /// <see cref="LongPath"/> for why the <c>\\?\</c> prefix is the mechanism and how it was
+    /// verified against ffmpeg, which is the process that actually writes the file.
+    /// </summary>
+    private static readonly int MaxPathLength = LongPath.MaxLength;
+
     private const int MinPathLeftLength = 100;
 
     /// <summary>Head-room reserved for a " 12" duplicate suffix plus ".flac".</summary>
@@ -105,7 +111,11 @@ public sealed class OutputPaths(
         var budget = Math.Max(
             MaxPathLength - (settings.OutputPath ?? string.Empty).Length - CounterAndExtensionLength - levels,
             0);
-        var perLevel = Math.Max(budget / levels, 1);
+        // Clamped to a single component's limit, which extended paths do NOT lift: they raise the
+        // total only. Without this the relaxed budget divides into per-level allowances of
+        // thousands of characters and renders a folder name the filesystem refuses outright —
+        // trading "truncated at 260" for "cannot be written at all".
+        var perLevel = Math.Clamp(budget / levels, 1, LongPath.MaxComponentLength);
 
         var (folders, fileName) = FileNameTemplate.Render(
             template, track, settings.OrderNumberAsFile, now, perLevel, perLevel);
@@ -215,7 +225,11 @@ public sealed class OutputPaths(
 
         for (var i = 1; i <= folders.Length; i++)
         {
-            var path = ConcatPaths([settings.OutputPath, .. folders.Take(i)]);
+            // Extended form for the filesystem call only. A deep template can push an intermediate
+            // folder past 260 before the file name is even appended, and CreateDirectory has no
+            // idea what the caller intends to put inside it.
+            var path = LongPath.Extended(ConcatPaths([settings.OutputPath, .. folders.Take(i)]));
+
             if (!fileSystem.Directory.Exists(path)) fileSystem.Directory.CreateDirectory(path);
         }
     }

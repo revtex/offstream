@@ -374,13 +374,25 @@ public sealed class OutputPathsTests
     public void ConcatPaths_ReturnsPath() =>
         Assert.Equal(@"a\b\c", OutputPaths.ConcatPaths("a", null, "b", "  ", "c"));
 
+    /// <summary>
+    /// A deep output folder is no longer a problem, which is the point of extended-length paths.
+    /// This case asserted the opposite until Phase 7: at the legacy 260 the root below left too
+    /// little room for a file name, and the user was warned off a folder that now works.
+    /// </summary>
     [Theory]
-    [InlineData(@"C:\short", false)]
+    [InlineData(@"C:\short")]
     [InlineData(
-        @"C:\a-very-long-output-path-that-leaves-no-room-at-all-for-a-rendered-file-name-because-it-is-far-too-long-to-be-useful-and-then-some-more-characters-to-push-it-over-the-limit-entirely-for-sure-yes-really-truly-definitely-over-the-line-now",
-        true)]
-    public void IsOutputPathTooLong_DetectsLongPaths(string path, bool expected) =>
-        Assert.Equal(expected, OutputPaths.IsOutputPathTooLong(path));
+        @"C:\a-very-long-output-path-that-leaves-no-room-at-all-for-a-rendered-file-name-because-it-is-far-too-long-to-be-useful-and-then-some-more-characters-to-push-it-over-the-limit-entirely-for-sure-yes-really-truly-definitely-over-the-line-now")]
+    public void IsOutputPathTooLong_AcceptsWhatTheLegacyLimitWouldHaveRefused(string path) =>
+        Assert.False(OutputPaths.IsOutputPathTooLong(path));
+
+    /// <summary>
+    /// The check still fires, just far later. Extended paths raise the ceiling; they do not
+    /// remove it, and a root with no room left is still worth refusing before a recording starts.
+    /// </summary>
+    [Fact]
+    public void IsOutputPathTooLong_StillRefusesARootWithNoRoomLeft() =>
+        Assert.True(OutputPaths.IsOutputPathTooLong(@"C:\" + new string('x', LongPath.MaxLength - 50)));
 
     [Fact]
     public void GetTempFile_IsTaggedForOffstream()
