@@ -72,7 +72,12 @@ public sealed class RecordingSessionFactory(
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(progress);
 
-        var capture = new LoopbackAudioCapture(settings.Recording.AudioEndpointDeviceId);
+        // The watcher ends the capture when its endpoint disappears mid-recording. Without it the
+        // loss is silent: WASAPI stops delivering, the session keeps believing it is recording,
+        // and the file that lands is whatever arrived before the device went away.
+        var capture = new LoopbackAudioCapture(
+            settings.Recording.AudioEndpointDeviceId,
+            endpoints: new AudioEndpointWatcher());
 
         // SMTC first, window title second. The title is only readable while Spotify has a window,
         // so on its own it stops detecting the moment the user minimises to the tray; the media
