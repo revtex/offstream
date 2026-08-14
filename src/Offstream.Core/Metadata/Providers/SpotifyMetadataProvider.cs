@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using Offstream.Core.Spotify;
 using Serilog;
@@ -83,7 +84,30 @@ public sealed record SpotifyPollingOptions(TimeSpan SettleDelay, TimeSpan RetryD
 public sealed class SpotifyMetadataProvider(ISpotifyClient client, SpotifyPollingOptions? polling = null)
     : ISpotifyMetadataProvider
 {
+    /// <summary>
+    /// How many artist genres reach the tag.
+    /// </summary>
+    /// <remarks>
+    /// Spotify lists as many as a dozen for a well-known artist, shading from the useful
+    /// ("trance") into the hyper-specific ("german progressive trance"). Three matches what
+    /// <see cref="LastFmTrackMapper"/> takes, so a library tagged from both providers does not
+    /// have two different ideas of how long a genre tag is.
+    /// </remarks>
+    private const int MaximumGenres = 3;
+
     private readonly SpotifyPollingOptions _polling = polling ?? SpotifyPollingOptions.Default;
+
+    /// <summary>
+    /// Artist id to genres, for the life of this provider — which is the life of one session.
+    /// </summary>
+    /// <remarks>
+    /// An artist's genres do not change while a recording session runs, and recording an album
+    /// means asking about the same artist once per track. Without this, a fifteen-track album is
+    /// fifteen identical requests against a rate limit that is shared with every other call the
+    /// session makes. Keyed by id rather than name because ids are what Spotify guarantees
+    /// unique — two artists genuinely share a name often enough to matter.
+    /// </remarks>
+    private readonly ConcurrentDictionary<string, string[]> _artistGenres = new(StringComparer.Ordinal);
 
     /// <inheritdoc />
     public event EventHandler? AuthorizationExpired;
@@ -220,12 +244,66 @@ public sealed class SpotifyMetadataProvider(ISpotifyClient client, SpotifyPollin
         SpotifyTrackMapper.Apply(track, spotifyTrack);
 
         var albumId = spotifyTrack.Album?.Id;
-        if (string.IsNullOrEmpty(albumId)) return true;
 
-        var album = await client.Albums.Get(albumId, cancellationToken);
-        SpotifyTrackMapper.Apply(track, album);
+        if (!string.IsNullOrEmpty(albumId))
+        {
+            var album = await client.Albums.Get(albumId, cancellationToken);
+            SpotifyTrackMapper.Apply(track, album);
+        }
+
+        // Only asked for when the album came back without genres, which since Spotify's late-2024
+        // catalogue changes is very nearly always. See ArtistGenresAsync.
+        if (track.Genres is null or { Length: 0 })
+        {
+            track.Genres = await ArtistGenresAsync(spotifyTrack, cancellationToken);
+        }
 
         return true;
+    }
+
+    /// <summary>
+    /// The lead artist's genres, from cache when this session has already asked.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Genre is an artist attribute in Spotify's model, not a track one.</b> There is no genre
+    /// field on a track at any endpoint; album objects have one that Spotify stopped populating
+    /// for most of the catalogue in late 2024, which left every Spotify-tagged recording with an
+    /// empty genre tag. <c>/v1/artists/{id}</c> is the one place the data still lives.
+    /// </para>
+    /// <para>
+    /// It needs no user scope — artist data is public — so this costs a request and nothing on
+    /// the consent screen. The id is already in hand from the track that was just matched.
+    /// </para>
+    /// <para>
+    /// <b>The honest limitation:</b> these describe the artist's body of work rather than this
+    /// recording, so a ballad by a metal band is tagged as metal. That is Spotify's model and not
+    /// something this can correct; a track-level answer has to come from somewhere else, which is
+    /// what the enricher's genre fallback is for.
+    /// </para>
+    /// </remarks>
+    private async Task<string[]> ArtistGenresAsync(FullTrack spotifyTrack, CancellationToken cancellationToken)
+    {
+        var artistId = spotifyTrack.Artists?
+            .FirstOrDefault(artist => !string.IsNullOrEmpty(artist.Id))?.Id;
+
+        if (string.IsNullOrEmpty(artistId)) return [];
+
+        if (_artistGenres.TryGetValue(artistId, out var cached)) return cached;
+
+        var artist = await client.Artists.Get(artistId, cancellationToken);
+
+        var genres = (artist?.Genres ?? [])
+            .Where(genre => !string.IsNullOrWhiteSpace(genre))
+            .Select(genre => genre.Trim())
+            .Take(MaximumGenres)
+            .ToArray();
+
+        // Cached even when empty: an artist Spotify has no genres for has none on the next track
+        // either, and re-asking every track is the exact cost this exists to avoid.
+        _artistGenres[artistId] = genres;
+
+        return genres;
     }
 
     /// <summary>

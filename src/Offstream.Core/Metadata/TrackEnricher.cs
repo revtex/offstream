@@ -48,8 +48,13 @@ public sealed class TrackEnricher : ITrackEnricher
     private readonly IMetadataProvider _provider;
     private readonly ICoverArtFetcher _coverArt;
     private readonly TimeSpan _deadline;
+    private readonly IGenreFallback? _genreFallback;
 
-    public TrackEnricher(IMetadataProvider provider, ICoverArtFetcher coverArt, TimeSpan? deadline = null)
+    public TrackEnricher(
+        IMetadataProvider provider,
+        ICoverArtFetcher coverArt,
+        TimeSpan? deadline = null,
+        IGenreFallback? genreFallback = null)
     {
         ArgumentNullException.ThrowIfNull(provider);
         ArgumentNullException.ThrowIfNull(coverArt);
@@ -57,6 +62,7 @@ public sealed class TrackEnricher : ITrackEnricher
         _provider = provider;
         _coverArt = coverArt;
         _deadline = deadline ?? DefaultDeadline;
+        _genreFallback = genreFallback;
     }
 
     /// <inheritdoc />
@@ -80,6 +86,8 @@ public sealed class TrackEnricher : ITrackEnricher
                 Log.Information("{Provider} had no metadata for {Track}.", _provider.Kind, track);
                 return TrackEnrichment.None;
             }
+
+            await ApplyGenreFallbackAsync(track, deadline.Token);
 
             var coverArtPath = await _coverArt.FetchAsync(track, deadline.Token);
 
@@ -113,6 +121,47 @@ public sealed class TrackEnricher : ITrackEnricher
         {
             Log.Warning(ex, "{Provider} failed for {Track}; recording it untagged.", _provider.Kind, track);
             return TrackEnrichment.None;
+        }
+    }
+
+    /// <summary>
+    /// Fills the genre tag from a second source when the chosen provider left it empty.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Only on the success path, and only into a gap. A provider that found nothing at all
+    /// produces an untagged recording, and a lone genre on an otherwise bare file is not worth a
+    /// second request; a provider that did supply genres is not second-guessed.
+    /// </para>
+    /// <para>
+    /// A failure here is swallowed rather than downgrading the enrichment. Everything else on the
+    /// track is already correct at this point, and losing an album because a genre lookup timed
+    /// out would be the tail wagging the dog.
+    /// </para>
+    /// </remarks>
+    private async Task ApplyGenreFallbackAsync(Track track, CancellationToken cancellationToken)
+    {
+        if (_genreFallback is null || track.Genres is { Length: > 0 }) return;
+
+        try
+        {
+            var genres = await _genreFallback.GetGenresAsync(track, cancellationToken);
+
+            if (genres.Length == 0) return;
+
+            track.Genres = genres;
+
+            Log.Debug("Genre for {Track} came from the fallback source: {Genres}.", track, genres);
+        }
+        catch (OperationCanceledException)
+        {
+            // The deadline or the session; either way the rest of the tags stand.
+        }
+#pragma warning disable CA1031 // A genre is never worth failing an otherwise good enrichment.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            Log.Debug(ex, "The genre fallback failed for {Track}; leaving the tag empty.", track);
         }
     }
 }
