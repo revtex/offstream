@@ -349,9 +349,16 @@ public sealed class RecordingSession : IAsyncDisposable
 
         var paths = PathsFor(track);
 
+        // A shortcut, not the decision: it can only see what the title or media session gave us,
+        // so a template using {album}, {year} or {track} renders somewhere else entirely until
+        // enrichment lands. TrackRecorder asks again once it has — see TrackRecorder.AlreadyOnDisk.
         if (_settings.ExistingFilePolicy == ExistingFilePolicy.Skip && AlreadyRecorded(paths, track))
         {
-            Report(RecordingStage.WaitingForTrack, track.ToString(), message: "Already recorded; skipping.");
+            Report(
+                RecordingStage.WaitingForTrack,
+                track.ToString(),
+                message: $"Kept the file already on disk and did not record {track}.");
+
             return;
         }
 
@@ -518,6 +525,16 @@ public sealed class RecordingSession : IAsyncDisposable
 
                 break;
 
+            case RecordingOutcome.AlreadyRecorded:
+                Report(
+                    RecordingStage.WaitingForTrack,
+                    recording.Track.ToString(),
+                    recording.Duration,
+                    $"Kept the file already on disk and discarded this recording of {recording.Track}: "
+                    + $"{recording.Destination}");
+
+                break;
+
             case RecordingOutcome.Silent:
                 RaiseFailed(
                     recording.Track,
@@ -546,9 +563,33 @@ public sealed class RecordingSession : IAsyncDisposable
         try
         {
             var paths = PathsFor(track);
+
+            // Before the folders are created and the counter is applied, so the answer is about
+            // the name the template asked for rather than the one a counter just moved off it.
+            var replacing = _fileSystem.File.Exists(paths.ResolveMediaFilePath(track, _settings));
+
             var outputFile = paths.GetOutputFileAndInitDirectories();
             var destination = outputFile.ToMediaFilePath()
                               ?? throw new UnrecognizedTrackException("Output path resolved to nothing.");
+
+            // The last gate on the keep-what-is-there policy. TrackRecorder already checked, and
+            // for one recording that is the end of it — but encodes queue, so two recordings of
+            // the same track can both pass that check and reach here, where RenameFile would
+            // replace the destination without a word.
+            if (replacing && _settings.ExistingFilePolicy == ExistingFilePolicy.Skip)
+            {
+                TryDelete(e.Outcome.OutputPath);
+                paths.DeleteFile(recording.Encode!.InputPath);
+                TryDelete(recording.Encode.CoverArtPath);
+
+                Report(
+                    RecordingStage.WaitingForTrack,
+                    track.ToString(),
+                    recording.Duration,
+                    $"Kept the file already on disk and discarded this recording of {track}: {destination}");
+
+                return;
+            }
 
             paths.RenameFile(e.Outcome.OutputPath, destination);
             paths.DeleteFile(recording.Encode!.InputPath);
@@ -570,7 +611,7 @@ public sealed class RecordingSession : IAsyncDisposable
                 RecordingStage.WaitingForTrack,
                 track.ToString(),
                 recording.Duration,
-                $"Saved {outputFile}.");
+                DescribeSaved(outputFile, replacing));
         }
         catch (Exception ex) when (ex is UnrecognizedTrackException
                                        or SourceFileNotFoundException
@@ -605,6 +646,21 @@ public sealed class RecordingSession : IAsyncDisposable
             $"Encoding {track} failed: {e.Exception.Message} The captured audio was kept at {e.Request.InputPath}.",
             e.Exception);
     }
+
+    /// <summary>
+    /// Says what the existing-file policy did, when it did anything.
+    /// </summary>
+    /// <remarks>
+    /// The policy is otherwise invisible: overwriting and adding a counter both look exactly like
+    /// an ordinary save from the outside, which leaves a user with no way to tell a setting that
+    /// is working from one that is not.
+    /// </remarks>
+    private static string DescribeSaved(OutputFile outputFile, bool replacing) => (replacing, outputFile.IsCounted) switch
+    {
+        (true, false) => $"Saved {outputFile}, replacing the file already there.",
+        (_, true) => $"Saved {outputFile}; the name the template asked for was taken.",
+        _ => $"Saved {outputFile}.",
+    };
 
     private OutputPaths PathsFor(Track track) =>
         new(_settings, track, _fileSystem, _time.GetLocalNow().DateTime);

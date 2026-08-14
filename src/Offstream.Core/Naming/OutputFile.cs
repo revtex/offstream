@@ -29,6 +29,9 @@ public sealed class OutputFile
 
     private int Count { get; set; } = FirstCount;
 
+    /// <summary>Whether the first name the template yielded was taken, so a counter was added.</summary>
+    public bool IsCounted => Count > FirstCount;
+
     /// <summary>Moves to the next candidate name when the current one is taken.</summary>
     public void Increment() => Count++;
 

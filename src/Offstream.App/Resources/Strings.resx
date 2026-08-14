@@ -517,4 +517,16 @@
     <value>STOP</value>
     <comment>Transport indicator while nothing is running.</comment>
   </data>
+  <data name="SettingsVirtualCableFound" xml:space="preserve">
+    <value>VB-CABLE is installed. Route Spotify to it in Windows, then record it here.</value>
+    <comment>Shown under the device picker when a VB-Audio virtual cable endpoint exists.</comment>
+  </data>
+  <data name="SettingsVirtualCableMissing" xml:space="preserve">
+    <value>VB-CABLE is not installed. Recording a normal output device captures every sound the machine makes, not only Spotify.</value>
+    <comment>Shown under the device picker when no VB-Audio virtual cable endpoint exists. Offstream ships no installer for it.</comment>
+  </data>
+  <data name="SettingsVirtualCableGet" xml:space="preserve">
+    <value>Get VB-CABLE from vb-audio.com</value>
+    <comment>Link beside the missing-cable notice. Offstream never bundles the vendor's installer.</comment>
+  </data>
 </root>

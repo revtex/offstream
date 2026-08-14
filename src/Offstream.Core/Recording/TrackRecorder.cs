@@ -22,6 +22,9 @@ public enum RecordingOutcome
 
     /// <summary>The session was torn down mid-track.</summary>
     Cancelled,
+
+    /// <summary>The destination already holds a recording and the policy is to keep it.</summary>
+    AlreadyRecorded,
 }
 
 /// <summary>What one track's recording produced.</summary>
@@ -32,11 +35,17 @@ public enum RecordingOutcome
 /// The encode to queue, when <see cref="Outcome"/> is <see cref="RecordingOutcome.Captured"/>.
 /// Its output path is a temp file: the final name is claimed at rename time, after encoding.
 /// </param>
+/// <param name="Destination">
+/// The library path this recording resolved to, when <see cref="RecordingOutcome"/> is
+/// <see cref="RecordingOutcome.AlreadyRecorded"/> — the file that was kept, so the session can
+/// name it rather than leaving the user to guess which one it meant.
+/// </param>
 public sealed record TrackRecording(
     RecordingOutcome Outcome,
     Track Track,
     TimeSpan Duration,
-    EncodeRequest? Encode = null);
+    EncodeRequest? Encode = null,
+    string? Destination = null);
 
 /// <summary>
 /// Records one track: drains captured audio into a temp WAV, then decides whether it is worth
@@ -291,6 +300,14 @@ public sealed class TrackRecorder : IDisposable
 
         var enrichment = await AwaitEnrichmentAsync();
 
+        if (AlreadyOnDisk() is { } kept)
+        {
+            _paths.DeleteFile(tempWavePath);
+            TryDelete(enrichment.CoverArtPath);
+
+            return new TrackRecording(RecordingOutcome.AlreadyRecorded, _track, duration, Destination: kept);
+        }
+
         // Encode to a temp file with the right extension. The destination name is claimed at
         // rename time, not now: encoding is queued behind other tracks, and a name reserved
         // minutes early can be taken by the recording that finishes first.
@@ -307,6 +324,60 @@ public sealed class TrackRecorder : IDisposable
             _settings.OrderNumberAsTag);
 
         return new TrackRecording(RecordingOutcome.Captured, _track, duration, encode);
+    }
+
+    /// <summary>
+    /// The library file this recording would land on, when one is already there and the user
+    /// asked to keep it. Null when the recording should proceed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This is where the policy is actually decided, and it has to be after enrichment.</b>
+    /// <see cref="RecordingSession"/> asks the same question the moment the track changes, which
+    /// is worth doing because it can skip the recording outright — but at that point the track
+    /// carries only what the window title or media session said, so a template using
+    /// <c>{album}</c>, <c>{year}</c> or <c>{track}</c> renders a path with those tokens empty:
+    /// <c>Artist\Title.mp3</c> rather than <c>Artist\(1983) Album\04 Title.mp3</c>. The early
+    /// check then looks somewhere nothing is ever written, always answers "no", and the
+    /// recording proceeds to overwrite the file the user asked to keep — the rename replaces
+    /// whatever is at the destination. Asking again here, against the enriched track, is what
+    /// makes "keep the one on disk" mean it for every template rather than only the simple ones.
+    /// </para>
+    /// <para>
+    /// Deliberately before the encode rather than after: the destination is already knowable, so
+    /// there is no reason to spend an ffmpeg run on a file about to be thrown away.
+    /// </para>
+    /// </remarks>
+    private string? AlreadyOnDisk()
+    {
+        if (_settings.ExistingFilePolicy != ExistingFilePolicy.Skip) return null;
+
+        try
+        {
+            var destination = _paths.ResolveMediaFilePath(_track, _settings);
+
+            return _fileSystem.File.Exists(destination) ? destination : null;
+        }
+        catch (UnrecognizedTrackException)
+        {
+            // Nothing renderable to compare against. Let the recording proceed and fail later
+            // with a message about the track, rather than silently discarding it here.
+            return null;
+        }
+    }
+
+    private void TryDelete(string? path)
+    {
+        if (string.IsNullOrEmpty(path)) return;
+
+        try
+        {
+            if (_fileSystem.File.Exists(path)) _fileSystem.File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // A stray cover-art temp file is not worth failing anything over.
+        }
     }
 
     /// <summary>

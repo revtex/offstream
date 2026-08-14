@@ -152,6 +152,26 @@
                                       ItemsSource="{Binding Devices, Mode=OneWay}"
                                       SelectedItem="{Binding SelectedDevice, Mode=TwoWay}" />
                         </DockPanel>
+
+                        <!--
+                            Recording a normal output device records the whole machine, so whether
+                            a virtual cable is present decides what a recording can contain. Stated
+                            here, next to the choice it affects, and both ways round: a user who
+                            has the cable and is looking for it in the list is told it is there.
+
+                            The link goes to the vendor. Offstream carries no installer for it —
+                            see Offstream.Core.Audio.VirtualCable for the licence that decides that.
+                        -->
+                        <TextBlock AutomationProperties.AutomationId="SettingsVirtualCableStatus"
+                                   Style="{StaticResource OffstreamHintStyle}"
+                                   Text="{Binding VirtualCableStatus, Mode=OneWay}" />
+
+                        <ui:HyperlinkButton Margin="0,2,0,0"
+                                            Padding="0,2"
+                                            AutomationProperties.AutomationId="SettingsVirtualCableLink"
+                                            Content="{x:Static res:Strings.SettingsVirtualCableGet}"
+                                            NavigateUri="{Binding VirtualCableUrl, Mode=OneTime}"
+                                            Visibility="{Binding IsVirtualCableMissing, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
                     </StackPanel>
 
                     <StackPanel Grid.Column="2" Style="{StaticResource Field}">

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.IO.Abstractions.TestingHelpers;
+using Offstream.App.Resources;
 using Offstream.App.ViewModels;
 using Offstream.Core.Audio;
 using Offstream.Core.Encoding;
@@ -226,6 +227,51 @@ public sealed class SettingsViewModelTests
 
         Assert.Contains(viewModel.Devices, device => device.Id == "{headset}");
         Assert.Equal("{speakers}", viewModel.SelectedDevice?.Id);
+    }
+
+    /// <summary>
+    /// The cable's absence is what a user needs telling — recording an ordinary output device
+    /// records the whole machine — so the notice appears with the link and without one when the
+    /// cable is there. Offstream never installs it, so the link is the whole of the offer.
+    /// </summary>
+    [Fact]
+    public void VirtualCable_WhenAbsent_IsReportedWithSomewhereToGetIt()
+    {
+        var catalog = new FakeDeviceCatalog(new RenderDevice("{speakers}", "Speakers", IsDefault: true));
+        var viewModel = SettingsFakes.Settings(SettingsFakes.Document(), catalog);
+
+        Assert.True(viewModel.IsVirtualCableMissing);
+        Assert.Equal(Strings.SettingsVirtualCableMissing, viewModel.VirtualCableStatus);
+        Assert.Equal("https://vb-audio.com/Cable/", SettingsViewModel.VirtualCableUrl);
+    }
+
+    /// <summary>Windows appends its own suffix to the endpoint, so the match has to be a substring.</summary>
+    [Fact]
+    public void VirtualCable_WhenInstalled_IsRecognisedThroughTheEndpointSuffix()
+    {
+        var catalog = new FakeDeviceCatalog(
+            new RenderDevice("{speakers}", "Speakers", IsDefault: true),
+            new RenderDevice("{cable}", "CABLE Input (VB-Audio Virtual Cable)", IsDefault: false));
+
+        var viewModel = SettingsFakes.Settings(SettingsFakes.Document(), catalog);
+
+        Assert.False(viewModel.IsVirtualCableMissing);
+        Assert.Equal(Strings.SettingsVirtualCableFound, viewModel.VirtualCableStatus);
+    }
+
+    /// <summary>Plugging the cable in with the page open is the case the refresh button exists for.</summary>
+    [Fact]
+    public void VirtualCable_IsRecheckedWhenTheDeviceListRefreshes()
+    {
+        var catalog = new FakeDeviceCatalog(new RenderDevice("{speakers}", "Speakers", IsDefault: true));
+        var viewModel = SettingsFakes.Settings(SettingsFakes.Document(), catalog);
+
+        Assert.True(viewModel.IsVirtualCableMissing);
+
+        catalog.Devices.Add(new RenderDevice("{cable}", "CABLE Input (VB-Audio Virtual Cable)", IsDefault: false));
+        viewModel.RefreshDevicesCommand.Execute(null);
+
+        Assert.False(viewModel.IsVirtualCableMissing);
     }
 
     [Fact]

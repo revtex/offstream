@@ -50,17 +50,25 @@ public sealed class TrackRecorderTests
 
     private sealed class Harness : IDisposable
     {
-        public Harness(int minimumSeconds = 2, Track? track = null)
+        public Harness(
+            int minimumSeconds = 2,
+            Track? track = null,
+            ExistingFilePolicy policy = ExistingFilePolicy.Overwrite,
+            string? template = null,
+            Func<Track, Task<TrackEnrichment>>? enrich = null)
         {
             FileSystem = new MockFileSystem();
             FileSystem.Directory.CreateDirectory(MusicRoot);
 
             Settings = TrackRecorderTests.Settings(minimumSeconds);
+            Settings.ExistingFilePolicy = policy;
+            if (template is not null) Settings.OutputTemplate = template;
+
             Buffer = new AudioCaptureBuffer(TinyFormat());
             Track = track ?? SampleTrack();
 
             Paths = new OutputPaths(Settings, Track, FileSystem, new DateTime(2026, 8, 12, 10, 0, 0, DateTimeKind.Utc));
-            Recorder = new TrackRecorder(Buffer, Settings, Track, Paths, FileSystem);
+            Recorder = new TrackRecorder(Buffer, Settings, Track, Paths, FileSystem, enrich?.Invoke(Track));
         }
 
         public MockFileSystem FileSystem { get; }
@@ -156,6 +164,84 @@ public sealed class TrackRecorderTests
         Assert.Same(harness.Track, recording.Encode!.Track);
         Assert.Equal(MediaFormat.Mp3, recording.Encode.Format);
         Assert.Equal(320, recording.Encode.BitrateKbps);
+    }
+
+    /// <summary>
+    /// The template a user actually writes puts album, year and track number in the path, and
+    /// none of those exist until the metadata lookup lands — so the destination is only knowable
+    /// after enrichment. Checking any earlier looks at a path nothing is ever written to, always
+    /// finds nothing, and lets the recording overwrite the file the user asked to keep.
+    /// </summary>
+    [Fact]
+    public async Task Record_WithAnEnrichedTemplate_KeepsTheFileAlreadyOnDisk()
+    {
+        const string Template = @"{artist}\({year}) {album}\{track:00} {title}";
+        const string Existing = @"C:\music\Artist\(1983) Album\04 Title.mp3";
+
+        using var harness = new Harness(
+            policy: ExistingFilePolicy.Skip,
+            template: Template,
+            enrich: track =>
+            {
+                track.Album = "Album";
+                track.Year = 1983;
+                track.AlbumPosition = 4;
+
+                return Task.FromResult(TrackEnrichment.None);
+            });
+
+        harness.FileSystem.Directory.CreateDirectory(@"C:\music\Artist\(1983) Album");
+        harness.FileSystem.File.WriteAllText(Existing, "the recording already there");
+
+        var recording = await harness.RecordAsync(bytes: 500);
+
+        Assert.Equal(RecordingOutcome.AlreadyRecorded, recording.Outcome);
+        Assert.Equal(Existing, recording.Destination);
+        Assert.Null(recording.Encode);
+
+        // The point of the policy: what was there is untouched, and the capture is not left behind.
+        Assert.Equal("the recording already there", harness.FileSystem.File.ReadAllText(Existing));
+        Assert.Empty(harness.FileSystem.Directory.GetFiles(harness.FileSystem.Path.GetTempPath()));
+    }
+
+    /// <summary>The same template, with nothing on disk, records normally.</summary>
+    [Fact]
+    public async Task Record_WithAnEnrichedTemplateAndNothingOnDisk_Records()
+    {
+        using var harness = new Harness(
+            policy: ExistingFilePolicy.Skip,
+            template: @"{artist}\({year}) {album}\{track:00} {title}",
+            enrich: track =>
+            {
+                track.Album = "Album";
+                track.Year = 1983;
+                track.AlbumPosition = 4;
+
+                return Task.FromResult(TrackEnrichment.None);
+            });
+
+        var recording = await harness.RecordAsync(bytes: 500);
+
+        Assert.Equal(RecordingOutcome.Captured, recording.Outcome);
+        Assert.NotNull(recording.Encode);
+    }
+
+    /// <summary>
+    /// The policy is Skip or nothing here. Overwrite and Duplicate both have work to do at the
+    /// destination, and that work belongs to the rename, not to a recording that gets discarded.
+    /// </summary>
+    [Theory]
+    [InlineData(ExistingFilePolicy.Overwrite)]
+    [InlineData(ExistingFilePolicy.Duplicate)]
+    public async Task Record_WithAnExistingFileAndAnotherPolicy_StillRecords(ExistingFilePolicy policy)
+    {
+        using var harness = new Harness(policy: policy, template: "{artist} - {title}");
+
+        harness.FileSystem.File.WriteAllText(@"C:\music\Artist - Title.mp3", "already there");
+
+        var recording = await harness.RecordAsync(bytes: 500);
+
+        Assert.Equal(RecordingOutcome.Captured, recording.Outcome);
     }
 
     /// <summary>

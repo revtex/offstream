@@ -1,4 +1,4 @@
-<UserControl x:Class="Offstream.App.Views.Pages.AdvancedPage"
+﻿<UserControl x:Class="Offstream.App.Views.Pages.AdvancedPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:res="clr-namespace:Offstream.App.Resources"
@@ -32,22 +32,48 @@
         <!--
             The label half of a switch row.
 
-            Its column is a fixed width and the row is left-aligned, which is the whole fix for
-            what these looked like before: with the switch docked to the right of a stretching
-            row, a maximised window put three hundred empty pixels between a setting and the
-            switch that answered it, and every row's switch landed in a different place because
-            each label is a different length. Pinning the column puts the switches in one line
-            down the card and keeps them next to what they belong to at any window size.
+            The switches sit at the card's right edge and the labels run from the left, so a row
+            reads as one line: name on one side, answer on the other. An earlier version pinned
+            the label column to a fixed width to keep the switch close to its label; that put the
+            switches in a column of their own somewhere in the middle of the card and forced every
+            label longer than the pin onto two and three lines, which is the thing that actually
+            made the section hard to read.
         -->
         <Style x:Key="SwitchLabel" TargetType="StackPanel">
             <Setter Property="Margin" Value="0,0,20,12" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
 
+        <!--
+            One line each, for the label and for the sentence under it.
+
+            A switch row is a name and a yes/no, and a name that takes three lines to say stops
+            looking like one. The column is free to grow now that nothing pins it, so there is
+            room for these at any sensible window size; the ellipsis and tooltip are the floor
+            under a window dragged narrower than the longest label.
+        -->
+        <Style x:Key="SwitchRowLabel"
+               BasedOn="{StaticResource OffstreamFieldLabelStyle}"
+               TargetType="TextBlock">
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="TextWrapping" Value="NoWrap" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="ToolTip" Value="{Binding RelativeSource={RelativeSource Self}, Path=Text}" />
+        </Style>
+
+        <Style x:Key="SwitchRowHint"
+               BasedOn="{StaticResource OffstreamHintStyle}"
+               TargetType="TextBlock">
+            <Setter Property="TextWrapping" Value="NoWrap" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="ToolTip" Value="{Binding RelativeSource={RelativeSource Self}, Path=Text}" />
+        </Style>
+
         <Style x:Key="Switch"
                BasedOn="{StaticResource {x:Type ui:ToggleSwitch}}"
                TargetType="ui:ToggleSwitch">
             <Setter Property="Margin" Value="0,0,0,12" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
 
@@ -252,20 +278,16 @@
                     -->
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <!--
-                                Star with a cap, not a fixed width. The cap is what stops the
-                                switches drifting to the far edge of a maximised window; the star
-                                is what lets the column give ground at the minimum size, where the
-                                timer's own field needs room on the same row.
-                            -->
-                            <ColumnDefinition Width="*" MaxWidth="330" />
+                            <!--  The label, taking whatever the switch column does not.  -->
+                            <ColumnDefinition Width="*" />
 
                             <!--
-                                A floor wide enough for the timer's own field, so every section's
-                                switch column resolves to the same width and the switches line up
-                                across the section rule rather than only within it.
+                                Auto, so the column's right edge is the grid's right edge and a
+                                switch aligned right inside it lands on the card's margin. Every
+                                row in the section shares the column, so they line up whatever
+                                their labels do.
                             -->
-                            <ColumnDefinition Width="Auto" MinWidth="176" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -275,7 +297,7 @@
                         </Grid.RowDefinitions>
 
                         <StackPanel Grid.Row="0" Grid.Column="0" Style="{StaticResource SwitchLabel}">
-                            <TextBlock Margin="0" Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedMuteAds}" />
+                            <TextBlock Style="{StaticResource SwitchRowLabel}" Text="{x:Static res:Strings.AdvancedMuteAds}" />
                         </StackPanel>
 
                         <ui:ToggleSwitch Grid.Row="0"
@@ -286,8 +308,8 @@
                                          Style="{StaticResource Switch}" />
 
                         <StackPanel Grid.Row="1" Grid.Column="0" Style="{StaticResource SwitchLabel}">
-                            <TextBlock Margin="0" Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedRecordEverything}" />
-                            <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.AdvancedRecordEverythingHint}" />
+                            <TextBlock Style="{StaticResource SwitchRowLabel}" Text="{x:Static res:Strings.AdvancedRecordEverything}" />
+                            <TextBlock Style="{StaticResource SwitchRowHint}" Text="{x:Static res:Strings.AdvancedRecordEverythingHint}" />
                         </StackPanel>
 
                         <ui:ToggleSwitch Grid.Row="1"
@@ -306,7 +328,7 @@
                                     Grid.Column="0"
                                     IsEnabled="{Binding CanRecordAds, Mode=OneWay}"
                                     Style="{StaticResource SwitchLabel}">
-                            <TextBlock Margin="0" Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedRecordAds}" />
+                            <TextBlock Style="{StaticResource SwitchRowLabel}" Text="{x:Static res:Strings.AdvancedRecordAds}" />
                         </StackPanel>
 
                         <ui:ToggleSwitch Grid.Row="2"
@@ -318,29 +340,34 @@
                                          Style="{StaticResource Switch}" />
 
                         <StackPanel Grid.Row="3" Grid.Column="0" Style="{StaticResource SwitchLabel}">
-                            <TextBlock Margin="0" Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedTimerEnabled}" />
+                            <TextBlock Style="{StaticResource SwitchRowLabel}" Text="{x:Static res:Strings.AdvancedTimerEnabled}" />
                         </StackPanel>
 
                         <!--
-                            The switch stays in the column with the others and the duration hangs
-                            off it, so the row reads as one more on-or-off setting that happens to
-                            take a value.
+                            The duration sits before the switch, not after it, so the switch stays
+                            in the line every other switch in the card is in. Putting the field
+                            first also matches the reading order the row already has: the value is
+                            part of the setting's name — stop recording after *this long* — and the
+                            switch is still the answer, in the place answers live.
                         -->
-                        <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal">
-                            <ui:ToggleSwitch AutomationProperties.AutomationId="AdvancedTimerEnabled"
-                                             AutomationProperties.Name="{x:Static res:Strings.AdvancedTimerEnabled}"
-                                             IsChecked="{Binding IsTimerEnabled, Mode=TwoWay}"
-                                             Style="{StaticResource Switch}" />
-
+                        <StackPanel Grid.Row="3"
+                                    Grid.Column="1"
+                                    HorizontalAlignment="Right"
+                                    Orientation="Horizontal">
                             <ui:TextBox x:Name="TimerBox"
                                         Width="120"
-                                        Margin="12,0,0,12"
+                                        Margin="0,0,12,12"
                                         VerticalAlignment="Center"
                                         AutomationProperties.AutomationId="AdvancedTimer"
                                         AutomationProperties.Name="{x:Static res:Strings.AdvancedTimerEnabled}"
                                         FontFamily="{StaticResource OffstreamMonoFontFamily}"
                                         IsEnabled="{Binding IsTimerEnabled, Mode=OneWay}"
                                         Text="{Binding Timer, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
+
+                            <ui:ToggleSwitch AutomationProperties.AutomationId="AdvancedTimerEnabled"
+                                             AutomationProperties.Name="{x:Static res:Strings.AdvancedTimerEnabled}"
+                                             IsChecked="{Binding IsTimerEnabled, Mode=TwoWay}"
+                                             Style="{StaticResource Switch}" />
                         </StackPanel>
                     </Grid>
 
@@ -350,25 +377,21 @@
 
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <!--
-                                Star with a cap, not a fixed width. The cap is what stops the
-                                switches drifting to the far edge of a maximised window; the star
-                                is what lets the column give ground at the minimum size, where the
-                                timer's own field needs room on the same row.
-                            -->
-                            <ColumnDefinition Width="*" MaxWidth="330" />
+                            <!--  The label, taking whatever the switch column does not.  -->
+                            <ColumnDefinition Width="*" />
 
                             <!--
-                                A floor wide enough for the timer's own field, so every section's
-                                switch column resolves to the same width and the switches line up
-                                across the section rule rather than only within it.
+                                Auto, so the column's right edge is the grid's right edge and a
+                                switch aligned right inside it lands on the card's margin. Every
+                                row in the section shares the column, so they line up whatever
+                                their labels do.
                             -->
-                            <ColumnDefinition Width="Auto" MinWidth="176" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" Style="{StaticResource SwitchLabel}">
-                            <TextBlock Margin="0" Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedWriteCounter}" />
-                            <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.AdvancedWriteCounterHint}" />
+                            <TextBlock Style="{StaticResource SwitchRowLabel}" Text="{x:Static res:Strings.AdvancedWriteCounter}" />
+                            <TextBlock Style="{StaticResource SwitchRowHint}" Text="{x:Static res:Strings.AdvancedWriteCounterHint}" />
                         </StackPanel>
 
                         <ui:ToggleSwitch Grid.Column="1"
@@ -389,24 +412,20 @@
 
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <!--
-                                Star with a cap, not a fixed width. The cap is what stops the
-                                switches drifting to the far edge of a maximised window; the star
-                                is what lets the column give ground at the minimum size, where the
-                                timer's own field needs room on the same row.
-                            -->
-                            <ColumnDefinition Width="*" MaxWidth="330" />
+                            <!--  The label, taking whatever the switch column does not.  -->
+                            <ColumnDefinition Width="*" />
 
                             <!--
-                                A floor wide enough for the timer's own field, so every section's
-                                switch column resolves to the same width and the switches line up
-                                across the section rule rather than only within it.
+                                Auto, so the column's right edge is the grid's right edge and a
+                                switch aligned right inside it lands on the card's margin. Every
+                                row in the section shares the column, so they line up whatever
+                                their labels do.
                             -->
-                            <ColumnDefinition Width="Auto" MinWidth="176" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" Style="{StaticResource SwitchLabel}">
-                            <TextBlock Margin="0" Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedMinimizeToTray}" />
+                            <TextBlock Style="{StaticResource SwitchRowLabel}" Text="{x:Static res:Strings.AdvancedMinimizeToTray}" />
                         </StackPanel>
 
                         <ui:ToggleSwitch Grid.Column="1"
