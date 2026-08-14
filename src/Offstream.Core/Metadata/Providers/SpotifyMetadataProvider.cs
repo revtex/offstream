@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Net;
+using System.Text.Json;
 using Offstream.Core.Spotify;
 using Serilog;
 using SpotifyAPI.Web;
@@ -55,6 +56,7 @@ public sealed record SpotifyPollingOptions(
     /// The reference's timings, with a longer tail.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// It waited 100ms before the first poll and retried once a second later. Four attempts here
     /// because the whole thing is bounded by <see cref="TrackEnricher.DefaultDeadline"/> and runs
     /// concurrently with a recording that lasts minutes — roughly three seconds of chasing costs
@@ -64,7 +66,11 @@ public sealed record SpotifyPollingOptions(
     /// Thirty for an answer carrying no track, because that is not a backend one poll behind: it
     /// is a free account's advertisement break, which runs far longer than three seconds and was
     /// costing every track played after one its tags. It stays well inside the enricher's
-    /// deadline, so a track the API will never report delays that recording and no other.
+    /// deadline, so a track the API will never report delays that recording and no other — and
+    /// <see cref="SpotifyMetadataProvider"/> stands the long budget down entirely once it is clear
+    /// the API is never going to answer for this session, so a misconfigured install pays it twice
+    /// rather than on every track.
+    /// </para>
     /// </remarks>
     public static SpotifyPollingOptions Default { get; } = new(
         TimeSpan.FromMilliseconds(100),
@@ -126,6 +132,34 @@ public sealed class SpotifyMetadataProvider(ISpotifyClient client, SpotifyPollin
     /// </remarks>
     private readonly ConcurrentDictionary<string, string[]> _artistGenres = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// How many tracks in a row have run the no-track budget out without ever seeing one.
+    /// </summary>
+    /// <remarks>
+    /// Reset by any successful match, so a session that starts badly and is then fixed — the user
+    /// signs in as the account that is actually playing — goes straight back to waiting out
+    /// advertisement breaks without restarting anything.
+    /// </remarks>
+    private int _emptyGiveUps;
+
+    /// <summary>
+    /// How many tracks in a row may exhaust the no-track budget before it is abandoned.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The long budget exists for a condition that ends by itself: an advertisement break, or a
+    /// backend mid-swap. A setup the API will never answer for — the signed-in account is not the
+    /// one playing, or playback is in a private session — looks identical at the first track and
+    /// nothing like it by the third, and paying thirty seconds per recording forever is a far
+    /// worse outcome than the untagged file it buys nothing towards.
+    /// </para>
+    /// <para>
+    /// Two rather than one, because a single unlucky track — recording started during a genuine
+    /// advertisement break — should not cost the rest of the session its ad handling.
+    /// </para>
+    /// </remarks>
+    private const int EmptyGiveUpsBeforeStandingDown = 2;
+
     /// <inheritdoc />
     public event EventHandler? AuthorizationExpired;
 
@@ -153,9 +187,10 @@ public sealed class SpotifyMetadataProvider(ISpotifyClient client, SpotifyPollin
     /// <remarks>
     /// <para>
     /// The activity log on the Record page is where these land, so the message has to be the
-    /// user's answer rather than a stack trace: Spotify sends a reason in the error body and the
-    /// SDK surfaces it as <see cref="Exception.Message"/>, which beats anything that could be
-    /// written here from the status code alone.
+    /// user's answer rather than a stack trace. Spotify sends a reason in the error body, and that
+    /// reason beats anything that could be written here from the status code alone — see
+    /// <see cref="ReasonFor"/> for why it is read off the response rather than off
+    /// <see cref="Exception.Message"/>.
     /// </para>
     /// <para>
     /// Every one of them is downgraded to "no metadata" — a tagging fault must never reach the
@@ -166,6 +201,7 @@ public sealed class SpotifyMetadataProvider(ISpotifyClient client, SpotifyPollin
     private bool Explain(APIException ex, Track track)
     {
         var status = ex.Response?.StatusCode;
+        var reason = ReasonFor(ex) ?? "no reason given";
 
         switch (status)
         {
@@ -173,22 +209,23 @@ public sealed class SpotifyMetadataProvider(ISpotifyClient client, SpotifyPollin
                 // Renewal already had its chance: the SDK redeems the refresh token before the
                 // call, so a 401 arriving here means the refresh token itself is dead.
                 Log.Warning(
-                    "Spotify rejected the stored sign-in ({Message}). Sign in again on the Settings page.",
-                    ex.Message);
+                    "Spotify rejected the stored sign-in: {Reason}. Sign in again on the Settings page.",
+                    reason);
 
                 AuthorizationExpired?.Invoke(this, EventArgs.Empty);
                 return false;
 
             case HttpStatusCode.Forbidden:
-                // Spotify returns 403 both for a missing permission and for an app that has run
-                // past the user quota its dashboard mode allows, and the body is the only thing
-                // that tells them apart — which is why the message is quoted rather than replaced.
+                // Spotify returns 403 both for an account the app is not allowed to answer for and
+                // for an app that has run past the user quota its dashboard mode allows. Only the
+                // body tells them apart, so it leads the line and the hint below it is just the
+                // likelier of the two spelled out — never a replacement for what Spotify said.
                 Log.Warning(
-                    "Spotify refused the request for {Track} ({Message}). This usually means the "
-                    + "signed-in account is not on the dashboard app's allowlist, or the app has "
-                    + "reached its user quota.",
+                    "Spotify refused the request for {Track}: {Reason}. An app still in development "
+                    + "mode only answers for accounts added to its user list in the Spotify "
+                    + "developer dashboard.",
                     track,
-                    ex.Message);
+                    reason);
 
                 return false;
 
@@ -204,18 +241,112 @@ public sealed class SpotifyMetadataProvider(ISpotifyClient client, SpotifyPollin
                 return false;
 
             case HttpStatusCode.NotFound:
-                Log.Information("Spotify has no entry for {Track} ({Message}).", track, ex.Message);
+                Log.Information("Spotify has no entry for {Track}: {Reason}.", track, reason);
                 return false;
 
             default:
                 Log.Warning(
-                    "Spotify answered {Status} for {Track} ({Message}); recording it untagged.",
+                    "Spotify answered {Status} for {Track}: {Reason}. Recording it untagged.",
                     status is { } code ? (int)code : 0,
                     track,
-                    ex.Message);
+                    reason);
 
                 return false;
         }
+    }
+
+    /// <summary>How much of Spotify's reason reaches the activity log.</summary>
+    /// <remarks>
+    /// Long enough for every error message Spotify actually sends, short enough that a proxy's
+    /// HTML error page cannot flood the log it lands in.
+    /// </remarks>
+    private const int MaximumReasonLength = 200;
+
+    /// <summary>
+    /// Spotify's own explanation for a failure, or null when it did not send one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Read off the response body, not off <see cref="Exception.Message"/>.</b> The SDK tries to
+    /// parse the body into the message and returns null when it does not recognise the shape, which
+    /// leaves .NET to fill the message in with <c>"Exception of type
+    /// 'SpotifyAPI.Web.APIException' was thrown."</c> — a string that occupies the slot the user's
+    /// actual answer belongs in. Logging it turned a 403 that said which account was rejected into
+    /// a line naming two possible causes and confirming neither.
+    /// </para>
+    /// <para>
+    /// Two body shapes, because two services answer: the Web API sends
+    /// <c>{"error":{"status":403,"message":"…"}}</c> and the accounts service sends
+    /// <c>{"error":"invalid_grant","error_description":"…"}</c>. Anything else — an HTML page from
+    /// something in the middle, most likely — is quoted raw and truncated, because unrecognised
+    /// text still says more than a bare status code does.
+    /// </para>
+    /// </remarks>
+    internal static string? ReasonFor(APIException ex)
+    {
+        ArgumentNullException.ThrowIfNull(ex);
+
+        return ReasonFromBody(ex.Response?.Body) ?? Usable(ex.Message);
+    }
+
+    private static string? ReasonFromBody(object? body)
+    {
+        if (body is not string json) return Shorten(body?.ToString());
+        if (string.IsNullOrWhiteSpace(json)) return null;
+
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+
+            if (document.RootElement.ValueKind == JsonValueKind.Object
+                && document.RootElement.TryGetProperty("error", out var error))
+            {
+                if (error.ValueKind == JsonValueKind.Object
+                    && error.TryGetProperty("message", out var message)
+                    && Shorten(message.GetString()) is { } text)
+                {
+                    return text;
+                }
+
+                if (error.ValueKind == JsonValueKind.String)
+                {
+                    var described = document.RootElement.TryGetProperty("error_description", out var description)
+                        ? Shorten(description.GetString())
+                        : null;
+
+                    return described ?? Shorten(error.GetString());
+                }
+            }
+        }
+        catch (JsonException)
+        {
+            // Not JSON after all. The raw text below is still the best answer available.
+        }
+
+        return Shorten(json);
+    }
+
+    /// <summary>
+    /// <paramref name="message"/> unless it is .NET's stand-in for a message that was never set.
+    /// </summary>
+    /// <remarks>
+    /// Matched on the type name rather than the sentence around it: that default is localised, and
+    /// the full type name is the one part of it that is the same in every language.
+    /// </remarks>
+    private static string? Usable(string? message) =>
+        message is not null && message.Contains(typeof(APIException).FullName!, StringComparison.Ordinal)
+            ? null
+            : Shorten(message);
+
+    private static string? Shorten(string? text)
+    {
+        var trimmed = text?.Trim();
+
+        if (string.IsNullOrEmpty(trimmed)) return null;
+
+        return trimmed.Length <= MaximumReasonLength
+            ? trimmed
+            : string.Concat(trimmed.AsSpan(0, MaximumReasonLength), "…");
     }
 
     private async Task<bool> LookUpAsync(Track track, CancellationToken cancellationToken)
@@ -233,7 +364,12 @@ public sealed class SpotifyMetadataProvider(ISpotifyClient client, SpotifyPollin
             var reported = playback?.Item as FullTrack;
 
             if (reported is not null && MatchesDetectedTrack(track, reported))
+            {
+                // Whatever was wrong with this session is not wrong any more.
+                _emptyGiveUps = 0;
+
                 return await ApplyAsync(track, reported, cancellationToken);
+            }
 
             // A podcast episode is not a track and never will be, whatever we ask again.
             if (playback?.Item is not null && reported is null) return false;
@@ -245,10 +381,12 @@ public sealed class SpotifyMetadataProvider(ISpotifyClient client, SpotifyPollin
             // used to spend the mismatch budget: four attempts, three seconds, then an untagged
             // recording. They get a budget of their own, long enough to outlast a break.
             //
-            // Not unbounded. If the API never reports this track — a restricted account, a
-            // device the player endpoint cannot see — waiting to the enricher's deadline would
-            // add that delay to every recording rather than to one.
-            var budget = reported is null ? _polling.MaximumEmptyAttempts : _polling.MaximumAttempts;
+            // Only while it is still plausible that they will resolve. Once a run of tracks has
+            // each waited the long budget out and seen nothing, the cause is not a break — it is
+            // a setup the player endpoint will never answer for — and continuing to spend thirty
+            // seconds per recording on it buys nothing.
+            var chasing = reported is null && _emptyGiveUps < EmptyGiveUpsBeforeStandingDown;
+            var budget = chasing ? _polling.MaximumEmptyAttempts : _polling.MaximumAttempts;
 
             if (++attempts >= budget)
             {
@@ -257,6 +395,8 @@ public sealed class SpotifyMetadataProvider(ISpotifyClient client, SpotifyPollin
                     Describe(playback),
                     track,
                     attempts);
+
+                if (reported is null) NoteEmptyGiveUp();
 
                 return false;
             }
@@ -270,6 +410,39 @@ public sealed class SpotifyMetadataProvider(ISpotifyClient client, SpotifyPollin
         }
     }
 
+
+    /// <summary>
+    /// Counts a track that waited the no-track budget out, and says something once the run of them
+    /// is long enough to mean the setup is wrong rather than the timing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A warning, and only one.</b> Everything the lookup says on its way to giving up is at
+    /// Debug, which the Record page's activity log does not show — so the symptom the user sees is
+    /// every recording arriving untagged with nothing anywhere saying why, and the two causes are
+    /// both things only they can fix. That is worth one line above the fold. Repeating it per
+    /// track afterwards would bury the log it is trying to be read in, so it fires on the
+    /// transition and then goes quiet until a successful match resets the run.
+    /// </para>
+    /// <para>
+    /// Both causes are named because the log cannot tell them apart: the player endpoint reports
+    /// on the account that authorised Offstream, so music playing on a different account is
+    /// invisible to it, and a private session is invisible to it by design. Both answer 204,
+    /// which carries no body to distinguish them with.
+    /// </para>
+    /// </remarks>
+    private void NoteEmptyGiveUp()
+    {
+        if (++_emptyGiveUps != EmptyGiveUpsBeforeStandingDown) return;
+
+        Log.Warning(
+            "Spotify has reported nothing playing for {Count} tracks in a row, so they are being "
+            + "recorded untagged. The usual cause is that the account signed in to Offstream on the "
+            + "Settings page is not the account the music is playing on; a private session hides "
+            + "playback the same way. Offstream will stop waiting on each track until a lookup "
+            + "succeeds again.",
+            _emptyGiveUps);
+    }
 
     private async Task<bool> ApplyAsync(Track track, FullTrack spotifyTrack, CancellationToken cancellationToken)
     {
@@ -374,7 +547,6 @@ public sealed class SpotifyMetadataProvider(ISpotifyClient client, SpotifyPollin
             spotifyTrack.Name,
             spotifyTrack.Artists?.Select(artist => artist.Name));
 
-    /// <summary>What Spotify answered, for a log line that can actually be diagnosed.</summary>
     /// <summary>What Spotify answered, in the terms that distinguish the reasons for a miss.</summary>
     /// <remarks>
     /// This used to print <c>"nothing playing"</c> for every answer without a track, which

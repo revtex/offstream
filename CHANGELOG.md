@@ -227,6 +227,21 @@ phase plan these entries follow.
 
 ### Fixed
 
+- **Spotify's own error message reached the log as `Exception of type
+  'SpotifyAPI.Web.APIException' was thrown`.** The SDK parses the error body into
+  `Exception.Message` only when it recognises the shape and leaves .NET's placeholder there
+  otherwise, so the one string that could explain a failure was replaced by one that explains
+  nothing — and a 403 naming the rejected account arrived as a warning listing two possible
+  causes and confirming neither. The reason is now read off the response body, in both the
+  shape the Web API sends and the shape the accounts service sends, and quoted.
+- **A session Spotify will never answer for cost every recording thirty seconds.** The long
+  retry budget was added so a free account's advertisement break would not cost the following
+  track its tags, on the assumption that an answer carrying no track always resolves by itself.
+  It does not: when the account signed in to Offstream is not the account playing the music, or
+  playback is in a private session, the player endpoint answers 204 forever. The budget now
+  stands down after two tracks in a row exhaust it, and a successful lookup restores it — and
+  because everything on that path was logged at Debug, which the activity log does not show, it
+  now says so once, at `Warning`, naming both causes.
 - **A data race in the audio ring buffer.** The read position and byte count were captured
   before the lock was taken, so a concurrent write could move them underneath a read and produce
   torn audio. Reads are also span-based now, instead of allocating a fresh buffer on every read

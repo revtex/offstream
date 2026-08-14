@@ -67,6 +67,11 @@ public sealed class SpotifyMetadataProviderTests
                 .ThrowsAsync(new APIException(message) { Response = response.Object });
         }
 
+        public void PlaybackWasAskedFor(Times times) =>
+            Player.Verify(
+                x => x.GetCurrentlyPlaying(It.IsAny<PlayerCurrentlyPlayingRequest>(), It.IsAny<CancellationToken>()),
+                times);
+
         public void ReturnsAlbum(string albumId, FullAlbum album) =>
             Albums.Setup(x => x.Get(albumId, It.IsAny<CancellationToken>())).ReturnsAsync(album);
 
@@ -260,6 +265,58 @@ public sealed class SpotifyMetadataProviderTests
 
         Assert.True(await harness.Provider.EnrichAsync(track));
         Assert.Equal("Album Name", track.Album);
+    }
+
+    /// <summary>
+    /// The long budget is for a condition that ends by itself. A session where the API is never
+    /// going to answer — the account signed in is not the one playing — must not pay thirty
+    /// seconds on every recording for the rest of its life.
+    /// </summary>
+    [Fact]
+    public async Task EnrichAsync_WhenNoTrackIsEverReported_StandsTheLongBudgetDown()
+    {
+        var harness = new Harness();
+        harness.ReturnsPlayback(null);
+
+        // One instance throughout: standing down is a property of the session, not of a lookup.
+        var provider = harness.Provider;
+
+        Assert.False(await provider.EnrichAsync(DetectedTrack()));
+        Assert.False(await provider.EnrichAsync(DetectedTrack()));
+
+        harness.PlaybackWasAskedFor(Times.Exactly(60));
+
+        Assert.False(await provider.EnrichAsync(DetectedTrack()));
+
+        // The third track pays the mismatch budget, not the empty one.
+        harness.PlaybackWasAskedFor(Times.Exactly(64));
+    }
+
+    /// <summary>
+    /// And it comes back. Signing in as the account that is actually playing fixes the session
+    /// without restarting it, so the next advertisement break is waited out as normal.
+    /// </summary>
+    [Fact]
+    public async Task EnrichAsync_AfterAMatchSucceeds_WaitsOutAdvertisementsAgain()
+    {
+        var harness = new Harness();
+        var provider = harness.Provider;
+
+        harness.ReturnsPlayback(null);
+        await provider.EnrichAsync(DetectedTrack());
+        await provider.EnrichAsync(DetectedTrack());
+
+        harness.ReturnsPlayback(
+            new CurrentlyPlaying { IsPlaying = true, Item = PlayingTrack("Title", albumId: "") });
+
+        Assert.True(await provider.EnrichAsync(DetectedTrack()));
+
+        harness.ReturnsPlayback(null);
+        harness.Player.Invocations.Clear();
+
+        Assert.False(await provider.EnrichAsync(DetectedTrack()));
+
+        harness.PlaybackWasAskedFor(Times.Exactly(30));
     }
 
     /// <summary>An advertisement carries no item, which is what makes the type field necessary.</summary>
@@ -590,4 +647,79 @@ public sealed class SpotifyMetadataProviderTests
         Assert.Equal("Real Album", track.Album);
         Assert.Equal(7, track.AlbumPosition);
     }
+
+    // ---- ReasonFor ---------------------------------------------------------
+
+    private static APIException Failure(object? body, string? message = null) =>
+        new(message!) { Response = Answer(body) };
+
+    private static IResponse Answer(object? body)
+    {
+        var response = new Mock<IResponse>();
+        response.SetupGet(x => x.Body).Returns(body);
+
+        return response.Object;
+    }
+
+    /// <summary>
+    /// The shape the Web API sends, and the whole reason this exists: a 403 naming the account it
+    /// rejected used to reach the log as "Exception of type 'SpotifyAPI.Web.APIException' was
+    /// thrown", because the SDK only fills the message in when it recognises the body and leaves
+    /// .NET's placeholder there when it does not.
+    /// </summary>
+    [Fact]
+    public void ReasonFor_WithTheWebApiErrorShape_QuotesSpotifysMessage() =>
+        Assert.Equal(
+            "User not registered in the Developer Dashboard",
+            SpotifyMetadataProvider.ReasonFor(Failure(
+                """{"error":{"status":403,"message":"User not registered in the Developer Dashboard"}}""")));
+
+    /// <summary>The accounts service answers in a different shape, and it reaches the same catch.</summary>
+    [Fact]
+    public void ReasonFor_WithTheAccountsErrorShape_PrefersTheDescription() =>
+        Assert.Equal(
+            "Refresh token revoked",
+            SpotifyMetadataProvider.ReasonFor(Failure(
+                """{"error":"invalid_grant","error_description":"Refresh token revoked"}""")));
+
+    [Fact]
+    public void ReasonFor_WithAnAccountsErrorAndNoDescription_FallsBackToTheCode() =>
+        Assert.Equal(
+            "invalid_grant",
+            SpotifyMetadataProvider.ReasonFor(Failure("""{"error":"invalid_grant"}""")));
+
+    /// <summary>
+    /// Something in the middle answering with an HTML page still says more than a status code
+    /// does, so it is quoted rather than discarded.
+    /// </summary>
+    [Fact]
+    public void ReasonFor_WithABodyThatIsNotJson_QuotesItRaw() =>
+        Assert.Equal("<html><body>Gateway timeout</body></html>",
+            SpotifyMetadataProvider.ReasonFor(Failure("<html><body>Gateway timeout</body></html>")));
+
+    /// <summary>That page can be arbitrarily long; the activity log it lands in cannot.</summary>
+    [Fact]
+    public void ReasonFor_WithAVeryLongBody_TruncatesIt()
+    {
+        var reason = SpotifyMetadataProvider.ReasonFor(Failure(new string('x', 5_000)));
+
+        Assert.NotNull(reason);
+        Assert.Equal(201, reason!.Length);
+        Assert.EndsWith("…", reason, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The placeholder is worse than nothing, because it occupies the slot the answer belongs in.
+    /// Callers say "no reason given" instead, which is at least true.
+    /// </summary>
+    [Fact]
+    public void ReasonFor_WithNoBodyAndNoMessage_IsNull() =>
+        Assert.Null(SpotifyMetadataProvider.ReasonFor(Failure(body: null, message: null)));
+
+    /// <summary>But a message the SDK did manage to parse is still the best thing available.</summary>
+    [Fact]
+    public void ReasonFor_WithNoBodyButAParsedMessage_UsesIt() =>
+        Assert.Equal(
+            "The access token expired",
+            SpotifyMetadataProvider.ReasonFor(Failure(null, "The access token expired")));
 }
