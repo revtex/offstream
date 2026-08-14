@@ -30,6 +30,33 @@ public sealed class TrackSavedEventArgs(Track track, string path, TimeSpan durat
     public TimeSpan Duration { get; } = duration;
 }
 
+/// <summary>
+/// The metadata lookup for the track being recorded has landed.
+/// </summary>
+/// <remarks>
+/// Raised roughly a second into a track, not at the end of one: everything here — album, year,
+/// cover art, and therefore the destination the template renders to — is unknown when the track
+/// starts and known long before it finishes. A page that waits for the file to be written has
+/// nothing to show for the three minutes in between.
+/// </remarks>
+public sealed class TrackEnrichedEventArgs(Track track, string? coverArtPath, string? destination) : EventArgs
+{
+    public Track Track { get; } = track;
+
+    /// <summary>
+    /// A temporary image file, or null when there is no art.
+    /// </summary>
+    /// <remarks>
+    /// <b>Borrowed, not owned.</b> It is deleted once the encode has finished with it, which can
+    /// be moments after this is raised — a handler that wants the image must read it now rather
+    /// than keep the path.
+    /// </remarks>
+    public string? CoverArtPath { get; } = coverArtPath;
+
+    /// <summary>Where this recording is currently expected to land, or null if that cannot be rendered.</summary>
+    public string? Destination { get; } = destination;
+}
+
 /// <summary>A track was recorded but could not be turned into a file.</summary>
 public sealed class RecordingFailedEventArgs(Track track, string message, Exception? exception = null) : EventArgs
 {
@@ -150,6 +177,9 @@ public sealed class RecordingSession : IAsyncDisposable
 
     /// <summary>A finished file landed in the library.</summary>
     public event EventHandler<TrackSavedEventArgs>? TrackSaved;
+
+    /// <summary>The metadata lookup for the current track finished. See <see cref="TrackEnrichedEventArgs"/>.</summary>
+    public event EventHandler<TrackEnrichedEventArgs>? TrackEnriched;
 
     /// <summary>A recording was lost, or could not be encoded.</summary>
     public event EventHandler<RecordingFailedEventArgs>? Failed;
@@ -387,6 +417,8 @@ public sealed class RecordingSession : IAsyncDisposable
         var track = new Track(detected);
         var enrichment = _enricher?.EnrichAsync(track, _stopping.Token);
 
+        AnnounceWhenEnriched(track, paths, enrichment);
+
         var recorder = new TrackRecorder(_buffer, _settings, track, paths, _fileSystem, enrichment);
 
         // Now, on the poll loop, not when the recording task gets scheduled: everything captured
@@ -400,6 +432,63 @@ public sealed class RecordingSession : IAsyncDisposable
         }
 
         Report(RecordingStage.Recording, track.ToString(), message: $"Recording {track}.");
+    }
+
+    /// <summary>
+    /// Raises <see cref="TrackEnriched"/> once the lookup for this track has come back.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Fire and forget, deliberately: the recording must not wait on this, and the recorder is
+    /// already awaiting the same task for the part that has to be in the file. Awaiting a task
+    /// twice is fine — this is a second observer, not a second lookup.
+    /// </para>
+    /// <para>
+    /// It reports with no provider configured too, and immediately. There is still a destination
+    /// worth showing, and a page that only lit up for Spotify users would look broken to everyone
+    /// else.
+    /// </para>
+    /// </remarks>
+    private void AnnounceWhenEnriched(Track track, OutputPaths paths, Task<TrackEnrichment>? enrichment)
+    {
+        _ = AnnounceAsync();
+
+        async Task AnnounceAsync()
+        {
+            string? coverArt = null;
+
+            if (enrichment is not null)
+            {
+                try
+                {
+                    coverArt = (await enrichment).CoverArtPath;
+                }
+#pragma warning disable CA1031 // A failed lookup is already handled where it matters; this is display.
+                catch (Exception)
+#pragma warning restore CA1031
+                {
+                    // ITrackEnricher promises not to throw. If it breaks that promise the
+                    // recording still stands, and so does everything else on this event.
+                }
+            }
+
+            TrackEnriched?.Invoke(this, new TrackEnrichedEventArgs(track, coverArt, Destination(paths, track)));
+        }
+    }
+
+    /// <summary>Where a track is currently expected to land, or null when that cannot be rendered.</summary>
+    private string? Destination(OutputPaths paths, Track track)
+    {
+        try
+        {
+            return paths.ResolveMediaFilePath(track, _settings);
+        }
+        catch (UnrecognizedTrackException)
+        {
+            // An advertisement, or a track with nothing to build a name from. There is no
+            // destination to show and that is not a fault worth reporting.
+            return null;
+        }
     }
 
     private void StopCurrentRecorder()

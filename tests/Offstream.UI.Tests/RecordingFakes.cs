@@ -47,6 +47,19 @@ internal static class RecordingFakes
     /// <summary>A document whose file is unreadable, so starting a session is refused.</summary>
     public static SettingsDocument DocumentWithBrokenFile() => new(StoreWithBrokenFile());
 
+    /// <summary>
+    /// A readiness probe over an in-memory file system.
+    /// </summary>
+    /// <remarks>
+    /// Its answers are not asserted here — this fixture exists so the Record page can be
+    /// constructed. The probe reads the real machine's audio endpoints, which is the reason it
+    /// is a constructor dependency rather than something the ViewModel reaches for itself.
+    /// </remarks>
+    public static ReadinessProbe Readiness(
+        SettingsDocument? document = null,
+        IAudioDeviceCatalog? catalog = null) =>
+        new(new MockFileSystem(), document ?? Document(), catalog ?? new FakeDeviceCatalog());
+
     /// <summary>A session wired to fakes, equivalent to one the real factory would build.</summary>
     public static RecordingSession Session(IProgress<RecordingProgress> progress, ITrackSource? trackSource = null)
     {

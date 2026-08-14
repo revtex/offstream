@@ -19,8 +19,18 @@ public partial class RecordPage : UserControl
         InitializeComponent();
 
         ((INotifyCollectionChanged)viewModel.LogLines).CollectionChanged += OnLogChanged;
-        Loaded += (_, _) => _logScroller = FindScroller(LogList);
     }
+
+    /// <summary>
+    /// The log's scroll viewer, found on first use rather than at load.
+    /// </summary>
+    /// <remarks>
+    /// The log lives in a collapsed expander, so at <c>Loaded</c> its template has not been
+    /// applied and there is no scroll viewer to find yet — resolving it there once would leave
+    /// auto-scroll permanently off. Null until the user opens the log, which is also exactly
+    /// when following the tail starts to matter.
+    /// </remarks>
+    private ScrollViewer? Scroller => _logScroller ??= FindScroller(LogList);
 
     /// <summary>
     /// Follows the log, but only while the user is already at the end of it.
@@ -32,13 +42,13 @@ public partial class RecordPage : UserControl
     /// </remarks>
     private void OnLogChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        if (e.Action != NotifyCollectionChangedAction.Add || _logScroller is null) return;
+        if (e.Action != NotifyCollectionChangedAction.Add || Scroller is not { } scroller) return;
 
         // A one-pixel tolerance: the offset lands on fractional values after a resize, so an
         // exact comparison reads as "scrolled up" when the view is visibly at the bottom.
-        if (_logScroller.ScrollableHeight - _logScroller.VerticalOffset > 1) return;
+        if (scroller.ScrollableHeight - scroller.VerticalOffset > 1) return;
 
-        _logScroller.ScrollToEnd();
+        scroller.ScrollToEnd();
     }
 
     private static ScrollViewer? FindScroller(DependencyObject root)

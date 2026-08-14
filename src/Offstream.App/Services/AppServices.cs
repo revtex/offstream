@@ -68,6 +68,7 @@ public static class AppServices
         services.AddSingleton<ISpotifyAccount, SpotifyAccount>();
         services.AddSingleton<IProcessManager, ProcessManager>();
         services.AddSingleton<RecordingController>();
+        services.AddSingleton<ReadinessProbe>();
 
         // Pages are singletons because the shell keeps all three loaded and switches them by
         // visibility: switching tabs must not discard the activity log or a half-filled form.

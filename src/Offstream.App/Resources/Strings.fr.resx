@@ -409,4 +409,70 @@
   <data name="SettingsVirtualCableGet" xml:space="preserve">
     <value>Obtenir VB-CABLE sur vb-audio.com</value>
   </data>
+  <data name="ReadyFfmpeg" xml:space="preserve">
+    <value>ffmpeg</value>
+  </data>
+  <data name="ReadyFfmpegMissing" xml:space="preserve">
+    <value>Introuvable — indiquez son emplacement dans les paramètres</value>
+  </data>
+  <data name="ReadyOutput" xml:space="preserve">
+    <value>Bibliothèque</value>
+  </data>
+  <data name="ReadyOutputUnset" xml:space="preserve">
+    <value>Aucun dossier choisi</value>
+  </data>
+  <data name="ReadyDevice" xml:space="preserve">
+    <value>Source d'enregistrement</value>
+  </data>
+  <data name="ReadyDeviceNone" xml:space="preserve">
+    <value>Aucun périphérique de lecture</value>
+  </data>
+  <data name="ReadyDeviceGone" xml:space="preserve">
+    <value>Périphérique choisi non connecté</value>
+  </data>
+  <data name="ReadyMetadata" xml:space="preserve">
+    <value>Détails des morceaux</value>
+  </data>
+  <data name="ReadyMetadataOff" xml:space="preserve">
+    <value>Désactivé — les enregistrements ne seront pas étiquetés</value>
+  </data>
+  <data name="ReadyMetadataNoKey" xml:space="preserve">
+    <value>Last.fm nécessite une clé API</value>
+  </data>
+  <data name="ReadyMetadataSignedOut" xml:space="preserve">
+    <value>Spotify nécessite une connexion</value>
+  </data>
+  <data name="ReadyCable" xml:space="preserve">
+    <value>VB-CABLE</value>
+  </data>
+  <data name="ReadyCableFound" xml:space="preserve">
+    <value>Installé</value>
+  </data>
+  <data name="ReadyCableMissing" xml:space="preserve">
+    <value>Non installé — les autres applications seront aussi enregistrées</value>
+  </data>
+  <data name="RecordSavedSection" xml:space="preserve">
+    <value>Enregistrés cette session</value>
+  </data>
+  <data name="RecordSavedEmpty" xml:space="preserve">
+    <value>Rien d'enregistré pour l'instant.</value>
+  </data>
+  <data name="RecordSavedOpen" xml:space="preserve">
+    <value>Afficher dans l'Explorateur</value>
+  </data>
+  <data name="RecordSessionTracks" xml:space="preserve">
+    <value>{0} enregistré(s)</value>
+  </data>
+  <data name="RecordSessionDuration" xml:space="preserve">
+    <value>{0} enregistré</value>
+  </data>
+  <data name="RecordDestinationLabel" xml:space="preserve">
+    <value>Destination</value>
+  </data>
+  <data name="RecordActivitySection" xml:space="preserve">
+    <value>Journal d'activité</value>
+  </data>
+  <data name="RecordNoArt" xml:space="preserve">
+    <value>Pas de pochette</value>
+  </data>
 </root>
