@@ -91,12 +91,17 @@ public sealed class TrackEnricher : ITrackEnricher
 
             var coverArtPath = await _coverArt.FetchAsync(track, deadline.Token);
 
+            // Genre is on this line because it is the one tag whose source is not obvious from
+            // the outside: it may have come from the provider named here or from the fallback
+            // below, and until it was printed the only way to know it had been written at all was
+            // to run ffprobe over the finished file.
             Log.Information(
-                "{Provider} tagged {Track}: album {Album}, track {Position}.",
+                "{Provider} tagged {Track}: album {Album}, track {Position}, genre {Genre}.",
                 _provider.Kind,
                 track,
                 track.Album ?? "unknown",
-                track.AlbumPosition?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "unknown");
+                track.AlbumPosition?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "unknown",
+                DescribeGenres(track.Genres));
 
             return new TrackEnrichment(Updated: true, coverArtPath);
         }
@@ -123,6 +128,18 @@ public sealed class TrackEnricher : ITrackEnricher
             return TrackEnrichment.None;
         }
     }
+
+    /// <summary>
+    /// The genre tag as the activity log prints it.
+    /// </summary>
+    /// <remarks>
+    /// <c>"none"</c> rather than the <c>"unknown"</c> the album and position use, because it is a
+    /// different answer: those two are missing from a reply that was received, while an empty
+    /// genre means every source in the chain was asked and none had one. Worth distinguishing on
+    /// the line where someone is trying to work out whether tagging is working.
+    /// </remarks>
+    internal static string DescribeGenres(string[]? genres) =>
+        genres is { Length: > 0 } ? string.Join(", ", genres) : "none";
 
     /// <summary>
     /// Fills the genre tag from a second source when the chosen provider left it empty.

@@ -259,4 +259,33 @@ public sealed class TrackEnricherTests
         Assert.True(result.Updated);
         Assert.Equal("Album", track.Album);
     }
+
+    // ---- what the activity log says about genre ----
+
+    /// <summary>
+    /// The reason this is on the line at all: genre may have come from the provider named in the
+    /// message or from the fallback, and before it was printed the only way to know it had been
+    /// written was to run ffprobe over the finished file.
+    /// </summary>
+    [Fact]
+    public void DescribeGenres_JoinsWhatWasWritten() =>
+        Assert.Equal("trance, eurodance", TrackEnricher.DescribeGenres(["trance", "eurodance"]));
+
+    [Fact]
+    public void DescribeGenres_WithASingleGenre_PrintsItAlone() =>
+        Assert.Equal("trance", TrackEnricher.DescribeGenres(["trance"]));
+
+    /// <summary>
+    /// "none" rather than the "unknown" the album and position use — it is a different answer.
+    /// Those are missing from a reply that arrived; this means every source was asked and none
+    /// had one, which is exactly the distinction someone debugging tagging needs.
+    /// </summary>
+    [Fact]
+    public void DescribeGenres_WithNoGenresWritten_SaysNone() =>
+        Assert.Equal("none", TrackEnricher.DescribeGenres([]));
+
+    /// <inheritdoc cref="DescribeGenres_WithNoGenresWritten_SaysNone" />
+    [Fact]
+    public void DescribeGenres_WithNoGenreFieldAtAll_SaysNone() =>
+        Assert.Equal("none", TrackEnricher.DescribeGenres(null));
 }
