@@ -35,7 +35,11 @@ public sealed class SpotifyMetadataProviderTests
 
         /// <summary>Real behaviour, test timings: the delays are the only thing shortened.</summary>
         public SpotifyMetadataProvider Provider =>
-            new(Client.Object, new SpotifyPollingOptions(TimeSpan.Zero, TimeSpan.Zero, MaximumAttempts: 4));
+            new(Client.Object, new SpotifyPollingOptions(
+                TimeSpan.Zero,
+                TimeSpan.Zero,
+                MaximumAttempts: 4,
+                MaximumEmptyAttempts: 30));
 
         /// <summary>Answers with each playback in turn, repeating the last one thereafter.</summary>
         public void ReturnsPlaybackInTurn(params CurrentlyPlaying?[] answers)
@@ -62,6 +66,11 @@ public sealed class SpotifyMetadataProviderTests
                 .Setup(x => x.GetCurrentlyPlaying(It.IsAny<PlayerCurrentlyPlayingRequest>(), It.IsAny<CancellationToken>()))
                 .ThrowsAsync(new APIException(message) { Response = response.Object });
         }
+
+        public void PlaybackWasAskedFor(Times times) =>
+            Player.Verify(
+                x => x.GetCurrentlyPlaying(It.IsAny<PlayerCurrentlyPlayingRequest>(), It.IsAny<CancellationToken>()),
+                times);
 
         public void ReturnsAlbum(string albumId, FullAlbum album) =>
             Albums.Setup(x => x.Get(albumId, It.IsAny<CancellationToken>())).ReturnsAsync(album);
@@ -172,6 +181,147 @@ public sealed class SpotifyMetadataProviderTests
         Assert.Equal("Album Name", track.Album);
         Assert.Equal(4, track.AlbumPosition);
     }
+
+    /// <summary>
+    /// A free account plays advertisements between tracks, and the break runs far longer than the
+    /// attempt budget buys. Spending an attempt on each poll meant every poll landed inside the
+    /// break and the recording was saved bare — so an advertisement is a reason to keep waiting
+    /// rather than a mismatch to count.
+    /// </summary>
+    [Fact]
+    public async Task EnrichAsync_WhileAnAdvertisementIsPlaying_KeepsWaitingWithoutSpendingAttempts()
+    {
+        var harness = new Harness();
+
+        // One more advertisement than MaximumAttempts allows, so the old loop gave up here.
+        harness.ReturnsPlaybackInTurn(
+            Advertisement(),
+            Advertisement(),
+            Advertisement(),
+            Advertisement(),
+            Advertisement(),
+            new CurrentlyPlaying { IsPlaying = true, Item = PlayingTrack("Title") });
+
+        harness.ReturnsAlbum("album-1", new FullAlbum
+        {
+            Name = "Album Name",
+            Artists = [],
+            Genres = [],
+            Images = [],
+            ReleaseDate = "2020",
+        });
+
+        var track = DetectedTrack();
+
+        Assert.True(await harness.Provider.EnrichAsync(track));
+        Assert.Equal("Album Name", track.Album);
+    }
+
+    /// <summary>
+    /// The budget still applies to genuine mismatches, or a backend stuck on the previous track
+    /// would be polled until the enricher's deadline instead of giving up and saving the file.
+    /// </summary>
+    [Fact]
+    public async Task EnrichAsync_WhenSpotifyNeverCatchesUp_GivesUpAfterTheAttemptBudget()
+    {
+        var harness = new Harness();
+
+        harness.ReturnsPlayback(
+            new CurrentlyPlaying { IsPlaying = true, Item = PlayingTrack("The Previous Song") });
+
+        Assert.False(await harness.Provider.EnrichAsync(DetectedTrack()));
+    }
+
+    /// <summary>
+    /// The shape actually seen in the wild: four polls answering 204 No Content, three seconds
+    /// apart, while the client had already advanced. A 204 deserializes to a null playback, so it
+    /// reaches the loop as the same "no track" answer an advertisement does — and it has to,
+    /// because reading <c>currently_playing_type</c> is impossible when there is no body to read
+    /// it from.
+    /// </summary>
+    [Fact]
+    public async Task EnrichAsync_WhileSpotifyAnswersNoContent_KeepsAskingPastTheMismatchBudget()
+    {
+        var harness = new Harness();
+
+        harness.ReturnsPlaybackInTurn(
+            null,
+            null,
+            null,
+            null,
+            null,
+            new CurrentlyPlaying { IsPlaying = true, Item = PlayingTrack("Title") });
+
+        harness.ReturnsAlbum("album-1", new FullAlbum
+        {
+            Name = "Album Name",
+            Artists = [],
+            Genres = [],
+            Images = [],
+            ReleaseDate = "2020",
+        });
+
+        var track = DetectedTrack();
+
+        Assert.True(await harness.Provider.EnrichAsync(track));
+        Assert.Equal("Album Name", track.Album);
+    }
+
+    /// <summary>
+    /// The long budget is for a condition that ends by itself. A session where the API is never
+    /// going to answer — the account signed in is not the one playing — must not pay thirty
+    /// seconds on every recording for the rest of its life.
+    /// </summary>
+    [Fact]
+    public async Task EnrichAsync_WhenNoTrackIsEverReported_StandsTheLongBudgetDown()
+    {
+        var harness = new Harness();
+        harness.ReturnsPlayback(null);
+
+        // One instance throughout: standing down is a property of the session, not of a lookup.
+        var provider = harness.Provider;
+
+        Assert.False(await provider.EnrichAsync(DetectedTrack()));
+        Assert.False(await provider.EnrichAsync(DetectedTrack()));
+
+        harness.PlaybackWasAskedFor(Times.Exactly(60));
+
+        Assert.False(await provider.EnrichAsync(DetectedTrack()));
+
+        // The third track pays the mismatch budget, not the empty one.
+        harness.PlaybackWasAskedFor(Times.Exactly(64));
+    }
+
+    /// <summary>
+    /// And it comes back. Signing in as the account that is actually playing fixes the session
+    /// without restarting it, so the next advertisement break is waited out as normal.
+    /// </summary>
+    [Fact]
+    public async Task EnrichAsync_AfterAMatchSucceeds_WaitsOutAdvertisementsAgain()
+    {
+        var harness = new Harness();
+        var provider = harness.Provider;
+
+        harness.ReturnsPlayback(null);
+        await provider.EnrichAsync(DetectedTrack());
+        await provider.EnrichAsync(DetectedTrack());
+
+        harness.ReturnsPlayback(
+            new CurrentlyPlaying { IsPlaying = true, Item = PlayingTrack("Title", albumId: "") });
+
+        Assert.True(await provider.EnrichAsync(DetectedTrack()));
+
+        harness.ReturnsPlayback(null);
+        harness.Player.Invocations.Clear();
+
+        Assert.False(await provider.EnrichAsync(DetectedTrack()));
+
+        harness.PlaybackWasAskedFor(Times.Exactly(30));
+    }
+
+    /// <summary>An advertisement carries no item, which is what makes the type field necessary.</summary>
+    private static CurrentlyPlaying Advertisement() =>
+        new() { IsPlaying = true, CurrentlyPlayingType = "ad" };
 
     /// <summary>A 204 at the boundary is the same race, not an answer of "nothing is playing".</summary>
     [Fact]
@@ -497,4 +647,79 @@ public sealed class SpotifyMetadataProviderTests
         Assert.Equal("Real Album", track.Album);
         Assert.Equal(7, track.AlbumPosition);
     }
+
+    // ---- ReasonFor ---------------------------------------------------------
+
+    private static APIException Failure(object? body, string? message = null) =>
+        new(message!) { Response = Answer(body) };
+
+    private static IResponse Answer(object? body)
+    {
+        var response = new Mock<IResponse>();
+        response.SetupGet(x => x.Body).Returns(body);
+
+        return response.Object;
+    }
+
+    /// <summary>
+    /// The shape the Web API sends, and the whole reason this exists: a 403 naming the account it
+    /// rejected used to reach the log as "Exception of type 'SpotifyAPI.Web.APIException' was
+    /// thrown", because the SDK only fills the message in when it recognises the body and leaves
+    /// .NET's placeholder there when it does not.
+    /// </summary>
+    [Fact]
+    public void ReasonFor_WithTheWebApiErrorShape_QuotesSpotifysMessage() =>
+        Assert.Equal(
+            "User not registered in the Developer Dashboard",
+            SpotifyMetadataProvider.ReasonFor(Failure(
+                """{"error":{"status":403,"message":"User not registered in the Developer Dashboard"}}""")));
+
+    /// <summary>The accounts service answers in a different shape, and it reaches the same catch.</summary>
+    [Fact]
+    public void ReasonFor_WithTheAccountsErrorShape_PrefersTheDescription() =>
+        Assert.Equal(
+            "Refresh token revoked",
+            SpotifyMetadataProvider.ReasonFor(Failure(
+                """{"error":"invalid_grant","error_description":"Refresh token revoked"}""")));
+
+    [Fact]
+    public void ReasonFor_WithAnAccountsErrorAndNoDescription_FallsBackToTheCode() =>
+        Assert.Equal(
+            "invalid_grant",
+            SpotifyMetadataProvider.ReasonFor(Failure("""{"error":"invalid_grant"}""")));
+
+    /// <summary>
+    /// Something in the middle answering with an HTML page still says more than a status code
+    /// does, so it is quoted rather than discarded.
+    /// </summary>
+    [Fact]
+    public void ReasonFor_WithABodyThatIsNotJson_QuotesItRaw() =>
+        Assert.Equal("<html><body>Gateway timeout</body></html>",
+            SpotifyMetadataProvider.ReasonFor(Failure("<html><body>Gateway timeout</body></html>")));
+
+    /// <summary>That page can be arbitrarily long; the activity log it lands in cannot.</summary>
+    [Fact]
+    public void ReasonFor_WithAVeryLongBody_TruncatesIt()
+    {
+        var reason = SpotifyMetadataProvider.ReasonFor(Failure(new string('x', 5_000)));
+
+        Assert.NotNull(reason);
+        Assert.Equal(201, reason!.Length);
+        Assert.EndsWith("…", reason, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The placeholder is worse than nothing, because it occupies the slot the answer belongs in.
+    /// Callers say "no reason given" instead, which is at least true.
+    /// </summary>
+    [Fact]
+    public void ReasonFor_WithNoBodyAndNoMessage_IsNull() =>
+        Assert.Null(SpotifyMetadataProvider.ReasonFor(Failure(body: null, message: null)));
+
+    /// <summary>But a message the SDK did manage to parse is still the best thing available.</summary>
+    [Fact]
+    public void ReasonFor_WithNoBodyButAParsedMessage_UsesIt() =>
+        Assert.Equal(
+            "The access token expired",
+            SpotifyMetadataProvider.ReasonFor(Failure(null, "The access token expired")));
 }

@@ -227,6 +227,21 @@ phase plan these entries follow.
 
 ### Fixed
 
+- **Spotify's own error message reached the log as `Exception of type
+  'SpotifyAPI.Web.APIException' was thrown`.** The SDK parses the error body into
+  `Exception.Message` only when it recognises the shape and leaves .NET's placeholder there
+  otherwise, so the one string that could explain a failure was replaced by one that explains
+  nothing — and a 403 naming the rejected account arrived as a warning listing two possible
+  causes and confirming neither. The reason is now read off the response body, in both the
+  shape the Web API sends and the shape the accounts service sends, and quoted.
+- **A session Spotify will never answer for cost every recording thirty seconds.** The long
+  retry budget was added so a free account's advertisement break would not cost the following
+  track its tags, on the assumption that an answer carrying no track always resolves by itself.
+  It does not: when the account signed in to Offstream is not the account playing the music, or
+  playback is in a private session, the player endpoint answers 204 forever. The budget now
+  stands down after two tracks in a row exhaust it, and a successful lookup restores it — and
+  because everything on that path was logged at Debug, which the activity log does not show, it
+  now says so once, at `Warning`, naming both causes.
 - **A data race in the audio ring buffer.** The read position and byte count were captured
   before the lock was taken, so a concurrent write could move them underneath a read and produce
   torn audio. Reads are also span-based now, instead of allocating a fresh buffer on every read
@@ -375,6 +390,26 @@ phase plan these entries follow.
   exactly this.
 - **The session total read "0 saved" forever.** The count was right the whole time; only the
   derived string was never refreshed.
+- **A break between tracks cost the track after it every tag.** Spotify's `currently-playing`
+  answers a free account's advertisement, or 204 No Content, rather than the track about to
+  start — and the lookup counted each such answer as a failed match, so the four attempts it
+  allows were spent inside a break that runs far longer and the recording was saved bare. An
+  answer carrying no track at all is now a different failure from an answer carrying the wrong
+  one: something is playing, since a recording is running, so it resolves on its own and gets a
+  budget of its own — thirty polls rather than four. Bounded rather than open-ended, because a
+  track the API will never report should delay one recording and not every one. The enrichment
+  deadline moves 20s to 45s to leave room for it; the recording it runs alongside is unaffected
+  either way, since enrichment starts when the track does.
+- **The log could not tell a 204 from an advertisement.** Both printed "nothing playing", which
+  is the one distinction worth having when a lookup keeps missing — so the line naming what
+  Spotify answered named the shape of the answer rather than the absence of a track.
+- **One song could be recorded twice, and enriched twice.** The Windows media session fills its
+  fields as they arrive, so the first read after it becomes available can carry a title and no
+  artist. That counted as a track change: the take in progress ended, was reported as an
+  advertisement, was discarded for falling under the minimum length, and a second recording of
+  the same song started a moment later when the artist arrived. A title without an artist is now
+  read as a source part-way through reading — which is the only thing it can mean, since the
+  window-title parser puts an unsplittable title in the artist field instead.
 
 ### Security
 

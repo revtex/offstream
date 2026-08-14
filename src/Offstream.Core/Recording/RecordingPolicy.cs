@@ -56,12 +56,22 @@ public sealed class RecordingPolicy(RecordingSettings settings)
     /// Whether <paramref name="candidate"/> is a different track from <paramref name="current"/>.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// A null or wholly empty track is never "new": Spotify reports blank titles while
     /// starting up and between tracks, and treating those as changes would split recordings.
+    /// </para>
+    /// <para>
+    /// Neither is a <see cref="Track.IsPartiallyRead"/> one, for the same reason one step later.
+    /// The media session fills its fields as they arrive, so the first read after it becomes
+    /// available can carry a title and no artist — and that read landing mid-recording ended the
+    /// take, reported it as an advertisement, discarded it for being under the minimum length,
+    /// and started a second recording of the same track a moment later when the artist arrived.
+    /// Two recorders, two enrichments, one song.
+    /// </para>
     /// </remarks>
     public static bool IsNewTrack(Track? current, Track? candidate)
     {
-        if (candidate is null || new Track().Equals(candidate)) return false;
+        if (candidate is null || new Track().Equals(candidate) || candidate.IsPartiallyRead) return false;
 
         return !(current?.Equals(candidate) ?? false);
     }

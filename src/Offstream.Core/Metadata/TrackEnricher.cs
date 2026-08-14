@@ -43,7 +43,15 @@ public interface ITrackEnricher
 public sealed class TrackEnricher : ITrackEnricher
 {
     /// <summary>How long a lookup and its art fetch get, together.</summary>
-    public static readonly TimeSpan DefaultDeadline = TimeSpan.FromSeconds(20);
+    /// <remarks>
+    /// Raised from 20s once the Spotify provider learned to wait out an advertisement rather than
+    /// counting it as a failed match. A free account's break between tracks runs longer than 20s,
+    /// so the old ceiling cut the wait off before the track it was waiting for could start, and
+    /// the recording was tagged with nothing. What the deadline is actually for — not letting a
+    /// provider that has stopped answering hold a finished recording — is served just as well at
+    /// 45s, because this runs concurrently with a recording from the moment the track starts.
+    /// </remarks>
+    public static readonly TimeSpan DefaultDeadline = TimeSpan.FromSeconds(45);
 
     private readonly IMetadataProvider _provider;
     private readonly ICoverArtFetcher _coverArt;
