@@ -249,11 +249,20 @@ phase plan these entries follow.
   another live registration pointing at an object nothing was keeping alive, and the next time an
   endpoint changed — which is exactly what opening the next session's audio client does — the
   audio service called into freed interop memory. A session now disposes the capture it was
-  given, which is what withdraws the registration, and a watcher stays alive for as long as
-  Windows can still call it, so a missed disposal costs a few bytes instead of the app. Two
-  smaller leaks of the same shape went with it: a failed start — no ffmpeg, most often — no
-  longer abandons the capture it had already opened, and the endpoint lookup no longer leaves a
-  device enumerator behind on a path that runs several times a second while recording.
+  given, which is what withdraws the registration, and a watcher holds a reference to itself for
+  as long as Windows can still call it: registering deliberately does not count as a reference,
+  which Windows documents and leaves to the caller, so a missed disposal now costs a few bytes
+  instead of the app. Reproduced in twenty-five start/stop cycles against the fix, having taken
+  three to crash without it. Two smaller leaks of the same shape went with it: a failed start —
+  no ffmpeg, most often — no longer abandons the capture it had already opened, and the endpoint
+  lookup no longer leaves a device enumerator behind on a path that runs several times a second
+  while recording.
+- **Losing the recorded device could have wedged the audio service rather than ending the
+  recording.** Endpoint notifications ran their handlers on the thread Windows delivers them on,
+  which is forbidden from blocking, from waiting, and from closing an audio object — and the
+  handler for a lost endpoint does all three, against the endpoint that just disappeared, while
+  the audio service waits for the call to return. Handlers now run on a pool thread, and the
+  notification returns immediately.
 - **An advertisement showed the previous song's cover art, album and save path.** The three
   details describing the track being written arrive together from the metadata lookup and were
   cleared only when the session stopped, so anything never enriched — an advertisement above

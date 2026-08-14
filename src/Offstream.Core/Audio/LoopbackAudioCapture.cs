@@ -194,6 +194,12 @@ public sealed class LoopbackAudioCapture : IAudioCaptureSource
 
         StopCapture();
 
+        // Not left to StopCapture: when the capture loop ends on its own — the endpoint pulled
+        // out mid-recording, which is the case the watcher exists for — it has already cleared
+        // IsCapturing, so StopCapture returns without reaching here and the keep-alive goes on
+        // playing silence into a device nobody is recording. Stopping is idempotent.
+        StopKeepAlive();
+
         if (_endpoints is not null)
         {
             _endpoints.Changed -= OnEndpointChanged;

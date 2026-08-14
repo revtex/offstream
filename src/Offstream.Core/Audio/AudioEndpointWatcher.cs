@@ -163,6 +163,32 @@ public sealed class AudioEndpointWatcher : IAudioEndpointWatcher, IMMNotificatio
         _enumerator.Dispose();
     }
 
-    private void Raise(AudioEndpointChangeKind kind, string? deviceId) =>
-        Changed?.Invoke(this, new AudioEndpointChange(kind, deviceId));
+    /// <summary>
+    /// Hands the change to a pool thread and returns, rather than running handlers here.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This runs on the audio service's notification thread, which
+    /// <see cref="IMMNotificationClient"/> forbids three things on: blocking, waiting on a
+    /// synchronisation object, and releasing the last reference to an audio object. The one
+    /// handler that exists does all three — ending a capture joins the keep-alive's render thread
+    /// and closes its audio client — and it does them against the endpoint whose disappearance
+    /// caused the notification, while the audio service holds the lock it called out under. The
+    /// note above about not blocking was here from the start; what was missing is that the
+    /// handler, not this method, is where the blocking happens.
+    /// </para>
+    /// <para>
+    /// Ordering between notifications is not preserved, and does not need to be: a handler decides
+    /// from the endpoint id in the change, not from the sequence it arrived in.
+    /// </para>
+    /// </remarks>
+    private void Raise(AudioEndpointChangeKind kind, string? deviceId)
+    {
+        var handler = Changed;
+        if (handler is null) return;
+
+        var change = new AudioEndpointChange(kind, deviceId);
+
+        ThreadPool.QueueUserWorkItem(_ => handler(this, change));
+    }
 }
