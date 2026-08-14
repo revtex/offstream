@@ -139,6 +139,75 @@ public sealed partial class LastFmMetadataProvider : IMetadataProvider
         response.Album = album.ToTrackAlbum();
     }
 
+    /// <summary>
+    /// Genres for one recording, asked for directly rather than as a side effect of a full lookup.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Track tags first, then the artist's.</b> Track-level tags are the better answer — they
+    /// describe this recording rather than its performer — but Last.fm simply does not have them
+    /// for a great many tracks, and returns an empty cloud rather than an error. ATB's
+    /// "9Pm (Till I Come)" is the case that prompted this: no track tags at all, while the artist
+    /// carries trance, electronic and dance. Stopping at the empty track answer threw away a
+    /// perfectly good one sitting behind it.
+    /// </para>
+    /// <para>
+    /// This deliberately does not go through <see cref="EnrichAsync(Track, CancellationToken)"/>.
+    /// That path only maps anything — genres included — when Last.fm also returns an
+    /// <i>album</i>, which is the wrong gate for a question that never asked about albums, and it
+    /// fetches a release, its artwork and its track listing to read three strings off the side.
+    /// </para>
+    /// <para>
+    /// <c>autocorrect=1</c> on both, so Last.fm canonicalises the spelling it was given rather
+    /// than missing on punctuation or case.
+    /// </para>
+    /// </remarks>
+    public async Task<string[]> GetGenresAsync(
+        string? artist,
+        string? title,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(artist)) return [];
+
+        if (!string.IsNullOrWhiteSpace(title))
+        {
+            var trackTags = await FetchAsync(TrackTagsUri(artist, title), cancellationToken);
+            var genres = LastFmTrackMapper.ChooseGenres(trackTags?.TopTags);
+
+            if (genres.Length > 0)
+            {
+                Log.Debug("Last.fm tagged the track {Artist} - {Title}: {Genres}.", artist, title, genres);
+                return genres;
+            }
+
+            Log.Debug(
+                "Last.fm has no tags for the track {Artist} - {Title}; asking about the artist.",
+                artist,
+                title);
+        }
+
+        var artistTags = await FetchAsync(ArtistTagsUri(artist), cancellationToken);
+        var artistGenres = LastFmTrackMapper.ChooseGenres(artistTags?.TopTags);
+
+        Log.Debug(
+            "Last.fm gave the artist {Artist} the tags: {Genres}.",
+            artist,
+            artistGenres.Length == 0 ? "none" : string.Join(", ", artistGenres));
+
+        return artistGenres;
+    }
+
+    private Uri TrackTagsUri(string artist, string title) => BuildUri(
+        "track.getTopTags",
+        ("artist", artist),
+        ("track", title),
+        ("autocorrect", "1"));
+
+    private Uri ArtistTagsUri(string artist) => BuildUri(
+        "artist.getTopTags",
+        ("artist", artist),
+        ("autocorrect", "1"));
+
     private Uri TrackInfoUri(string artist, string title) => BuildUri(
         "track.getInfo",
         ("artist", artist),

@@ -179,13 +179,34 @@ public sealed class TrackEnricher : ITrackEnricher
         Track track,
         CancellationToken cancellationToken)
     {
-        if (_genreFallback is null || track.Genres is { Length: > 0 }) return null;
+        if (track.Genres is { Length: > 0 }) return null;
+
+        // Said out loud, because "no genre" and "nowhere to ask" look identical in the tag and
+        // used to look identical in the log too.
+        if (_genreFallback is null)
+        {
+            Log.Debug(
+                "{Provider} had no genre for {Track} and no fallback is configured. "
+                + "Setting a Last.fm API key on the Settings page would give it a second source.",
+                _provider.Kind,
+                track);
+
+            return null;
+        }
 
         try
         {
             var genres = await _genreFallback.GetGenresAsync(track, cancellationToken);
 
-            if (genres.Length == 0) return null;
+            if (genres.Length == 0)
+            {
+                Log.Debug(
+                    "{Fallback} had no genre for {Track} either, so the tag is left empty.",
+                    _genreFallback.Kind,
+                    track);
+
+                return null;
+            }
 
             track.Genres = genres;
 

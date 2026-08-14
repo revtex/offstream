@@ -142,7 +142,7 @@ public sealed class RecordingSessionFactory(
     /// switch warns about, and warning twice for one missing key helps nobody.
     /// </para>
     /// </remarks>
-    private static ProviderGenreFallback? CreateGenreFallback(OffstreamSettings settings, HttpClient httpClient)
+    private static LastFmGenreFallback? CreateGenreFallback(OffstreamSettings settings, HttpClient httpClient)
     {
         if (settings.Metadata.Provider != MetadataProvider.Spotify) return null;
 
@@ -150,7 +150,7 @@ public sealed class RecordingSessionFactory(
 
         return string.IsNullOrWhiteSpace(apiKey)
             ? null
-            : new ProviderGenreFallback(new LastFmMetadataProvider(httpClient, apiKey));
+            : new LastFmGenreFallback(new LastFmMetadataProvider(httpClient, apiKey));
     }
 
     private IMetadataProvider CreateProvider(OffstreamSettings settings, HttpClient httpClient)

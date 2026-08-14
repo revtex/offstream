@@ -29,45 +29,35 @@ public interface IGenreFallback
 }
 
 /// <summary>
-/// Asks a second <see cref="IMetadataProvider"/> for genres, and takes nothing else from it.
+/// Asks Last.fm for genres, and takes nothing else from it.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Wired with Last.fm behind it, which is where a track-level genre can actually be had. It runs
-/// the provider over a throwaway copy of the track rather than the real one, which is what keeps
-/// this to its stated job: Last.fm's mapper would otherwise overwrite the album, year, cover art
-/// and track number that the primary provider just established, mixing two catalogues' idea of
-/// the same release into one file.
+/// It asks about the track first and the artist second, because Last.fm frequently has no tags
+/// at all for a given recording while carrying a rich set for whoever made it — see
+/// <see cref="LastFmMetadataProvider.GetGenresAsync"/>.
 /// </para>
 /// <para>
-/// The copy carries artist and title only, because those are the whole of what a lookup needs and
-/// anything else would just be discarded with the copy.
+/// <b>This replaced a wrapper that ran the whole provider over a throwaway copy of the track.</b>
+/// That worked, but it inherited a success condition written for a different question: the full
+/// lookup only maps anything, genres included, when Last.fm also returns an album. A track whose
+/// tags were sitting right there got none because its album was missing — and it fetched a
+/// release, its artwork and its track listing to read three strings off the side.
 /// </para>
 /// </remarks>
-public sealed class ProviderGenreFallback(IMetadataProvider provider) : IGenreFallback
+public sealed class LastFmGenreFallback(LastFmMetadataProvider provider) : IGenreFallback
 {
-    private readonly IMetadataProvider _provider =
+    private readonly LastFmMetadataProvider _provider =
         provider ?? throw new ArgumentNullException(nameof(provider));
 
     /// <inheritdoc />
-    public MetadataProvider Kind => _provider.Kind;
+    public MetadataProvider Kind => MetadataProvider.LastFm;
 
     /// <inheritdoc />
-    public async Task<string[]> GetGenresAsync(Track track, CancellationToken cancellationToken = default)
+    public Task<string[]> GetGenresAsync(Track track, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(track);
 
-        if (_provider.Kind == MetadataProvider.None) return [];
-
-        var probe = new Track
-        {
-            Artist = track.Artist,
-            Title = track.Title,
-            Playing = track.Playing,
-        };
-
-        await _provider.EnrichAsync(probe, cancellationToken);
-
-        return probe.Genres ?? [];
+        return _provider.GetGenresAsync(track.Artist, track.Title, cancellationToken);
     }
 }

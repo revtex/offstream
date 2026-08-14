@@ -148,6 +148,18 @@ public sealed class LastFmNode
     [XmlElement(ElementName = "album")]
     public LastFmAlbumInfo? Album { get; set; }
 
+    /// <summary>
+    /// The tag cloud, when the response came from <c>track.getTopTags</c> or
+    /// <c>artist.getTopTags</c> rather than from <c>track.getInfo</c>.
+    /// </summary>
+    /// <remarks>
+    /// Those two put it directly under the root, where <c>track.getInfo</c> nests it inside the
+    /// track node. Same shape, different depth, so it needs its own property rather than reusing
+    /// <see cref="LastFmTrack.TopTags"/>.
+    /// </remarks>
+    [XmlElement(ElementName = "toptags")]
+    public LastFmTopTags? TopTags { get; set; }
+
     [XmlElement(ElementName = "error")]
     public LastFmError? Error { get; set; }
 
