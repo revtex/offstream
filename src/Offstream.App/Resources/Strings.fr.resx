@@ -400,4 +400,13 @@
   <data name="RecordTransportStopped" xml:space="preserve">
     <value>STOP</value>
   </data>
+  <data name="SettingsVirtualCableFound" xml:space="preserve">
+    <value>VB-CABLE est installé. Dirigez Spotify vers ce périphérique dans Windows, puis enregistrez-le ici.</value>
+  </data>
+  <data name="SettingsVirtualCableMissing" xml:space="preserve">
+    <value>VB-CABLE n'est pas installé. Enregistrer une sortie ordinaire capture tous les sons de l'ordinateur, pas seulement Spotify.</value>
+  </data>
+  <data name="SettingsVirtualCableGet" xml:space="preserve">
+    <value>Obtenir VB-CABLE sur vb-audio.com</value>
+  </data>
 </root>

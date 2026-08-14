@@ -170,17 +170,34 @@ public sealed class OutputPaths(
         fileSystem.File.Move(source, destination);
     }
 
-    /// <summary>Whether this track already has a recording on disk under the current settings.</summary>
-    public bool IsPathFileNameExists(Track candidate, RecordingSettings candidateSettings)
+    /// <summary>
+    /// The path this track would be saved to, without creating anything.
+    /// </summary>
+    /// <remarks>
+    /// The first name the template yields, before any duplicate counter — so this is the path
+    /// the existing-file policy asks about, not necessarily the one that ends up being written.
+    /// </remarks>
+    /// <exception cref="UnrecognizedTrackException">The track has no artist, or renders to nothing usable.</exception>
+    public string ResolveMediaFilePath(Track candidate, RecordingSettings candidateSettings)
     {
         ArgumentNullException.ThrowIfNull(candidateSettings);
 
         var (folders, fileName) = BuildFromTemplate(candidate, candidateSettings, now);
         var folderPath = ConcatPaths(candidateSettings.OutputPath, ConcatPaths(folders));
-        var filePath = ConcatPaths(folderPath, $"{fileName}.{candidateSettings.MediaFormatExtension}");
 
-        return fileSystem.File.Exists(filePath);
+        return ConcatPaths(folderPath, $"{fileName}.{candidateSettings.MediaFormatExtension}");
     }
+
+    /// <summary>Whether this track already has a recording on disk under the current settings.</summary>
+    /// <remarks>
+    /// <b>Only as good as the metadata on <paramref name="candidate"/>.</b> A template using
+    /// <c>{album}</c>, <c>{year}</c> or <c>{track}</c> renders somewhere else entirely before
+    /// enrichment has filled those in, so asking this too early answers about a path nothing
+    /// will ever be written to. <see cref="Recording.TrackRecorder"/> asks again once the
+    /// lookup has landed, which is the answer the policy is actually applied to.
+    /// </remarks>
+    public bool IsPathFileNameExists(Track candidate, RecordingSettings candidateSettings) =>
+        fileSystem.File.Exists(ResolveMediaFilePath(candidate, candidateSettings));
 
     /// <summary>Strips characters Windows forbids anywhere in a path.</summary>
     public static string GetCleanPath(string path)

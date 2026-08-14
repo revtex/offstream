@@ -81,6 +81,23 @@ public sealed partial class SettingsViewModel : ObservableValidator
     [ObservableProperty]
     private AudioDeviceOption? _selectedDevice;
 
+    /// <summary>
+    /// What to say about VB-CABLE, beside the device it would be chosen from.
+    /// </summary>
+    /// <remarks>
+    /// Beside the picker rather than in a section of its own, because the cable is only ever a
+    /// device to record: it is not a mode or a feature to turn on, and its absence is only worth
+    /// mentioning to somebody in the middle of choosing what to capture. Absence is stated, never
+    /// installed — Offstream ships no vendor binaries, for the licence reasons in
+    /// <see cref="VirtualCable"/>.
+    /// </remarks>
+    [ObservableProperty]
+    private string _virtualCableStatus = string.Empty;
+
+    /// <summary>Whether to offer the download link alongside <see cref="VirtualCableStatus"/>.</summary>
+    [ObservableProperty]
+    private bool _isVirtualCableMissing;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SupportsBitrate))]
     private MediaFormat _format;
@@ -173,6 +190,9 @@ public sealed partial class SettingsViewModel : ObservableValidator
     /// <summary>Where the settings file lives, shown so it can be found or deleted.</summary>
     public string SettingsPath => _document.Path;
 
+    /// <summary>Where a user without the cable is sent, for the link's target.</summary>
+    public static string VirtualCableUrl => VirtualCable.DownloadUrl;
+
     /// <summary>Whether the bitrate control means anything for the chosen format.</summary>
     /// <remarks>
     /// FLAC is lossless and WAV is uncompressed, so a bitrate box next to either is a control
@@ -261,10 +281,20 @@ public sealed partial class SettingsViewModel : ObservableValidator
         Devices.Clear();
         Devices.Add(new AudioDeviceOption(null, Strings.SettingsDeviceDefault));
 
-        foreach (var device in _catalog.ListRender())
+        var endpoints = _catalog.ListRender().ToList();
+
+        foreach (var device in endpoints)
         {
             Devices.Add(new AudioDeviceOption(device.Id, device.Name));
         }
+
+        // Off the same list the dropdown was built from, so the notice and the options a user is
+        // choosing between can never disagree.
+        IsVirtualCableMissing = !VirtualCable.DetectIn(endpoints).IsInstalled;
+
+        VirtualCableStatus = IsVirtualCableMissing
+            ? Strings.SettingsVirtualCableMissing
+            : Strings.SettingsVirtualCableFound;
 
         if (wanted is not null && Devices.All(option => option.Id != wanted))
         {
