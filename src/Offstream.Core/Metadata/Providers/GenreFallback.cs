@@ -13,6 +13,16 @@ namespace Offstream.Core.Metadata.Providers;
 /// </remarks>
 public interface IGenreFallback
 {
+    /// <summary>
+    /// Which provider is behind this.
+    /// </summary>
+    /// <remarks>
+    /// Only so the activity log can name the source on the line it already prints. A genre that
+    /// came from somewhere other than the provider doing the tagging is the interesting case —
+    /// it means the primary had nothing for that artist — and a bare list of genres cannot say so.
+    /// </remarks>
+    MetadataProvider Kind { get; }
+
     /// <summary>Genres for <paramref name="track"/>, or empty when this source has none either.</summary>
     /// <remarks>Never throws: a genre is not worth failing an enrichment over.</remarks>
     Task<string[]> GetGenresAsync(Track track, CancellationToken cancellationToken = default);
@@ -38,6 +48,9 @@ public sealed class ProviderGenreFallback(IMetadataProvider provider) : IGenreFa
 {
     private readonly IMetadataProvider _provider =
         provider ?? throw new ArgumentNullException(nameof(provider));
+
+    /// <inheritdoc />
+    public MetadataProvider Kind => _provider.Kind;
 
     /// <inheritdoc />
     public async Task<string[]> GetGenresAsync(Track track, CancellationToken cancellationToken = default)

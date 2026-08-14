@@ -49,6 +49,8 @@ public sealed class TrackEnricherTests
 
     private sealed class FakeGenreFallback : IGenreFallback
     {
+        public MetadataProvider Kind { get; init; } = MetadataProvider.LastFm;
+
         public string[] Result { get; set; } = ["fallback genre"];
 
         public Exception? Failure { get; set; }
@@ -270,6 +272,27 @@ public sealed class TrackEnricherTests
     [Fact]
     public void DescribeGenres_JoinsWhatWasWritten() =>
         Assert.Equal("trance, eurodance", TrackEnricher.DescribeGenres(["trance", "eurodance"]));
+
+    /// <summary>
+    /// The source is named only when it is not the provider already named at the start of the
+    /// message — which is the case worth knowing about, because it means the primary had no
+    /// genre for this artist.
+    /// </summary>
+    [Fact]
+    public void DescribeGenres_WhenTheFallbackSuppliedThem_NamesTheSource() =>
+        Assert.Equal(
+            "trip hop (LastFm)",
+            TrackEnricher.DescribeGenres(["trip hop"], MetadataProvider.LastFm));
+
+    /// <summary>A genre the provider itself supplied needs no attribution; it is already named.</summary>
+    [Fact]
+    public void DescribeGenres_WithNoSource_PrintsTheGenresAlone() =>
+        Assert.Equal("trance", TrackEnricher.DescribeGenres(["trance"], source: null));
+
+    /// <summary>Nothing to attribute, so the source is not printed either.</summary>
+    [Fact]
+    public void DescribeGenres_WithNoGenresButASource_StillSaysNone() =>
+        Assert.Equal("none", TrackEnricher.DescribeGenres([], MetadataProvider.LastFm));
 
     [Fact]
     public void DescribeGenres_WithASingleGenre_PrintsItAlone() =>

@@ -113,6 +113,13 @@ public sealed class ProviderGenreFallbackTests
         Assert.Equal(0, provider.Calls);
     }
 
+    /// <summary>The log names the source, so it has to be the provider actually behind this.</summary>
+    [Fact]
+    public void Kind_IsTheProviderBehindIt() =>
+        Assert.Equal(
+            MetadataProvider.LastFm,
+            new ProviderGenreFallback(new FakeProvider(MetadataProvider.LastFm)).Kind);
+
     [Fact]
     public void Constructor_RejectsNulls() =>
         Assert.Throws<ArgumentNullException>(() => new ProviderGenreFallback(null!));
