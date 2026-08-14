@@ -109,18 +109,30 @@ public sealed partial class LastFmMetadataProvider : IMetadataProvider
 
         await FallbackToSingleAlbumAsync(response, cancellationToken);
 
+        // Last.fm's album for a track is whichever release its community database happens to
+        // associate, and for a well-known track that is regularly a DJ set or a radio show the
+        // recording once appeared on rather than the record it came from. Nothing upstream caught
+        // that, because this provider had no equivalent of Spotify's DetectedTrackMatch: whatever
+        // came back was written. When the media session has already named the album it is not
+        // guessing — it is reporting what the client is playing the track *out of* — so a Last.fm
+        // release that disagrees is a bad match, and its artwork, its track listing and its
+        // credited artists are wrong along with its name.
+        if (response.Album is { } reported
+            && !DetectedTrackMatch.AlbumAgrees(track.Album, reported.Title))
+        {
+            Log.Debug(
+                "Last.fm puts {Track} on \"{Reported}\", but the client is playing it from "
+                + "\"{Detected}\"; ignoring that release and everything hanging off it.",
+                track,
+                reported.Title,
+                track.Album);
+
+            response.Album = null;
+        }
+
         if (response.Album is not null)
         {
-            LastFmTrackMapper.Apply(track, response);
-
-            // The mapper takes genres from the track's own tag cloud, which Last.fm leaves empty
-            // for a great many tracks — so as the chosen provider it would tag album, position and
-            // artwork correctly and then hand back no genre at all. The artist's tags are the same
-            // second question the genre fallback asks, and this is the same answer.
-            if (track.Genres is null or { Length: 0 })
-            {
-                track.Genres = await ArtistTagsAsync(track.Artist, cancellationToken);
-            }
+            await ApplyAsync(track, response, cancellationToken);
 
             return true;
         }
@@ -131,9 +143,41 @@ public sealed partial class LastFmMetadataProvider : IMetadataProvider
         // second identical request. Comparing against what was actually asked skips it.
         var simplified = TitleDecoration.Replace(track.Title!, string.Empty);
 
-        return simplified != (forcedTitle ?? track.Title)
-               && !string.IsNullOrWhiteSpace(simplified)
-               && await EnrichAsync(track, simplified, cancellationToken);
+        if (simplified != (forcedTitle ?? track.Title)
+            && !string.IsNullOrWhiteSpace(simplified)
+            && await EnrichAsync(track, simplified, cancellationToken))
+        {
+            return true;
+        }
+
+        // Last.fm knows this recording; it just has no release for it that this track can be
+        // tagged with. Tags describe the *recording*, so they survive the release being rejected —
+        // and the mapper fills rather than clears, which leaves the media session's album, its
+        // position and its album artist standing exactly where they were. Returning false here
+        // instead would throw a genre away over an album that was never in doubt.
+        await ApplyAsync(track, response, cancellationToken);
+
+        // Genre alone is the whole of what this path can add, so it is also the whole test of
+        // whether it added anything. Duration is deliberately not counted: it goes into no tag,
+        // and letting it decide would report "tagged" for a track nothing was written onto.
+        return track.Genres is { Length: > 0 };
+    }
+
+    /// <summary>Maps a response onto a track, then fills the genre gap Last.fm usually leaves.</summary>
+    /// <remarks>
+    /// The mapper takes genres from the track's own tag cloud, which Last.fm leaves empty for a
+    /// great many tracks — so as the chosen provider it would tag album, position and artwork
+    /// correctly and then hand back no genre at all. The artist's tags are the same second
+    /// question the genre fallback asks, and this is the same answer.
+    /// </remarks>
+    private async Task ApplyAsync(Track track, LastFmTrack response, CancellationToken cancellationToken)
+    {
+        LastFmTrackMapper.Apply(track, response);
+
+        if (track.Genres is null or { Length: 0 })
+        {
+            track.Genres = await ArtistTagsAsync(track.Artist, cancellationToken);
+        }
     }
 
     /// <summary>

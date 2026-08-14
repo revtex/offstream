@@ -48,7 +48,16 @@ public static partial class LastFmTrackMapper
         string[] albumArtists = track.Artist is null ? [] : [track.Artist];
 
         track.Performers = [.. albumArtists.Concat(track.ToString().ToPerformers())];
-        track.AlbumArtists = albumArtists is { Length: > 0 } ? albumArtists : track.AlbumArtists;
+
+        // Last.fm has no album-artist field, so the line above is the track's own artist standing
+        // in for one — right for a window title, wrong the moment a media session has reported a
+        // real one. A compilation is the case that shows it: the session says "Various Artists"
+        // and the stand-in would overwrite that with whoever performed this one track. So the
+        // stand-in fills a gap and never replaces an answer, like every other field here.
+        if (track.AlbumArtists is not { Length: > 0 } && albumArtists.Length > 0)
+        {
+            track.AlbumArtists = albumArtists;
+        }
     }
 
     /// <summary>

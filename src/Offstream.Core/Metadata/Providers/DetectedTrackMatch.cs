@@ -52,6 +52,34 @@ public static class DetectedTrackMatch
                || Same(Join(reportedArtist, reportedTitle), Join(detected.Artist, detected.Title));
     }
 
+    /// <summary>Whether a provider's album is the release the track was detected on.</summary>
+    /// <param name="detectedAlbum">The album the poller saw, before any enrichment.</param>
+    /// <param name="reportedAlbum">The album the provider attributes the track to.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>An unknown album on either side agrees with everything.</b> The window-title parser
+    /// never sees one, and a provider that reports no album is not contradicting anybody. This
+    /// only ever rejects two names that are both present and name different records.
+    /// </para>
+    /// <para>
+    /// <b>An edition suffix is not a disagreement.</b> The same release arrives as
+    /// <c>Movin' Melodies</c> from one source and <c>Movin' Melodies (Deluxe Edition)</c> from
+    /// another, so a name that begins with the whole of the other name, at a word boundary, is
+    /// taken as the same record with more said about it.
+    /// </para>
+    /// </remarks>
+    public static bool AlbumAgrees(string? detectedAlbum, string? reportedAlbum)
+    {
+        var detected = Normalise(detectedAlbum);
+        var reported = Normalise(reportedAlbum);
+
+        if (detected.Length == 0 || reported.Length == 0) return true;
+
+        return string.Equals(detected, reported, StringComparison.Ordinal)
+               || ExtendsWholeWords(detected, reported)
+               || ExtendsWholeWords(reported, detected);
+    }
+
     /// <summary>
     /// Reduces a title to what two sources can be expected to agree on.
     /// </summary>
@@ -98,6 +126,20 @@ public static class DetectedTrackMatch
         return normalisedLeft.Length > 0
                && string.Equals(normalisedLeft, Normalise(right), StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Whether <paramref name="longer"/> begins with all of <paramref name="shorter"/> and then
+    /// says more, rather than merely starting with the same letters.
+    /// </summary>
+    /// <remarks>
+    /// Both sides are already normalised to lower-case words separated by single spaces, so the
+    /// character after the prefix being a space is the word boundary — which is what keeps
+    /// <c>Ray</c> from extending into <c>Rayman</c>.
+    /// </remarks>
+    private static bool ExtendsWholeWords(string longer, string shorter) =>
+        longer.Length > shorter.Length
+        && longer.StartsWith(shorter, StringComparison.Ordinal)
+        && longer[shorter.Length] == ' ';
 
     /// <summary>Joins an artist onto a title, or returns the title when there is no artist.</summary>
     private static string? Join(string? artist, string? title) =>

@@ -154,9 +154,97 @@ public sealed class LastFmMetadataProviderTests
 
         Assert.False(enriched);
 
-        // One track lookup, plus the single lookup a missing album triggers - and no repeat.
-        Assert.Equal(2, handler.Requests.Count);
+        // One track lookup, the single lookup a missing album triggers, and the artist's tags -
+        // and, the point of the test, no second track.getInfo.
+        Assert.Equal(3, handler.Requests.Count);
         Assert.Single(handler.Requests, uri => uri.Query.Contains("track.getInfo", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The defect this guard exists for: Last.fm attributed ATB's "9Pm (Till I Come)" to a radio
+    /// show's tracklist, and with nothing checking the answer it was written straight over the
+    /// album the media session had already reported.
+    /// </summary>
+    [Fact]
+    public async Task EnrichAsync_WhenTheAlbumIsNotTheOneDetected_KeepsTheDetectedAlbum()
+    {
+        using var handler = StubHttpMessageHandler.Xml(
+            TrackResponse(albumTitle: "A Cutie Who Hates Blu Ray - N10.AS - 09 - 23 - 2020"));
+
+        using var httpClient = handler.Client();
+
+        var track = Detected();
+        track.Album = "Movin' Melodies";
+        track.AlbumPosition = 5;
+
+        await new LastFmMetadataProvider(httpClient, ApiKey).EnrichAsync(track);
+
+        Assert.Equal("Movin' Melodies", track.Album);
+
+        // Everything hanging off a rejected release goes with it, artwork included.
+        Assert.Equal(5, track.AlbumPosition);
+        Assert.Null(track.AlbumArtUrl);
+    }
+
+    /// <summary>An edition suffix is more said about the same record, not a different one.</summary>
+    [Fact]
+    public async Task EnrichAsync_WhenTheAlbumIsAnEditionOfTheOneDetected_TakesIt()
+    {
+        using var handler = StubHttpMessageHandler.Xml(
+            TrackResponse(albumTitle: "Album (Deluxe Edition)"));
+
+        using var httpClient = handler.Client();
+
+        var track = Detected();
+        track.Album = "Album";
+
+        Assert.True(await new LastFmMetadataProvider(httpClient, ApiKey).EnrichAsync(track));
+        Assert.Equal("Album (Deluxe Edition)", track.Album);
+        Assert.Equal(4, track.AlbumPosition);
+    }
+
+    /// <summary>
+    /// A rejected release is not a failed lookup. Last.fm still knew the recording, and its tags
+    /// describe the recording rather than the release - so the genre survives, on top of the
+    /// album the media session supplied.
+    /// </summary>
+    [Fact]
+    public async Task EnrichAsync_WhenTheAlbumIsRejected_StillTagsTheGenre()
+    {
+        using var handler = StubHttpMessageHandler.Xml(
+            TrackResponse(albumTitle: "Some Unrelated DJ Set"),
+            """
+            <lfm status="ok">
+              <toptags><tag><name>trance</name></tag></toptags>
+            </lfm>
+            """);
+
+        using var httpClient = handler.Client();
+
+        var track = Detected();
+        track.Album = "Movin' Melodies";
+
+        Assert.True(await new LastFmMetadataProvider(httpClient, ApiKey).EnrichAsync(track));
+        Assert.Equal("Movin' Melodies", track.Album);
+        Assert.Equal(["trance"], track.Genres!);
+    }
+
+    /// <summary>
+    /// Last.fm has no album-artist field, so the mapper stands the track's own artist in for one.
+    /// A media session that reported a real one - "Various Artists" on a compilation - knows
+    /// better than the stand-in, and keeps it.
+    /// </summary>
+    [Fact]
+    public async Task EnrichAsync_DoesNotOverwriteTheAlbumArtistTheSessionReported()
+    {
+        using var handler = StubHttpMessageHandler.Xml(TrackResponse());
+        using var httpClient = handler.Client();
+
+        var track = Detected();
+        track.AlbumArtists = ["Various Artists"];
+
+        Assert.True(await new LastFmMetadataProvider(httpClient, ApiKey).EnrichAsync(track));
+        Assert.Equal(["Various Artists"], track.AlbumArtists);
     }
 
     /// <summary>
