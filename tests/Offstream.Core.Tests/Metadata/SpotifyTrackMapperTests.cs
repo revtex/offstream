@@ -114,19 +114,82 @@ public sealed class SpotifyTrackMapperTests
         Assert.Equal(expectedExtended, track.TitleExtended);
     }
 
+    /// <summary>
+    /// An empty album object leaves the album fields alone rather than blanking them.
+    /// </summary>
+    /// <remarks>
+    /// This asserted the opposite until 2026-08-14 — that an empty response wrote <c>""</c> and
+    /// an empty array over whatever was there. That was harmless while the only other source was
+    /// a window title, which supplies no album at all; it stopped being harmless when the media
+    /// session began supplying album, album artist and track number, because a provider that
+    /// could not answer would erase what the client had already said for certain.
+    /// </remarks>
     [Fact]
-    public void ApplyAlbum_WithAnEmptyResponse_ReturnsExpectedTrack()
+    public void ApplyAlbum_WithAnEmptyResponse_LeavesTheAlbumFieldsAlone()
     {
         var fullAlbum = new FullAlbum { Artists = [], Name = "", Genres = [], Images = [] };
 
         var track = WindowTitleTrack();
         SpotifyTrackMapper.Apply(track, fullAlbum);
 
-        Assert.Equal([], track.AlbumArtists!);
-        Assert.Equal("", track.Album);
+        Assert.Null(track.AlbumArtists);
+        Assert.Null(track.Album);
         Assert.Equal([], track.Genres!);
         Assert.Null(track.Year);
         Assert.Null(track.AlbumArtUrl);
+    }
+
+    /// <summary>
+    /// The floor: what the media session already established survives a provider that has
+    /// nothing of its own to say about it.
+    /// </summary>
+    [Fact]
+    public void ApplyAlbum_WithAnEmptyResponse_KeepsWhatTheMediaSessionSupplied()
+    {
+        var track = new Track
+        {
+            Artist = "Artist",
+            Title = "Title",
+            Album = "Detected Album",
+            AlbumArtists = ["Detected Album Artist"],
+            AlbumPosition = 7,
+        };
+
+        SpotifyTrackMapper.Apply(track, new FullTrack());
+        SpotifyTrackMapper.Apply(track, new FullAlbum { Artists = [], Name = "", Genres = [], Images = [] });
+
+        Assert.Equal("Detected Album", track.Album);
+        Assert.Equal(["Detected Album Artist"], track.AlbumArtists!);
+        Assert.Equal(7, track.AlbumPosition);
+    }
+
+    /// <summary>A provider that does know better still wins, which is the whole precedence.</summary>
+    [Fact]
+    public void ApplyAlbum_WhenTheProviderKnowsBetter_OverwritesWhatWasDetected()
+    {
+        var track = new Track
+        {
+            Artist = "Artist",
+            Title = "Title",
+            Album = "Detected Album",
+            AlbumArtists = ["Detected Album Artist"],
+            AlbumPosition = 7,
+        };
+
+        SpotifyTrackMapper.Apply(track, new FullTrack { Name = "Title", TrackNumber = 3 });
+        SpotifyTrackMapper.Apply(
+            track,
+            new FullAlbum
+            {
+                Artists = [new SimpleArtist { Name = "Real Album Artist" }],
+                Name = "Real Album",
+                Genres = [],
+                Images = [],
+            });
+
+        Assert.Equal("Real Album", track.Album);
+        Assert.Equal(["Real Album Artist"], track.AlbumArtists!);
+        Assert.Equal(3, track.AlbumPosition);
     }
 
     [Fact]

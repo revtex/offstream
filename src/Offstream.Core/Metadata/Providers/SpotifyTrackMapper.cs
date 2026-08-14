@@ -49,7 +49,9 @@ public static partial class SpotifyTrackMapper
         track.SetTitleFromApi(SpotifyTitleParser.TagAt(titleTags, 1));
         track.SetTitleExtendedFromApi(SpotifyTitleParser.TagAt(titleTags, 2), separatorType);
 
-        track.AlbumPosition = PositiveOrNull(spotifyTrack.TrackNumber);
+        // Fills, never clears. The detected track may already carry a position from the media
+        // session, and a provider that has none of its own must not take that away — see ToTrack.
+        track.AlbumPosition = PositiveOrNull(spotifyTrack.TrackNumber) ?? track.AlbumPosition;
         track.Performers = performers;
         track.Disc = PositiveOrNull(spotifyTrack.DiscNumber);
     }
@@ -66,8 +68,12 @@ public static partial class SpotifyTrackMapper
         ArgumentNullException.ThrowIfNull(track);
         ArgumentNullException.ThrowIfNull(spotifyAlbum);
 
-        track.AlbumArtists = ArtistNames(spotifyAlbum.Artists);
-        track.Album = spotifyAlbum.Name;
+        var albumArtists = ArtistNames(spotifyAlbum.Artists);
+
+        // As above: the media session already supplied both for the track being recorded, so an
+        // album object that is missing either leaves what is there rather than blanking it.
+        track.AlbumArtists = albumArtists is { Length: > 0 } ? albumArtists : track.AlbumArtists;
+        track.Album = string.IsNullOrWhiteSpace(spotifyAlbum.Name) ? track.Album : spotifyAlbum.Name;
         track.Genres = spotifyAlbum.Genres?.ToArray() ?? [];
         track.Year = ParseReleaseYear(spotifyAlbum.ReleaseDate);
         track.AlbumArtUrl = ChooseCoverUrl(spotifyAlbum.Images);
