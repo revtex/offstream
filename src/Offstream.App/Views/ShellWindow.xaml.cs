@@ -5,7 +5,7 @@ using Wpf.Ui.Controls;
 namespace Offstream.App.Views;
 
 /// <summary>
-/// The shell window: title bar, tab strip, transport, and the three pages.
+/// The shell window: title bar, tab strip, transport, and the pages.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -15,9 +15,9 @@ namespace Offstream.App.Views;
 /// The window is the one place that is allowed to know about both.
 /// </para>
 /// <para>
-/// <b>All three pages are loaded at once and switched by visibility.</b> Every page is a DI
-/// singleton, so this costs three constructions for the life of the process and buys the thing a
-/// navigation frame had to be configured for: state survives a tab switch. The activity log, a
+/// <b>Every page is loaded at once and switched by visibility.</b> Every page is a DI
+/// singleton, so this costs one construction each for the life of the process and buys the thing
+/// a navigation frame had to be configured for: state survives a tab switch. The activity log, a
 /// half-typed filename template and the meter's own sampling timer are all still there on the way
 /// back. It also drops a WPF-UI trap — its content presenter wrapped every page in a scroll
 /// viewer that measured with infinite height, which is what used to make the Record page's log
@@ -32,11 +32,13 @@ public partial class ShellWindow : FluentWindow
         ShellViewModel viewModel,
         RecordPage recordPage,
         SettingsPage settingsPage,
-        AdvancedPage advancedPage)
+        AdvancedPage advancedPage,
+        LogsPage logsPage)
     {
         ArgumentNullException.ThrowIfNull(recordPage);
         ArgumentNullException.ThrowIfNull(settingsPage);
         ArgumentNullException.ThrowIfNull(advancedPage);
+        ArgumentNullException.ThrowIfNull(logsPage);
 
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
 
@@ -46,6 +48,7 @@ public partial class ShellWindow : FluentWindow
         RecordHost.Content = recordPage;
         SettingsHost.Content = settingsPage;
         AdvancedHost.Content = advancedPage;
+        LogsHost.Content = logsPage;
 
         StateChanged += OnStateChanged;
         viewModel.ShowRequested += (_, _) => Surface();

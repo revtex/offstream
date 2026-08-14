@@ -224,7 +224,7 @@ public sealed class ShellViewModelTests
     /// disagree about whether anything is running.
     /// </summary>
     private static RecordViewModel RecordFor(RecordingController? controller = null) =>
-        new(new InMemoryLogSink(), controller ?? ControllerFor(), RecordingFakes.Readiness());
+        new(new InMemoryLogSink(), controller ?? ControllerFor());
 
     private static RecordingController ControllerFor(FakeSessionFactory? factory = null) =>
         new(factory ?? new FakeSessionFactory(), RecordingFakes.Document());

@@ -19,8 +19,8 @@ namespace Offstream.UI.Tests;
 /// <remarks>
 /// The controller and the Record page are state machinery — what the button does, what the page
 /// says when starting is refused, whether a stopped session is released. None of that needs a
-/// render endpoint, a running Spotify or an ffmpeg binary, and requiring them would put every one
-/// of these tests in the Desktop category CI skips.
+/// render endpoint, a running Spotify or an ffmpeg binary, and requiring them would leave the
+/// whole of it unverifiable on a build agent.
 /// </remarks>
 internal static class RecordingFakes
 {
@@ -46,19 +46,6 @@ internal static class RecordingFakes
 
     /// <summary>A document whose file is unreadable, so starting a session is refused.</summary>
     public static SettingsDocument DocumentWithBrokenFile() => new(StoreWithBrokenFile());
-
-    /// <summary>
-    /// A readiness probe over an in-memory file system.
-    /// </summary>
-    /// <remarks>
-    /// Its answers are not asserted here — this fixture exists so the Record page can be
-    /// constructed. The probe reads the real machine's audio endpoints, which is the reason it
-    /// is a constructor dependency rather than something the ViewModel reaches for itself.
-    /// </remarks>
-    public static ReadinessProbe Readiness(
-        SettingsDocument? document = null,
-        IAudioDeviceCatalog? catalog = null) =>
-        new(new MockFileSystem(), document ?? Document(), catalog ?? new FakeDeviceCatalog());
 
     /// <summary>A session wired to fakes, equivalent to one the real factory would build.</summary>
     public static RecordingSession Session(IProgress<RecordingProgress> progress, ITrackSource? trackSource = null)

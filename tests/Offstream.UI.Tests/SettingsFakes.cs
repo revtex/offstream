@@ -13,8 +13,7 @@ namespace Offstream.UI.Tests;
 /// <remarks>
 /// Enumerating render endpoints needs a sound card and opening a folder dialog needs a message
 /// loop; a build agent has neither. Both are seams on the ViewModel for exactly that reason, so
-/// everything else on those pages — validation, saving, the live preview — stays testable in CI
-/// rather than in the Desktop category.
+/// everything else on those pages — validation, saving, the live preview — stays testable in CI.
 /// </remarks>
 internal static class SettingsFakes
 {
