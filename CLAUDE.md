@@ -88,6 +88,7 @@ Beyond that: ffmpeg argv golden tests, encode-integration tests asserted with ff
 
 ## Conventions
 
+- **Every pull request updates `CHANGELOG.md`, in the same PR that makes the change.** Entries go under `## [Unreleased]`, in the file's own voice: what changed and why it mattered — the defect, not the patch. This is not bookkeeping to catch up on later. The file went ten PRs out of date once, and a stale Keep a Changelog file is worse than an empty one, because it reads as current. CI fails a pull request that does not touch it; a genuinely user-invisible change (a test-only fix, a comment) skips the check with the `no-changelog` label rather than by ignoring it.
 - SDK-style projects and `PackageReference` only. Projects are authored fresh, not converted — the old app used `packages.config` with manual `<Compile Include>` lists, so files added on disk were silently not compiled.
 - Nullable reference types enabled.
 - MVVM via CommunityToolkit.Mvvm source generators; no code-behind logic beyond wiring.

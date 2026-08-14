@@ -19,7 +19,9 @@ phase plan these entries follow.
   `Offstream.Core.Tests`, `Offstream.UI.Tests`, `Offstream.FakeSpotify`) under an `.slnx`
   solution, central package management, nullable reference types, and analyzers as errors.
 - **GitHub Actions CI** on `windows-latest`: build, `dotnet format --verify-no-changes`,
-  analyzers as errors, and the test suite with ffmpeg pinned.
+  analyzers as errors, and the test suite with ffmpeg pinned. A parallel job fails any pull
+  request that does not update this file, since a stale changelog reads as a current one; a
+  user-invisible change skips it with the `no-changelog` label rather than by staying silent.
 - **`build.ps1`** — restore, build, test, format, publish and run from an ordinary PowerShell
   prompt, with no Developer PowerShell or MSBuild discovery needed.
 - **Per-application audio routing on .NET 10** (`Offstream.Core.Interop.Routing`), over the
