@@ -1,4 +1,5 @@
 using Offstream.Core.Metadata;
+using Serilog;
 
 namespace Offstream.Core.Encoding;
 
@@ -58,7 +59,19 @@ public sealed class AudioEncoder(FFmpegRunner runner, TimeSpan? timeout = null) 
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        await runner.RunOrThrowAsync(FFmpegArguments.Build(request), _timeout, cancellationToken);
+        var arguments = FFmpegArguments.Build(request);
+
+        // The argv, at Debug, because an encode that fails is explained by what it was asked to
+        // do and nothing else — and the failure itself surfaces as ffmpeg's stderr, which names
+        // an option without saying which invocation carried it. Joined for reading only; the
+        // process still gets the array, so nothing here is a quoting model anyone can rely on.
+        Log.Debug(
+            "Encoding {Track} to {Format}: ffmpeg {Arguments}",
+            request.Track,
+            request.Format,
+            string.Join(' ', arguments));
+
+        await runner.RunOrThrowAsync(arguments, _timeout, cancellationToken);
 
         var profile = EncodingProfiles.For(request.Format);
 
@@ -68,6 +81,12 @@ public sealed class AudioEncoder(FFmpegRunner runner, TimeSpan? timeout = null) 
         try
         {
             CoverArtWriter.Write(request.OutputPath, request.CoverArtPath);
+
+            // The one tag ffmpeg does not write for this container, so it is the one worth
+            // confirming: Ogg and Opus keep cover art where -show_format cannot see it, and a
+            // silent success here looks identical to a silent skip.
+            Log.Debug("Embedded cover art in {Path} after encoding.", request.OutputPath);
+
             return new EncodeOutcome(request);
         }
         catch (CoverArtException ex)

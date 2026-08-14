@@ -6,6 +6,7 @@ using Offstream.Core.Metadata;
 using Offstream.Core.Naming;
 using Offstream.Core.Settings;
 using Offstream.Core.Spotify;
+using Serilog;
 
 namespace Offstream.Core.Recording;
 
@@ -688,10 +689,17 @@ public sealed class RecordingSession : IAsyncDisposable
 
             if (e.Outcome.CoverArtFailure is not null)
             {
-                Report(
-                    RecordingStage.Tagging,
-                    track.ToString(),
-                    message: $"Cover art could not be embedded: {e.Outcome.CoverArtFailure.Message}");
+                // Warning rather than the progress report's Information: the recording survived,
+                // but a tag that was asked for did not get written, and at Information it sat
+                // below the Problems filter — invisible to anyone who went looking for exactly
+                // this. Logged directly for the same reason; a progress message cannot carry a
+                // level.
+                Log.Warning(
+                    e.Outcome.CoverArtFailure,
+                    "Cover art could not be embedded in {Track}. The recording itself is fine.",
+                    track);
+
+                Report(RecordingStage.Tagging, track.ToString());
             }
 
             TrackSaved?.Invoke(this, new TrackSavedEventArgs(track, destination, recording.Duration));
@@ -802,10 +810,17 @@ public sealed class RecordingSession : IAsyncDisposable
         _recordingTimer = null;
     }
 
+    /// <remarks>
+    /// The message goes out on <see cref="Failed"/> only, and deliberately not on the progress
+    /// report beside it. Both ended up in the activity log — the event at Error and the report's
+    /// message at Information — so every failure was printed twice, identically, once in a colour
+    /// that said act on this and once in one that said carry on. The report still fires, because
+    /// it is what moves the display back to waiting; it just no longer narrates.
+    /// </remarks>
     private void RaiseFailed(Track track, string message, Exception? exception = null)
     {
         Failed?.Invoke(this, new RecordingFailedEventArgs(track, message, exception));
-        Report(RecordingStage.WaitingForTrack, track.ToString(), message: message);
+        Report(RecordingStage.WaitingForTrack, track.ToString());
     }
 
     private void Report(RecordingStage stage, string? track = null, TimeSpan? elapsed = null, string? message = null) =>
