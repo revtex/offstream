@@ -32,7 +32,6 @@ public sealed class LastFmTrackMapperTests
         Assert.Null(track.AlbumPosition);
         Assert.Null(track.Length);
         Assert.Null(track.AlbumArtUrl);
-        Assert.Empty(track.Genres!);
     }
 
     [Fact]
@@ -168,17 +167,19 @@ public sealed class LastFmTrackMapperTests
         Assert.Equal(expected, new LastFmAlbum { Position = position }.TrackPosition);
 
     /// <summary>
-    /// The reference never read <c>toptags</c> and hard-coded an empty genre array, so nothing
-    /// tagged from Last.fm ever carried a genre.
+    /// Genre does not come from a track response at all any more — it comes from the artist, so
+    /// the provider fills it after this runs. A mapper that also wrote it would be writing the
+    /// recording's own tag cloud, which is the thing that was deliberately stopped being used.
     /// </summary>
     [Fact]
-    public void Apply_TakesGenresFromTheTopTags()
+    public void Apply_LeavesGenresToTheArtistLookup()
     {
         var track = WindowTitleTrack();
+        track.Genres = ["Trance"];
 
-        LastFmTrackMapper.Apply(track, new LastFmTrack { TopTags = Tags("Rock", "Indie") });
+        LastFmTrackMapper.Apply(track, new LastFmTrack { Name = "Title" });
 
-        Assert.Equal(["Rock", "Indie"], track.Genres!);
+        Assert.Equal(["Trance"], track.Genres!);
     }
 
     /// <summary>

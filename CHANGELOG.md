@@ -201,6 +201,15 @@ phase plan these entries follow.
 - **The file-name template and its preview take the card's full width**, in the order they are
   used, with the preview in a recessed well of its own — it is the one thing in that card that
   is output rather than input.
+- **Last.fm genres come from the artist, never the recording.** Last.fm does carry a per-track
+  tag cloud, and it used to be asked first on the reasoning that a tag describing this recording
+  beats one describing its performer. That is not the trade actually being made: Last.fm has no
+  track tags at all for a great many recordings and returns an empty cloud rather than an error,
+  so the first rung answered for some tracks on an album and not others — and a library where one
+  track is "trance" and the next is untagged sorts worse than one where every track carries the
+  artist's genre. It also puts the two providers on the same footing, since Spotify has no
+  track-level genre to offer at all. One request per artist instead of two per track, out of the
+  cache that was already there.
 - **The recording display is backlit rather than reflective**, and no longer carries the track
   name. Pale grey with near-black segments was a calculator face and the palest object in a
   nearly black window. The track name moved to the card with the art and album it belongs to.
