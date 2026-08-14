@@ -154,6 +154,55 @@ public sealed class RecordingControllerTests
         Assert.Equal(0, raised);
     }
 
+    /// <summary>
+    /// A session can stop by itself — the audio endpoint goes away mid-recording, or the recording
+    /// timer elapses — and until this released it, the controller went on holding a session that
+    /// had stopped: the page still offering Stop, the file counter unwritten, and the capture still
+    /// open on a device the next start wanted.
+    /// </summary>
+    [Fact]
+    public async Task SessionThatEndsItself_IsReleasedAndSaidSo()
+    {
+        var factory = new FakeSessionFactory();
+        await using var controller = new RecordingController(factory, RecordingFakes.Document());
+
+        await controller.StartAsync();
+
+        var raised = 0;
+        controller.StateChanged += (_, _) => Interlocked.Increment(ref raised);
+
+        factory.LastCapture!.Lose();
+
+        await WaitFor(() => Volatile.Read(ref raised) == 1, "the ended session to be released");
+
+        Assert.False(controller.IsRunning);
+
+        // Null only once the session has been let go of, which is the half the page cannot see.
+        Assert.Null(controller.Level);
+    }
+
+    [Fact]
+    public async Task StartAsync_AfterASessionEndsItself_BuildsAFreshSession()
+    {
+        var factory = new FakeSessionFactory();
+        await using var controller = new RecordingController(factory, RecordingFakes.Document());
+
+        await controller.StartAsync();
+        var first = factory.Last;
+
+        factory.LastCapture!.Lose();
+
+        await WaitFor(() => controller.Level is null, "the ended session to be released");
+
+        var refusal = await controller.StartAsync();
+
+        // Plugging the headphones back in and pressing record is the whole recovery.
+        Assert.Null(refusal);
+        Assert.Equal(2, factory.Calls);
+        Assert.NotSame(first, factory.Last);
+        Assert.True(controller.IsRunning);
+    }
+
     [Fact]
     public async Task StartAsync_AfterStop_BuildsAFreshSession()
     {
@@ -265,6 +314,23 @@ public sealed class RecordingControllerTests
 
         Assert.Equal(@"E:\Captures", saved.Path);
         Assert.Equal(4, saved.CurrentFileCounter);
+    }
+
+    /// <summary>
+    /// A session that ends itself finishes its track and drains its encode queue first, so the
+    /// teardown lands a moment later rather than on the call that triggered it.
+    /// </summary>
+    private static async Task WaitFor(Func<bool> condition, string because)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+
+        while (DateTime.UtcNow < deadline)
+        {
+            if (condition()) return;
+            await Task.Delay(10);
+        }
+
+        Assert.Fail($"Timed out waiting for {because}.");
     }
 
     [Fact]

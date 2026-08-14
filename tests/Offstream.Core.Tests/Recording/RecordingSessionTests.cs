@@ -59,6 +59,13 @@ public sealed class RecordingSessionTests
 
         public void Dispose() => WasDisposed = true;
 
+        /// <summary>Ends the capture the way a lost endpoint does: without being asked to.</summary>
+        public void Lose(string reason)
+        {
+            IsCapturing = false;
+            Stopped?.Invoke(this, new CaptureStoppedEventArgs(new InvalidOperationException(reason)));
+        }
+
         /// <summary>Delivers audio the way WASAPI would.</summary>
         public void Deliver(int bytes)
         {
@@ -775,5 +782,90 @@ public sealed class RecordingSessionTests
         await harness.DisposeAsync();
 
         Assert.True(harness.Capture.WasDisposed);
+    }
+
+    /// <summary>
+    /// The endpoint watcher has reported a lost device since it was written, and nothing listened:
+    /// the capture stopped and the session went on believing it was recording, with the elapsed
+    /// counter frozen and the transport still offering to stop.
+    /// </summary>
+    [Fact]
+    public async Task Session_EndsWhenTheCaptureStopsOnItsOwn()
+    {
+        await using var harness = new Harness();
+
+        var ended = 0;
+        harness.Session.Ended += (_, _) => Interlocked.Increment(ref ended);
+
+        harness.Session.Start();
+        await RecordTrackAsync(harness, Harness.Playing("Artist", "Title"));
+
+        harness.Capture.Lose("The audio endpoint 'Headphones' became unavailable during recording.");
+
+        await WaitFor(() => Volatile.Read(ref ended) == 1, "the session to end itself");
+
+        Assert.False(harness.Session.IsRunning);
+    }
+
+    /// <summary>
+    /// What was captured before the endpoint went is as much of that track as will ever exist, so
+    /// it is finished and written rather than abandoned — the same terms as pressing stop mid-song.
+    /// </summary>
+    [Fact]
+    public async Task Session_SavesTheTrackInFlightWhenTheCaptureStops()
+    {
+        await using var harness = new Harness();
+
+        harness.Session.Start();
+        await RecordTrackAsync(harness, Harness.Playing("Artist", "Title"));
+
+        harness.Capture.Lose("The audio endpoint became unavailable during recording.");
+
+        await WaitFor(() => !harness.Saved.IsEmpty, "the recording to be saved");
+
+        Assert.True(harness.Saved.TryDequeue(out var saved));
+        Assert.Equal(@"C:\music\Artist - Title.mp3", saved!.Path);
+    }
+
+    /// <summary>
+    /// A recording that ends on its own without a word is indistinguishable from one that broke,
+    /// and the endpoint's name is the part that says which device to plug back in.
+    /// </summary>
+    [Fact]
+    public async Task Session_SaysWhyTheCaptureStopped()
+    {
+        await using var harness = new Harness();
+
+        harness.Session.Start();
+        await RecordTrackAsync(harness, Harness.Playing("Artist", "Title"));
+
+        harness.Capture.Lose("The audio endpoint 'Headphones' became unavailable during recording.");
+
+        await WaitFor(() => !harness.Failures.IsEmpty, "the reason to be reported");
+
+        Assert.True(harness.Failures.TryDequeue(out var failure));
+        Assert.Contains("Headphones", failure!.Message, StringComparison.Ordinal);
+        Assert.Contains("Recording has stopped.", failure.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A session the user stopped has not "ended" in the sense the event means: its owner asked
+    /// for the stop and is already tearing it down, and a second teardown from underneath that is
+    /// how a session gets released twice.
+    /// </summary>
+    [Fact]
+    public async Task Session_DoesNotRaiseEndedWhenItIsStopped()
+    {
+        await using var harness = new Harness();
+
+        var ended = 0;
+        harness.Session.Ended += (_, _) => Interlocked.Increment(ref ended);
+
+        harness.Session.Start();
+        await RecordTrackAsync(harness, Harness.Playing("Artist", "Title"));
+
+        await harness.Session.StopAsync();
+
+        Assert.Equal(0, Volatile.Read(ref ended));
     }
 }

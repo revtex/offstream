@@ -82,6 +82,10 @@ public sealed class LoopbackAudioCapture : IAudioCaptureSource
 
     private WasapiOut? _keepAlive;
     private bool _disposed;
+    private int _stopReported;
+
+    /// <summary>Why the endpoint watcher ended the capture, for whichever path reports the stop.</summary>
+    private volatile Exception? _endpointLoss;
 
     /// <param name="deviceId">Render endpoint to capture, or null for the default device.</param>
     /// <param name="keepEndpointAlive">
@@ -143,13 +147,15 @@ public sealed class LoopbackAudioCapture : IAudioCaptureSource
             "The audio endpoint being recorded ({Device}) is no longer available; stopping capture.",
             DeviceName);
 
+        // Recorded before the stop is requested, so the reason is available to whichever path
+        // reports it: stopping only asks the capture thread to finish, and that thread can raise
+        // its own stop before this one gets there.
+        _endpointLoss = new InvalidOperationException(
+            $"The audio endpoint '{DeviceName}' became unavailable during recording.");
+
         StopCapture();
 
-        Stopped?.Invoke(
-            this,
-            new CaptureStoppedEventArgs(
-                new InvalidOperationException(
-                    $"The audio endpoint '{DeviceName}' became unavailable during recording.")));
+        RaiseStopped(_endpointLoss);
     }
 
     /// <inheritdoc />
@@ -173,6 +179,9 @@ public sealed class LoopbackAudioCapture : IAudioCaptureSource
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         if (IsCapturing) return;
+
+        _endpointLoss = null;
+        Interlocked.Exchange(ref _stopReported, 0);
 
         if (_keepEndpointAlive) StartKeepAlive();
 
@@ -226,7 +235,25 @@ public sealed class LoopbackAudioCapture : IAudioCaptureSource
     private void OnRecordingStopped(object? sender, StoppedEventArgs e)
     {
         IsCapturing = false;
-        Stopped?.Invoke(this, new CaptureStoppedEventArgs(e.Exception));
+        RaiseStopped(e.Exception ?? _endpointLoss);
+    }
+
+    /// <summary>
+    /// Reports the stop once, whichever path gets here first.
+    /// </summary>
+    /// <remarks>
+    /// A lost endpoint is noticed twice over: the capture thread's read fails, and the watcher's
+    /// notification arrives. Neither can be relied on alone — a notification can be seconds behind
+    /// the hardware, and NAudio's capture thread stops the audio client outside its own catch, so
+    /// an endpoint that fails that call takes the thread down without ever reporting the stop. Both
+    /// are therefore left to report it, and this makes the second one a no-op instead of a second
+    /// ending for whoever is recording.
+    /// </remarks>
+    private void RaiseStopped(Exception? reason)
+    {
+        if (Interlocked.Exchange(ref _stopReported, 1) != 0) return;
+
+        Stopped?.Invoke(this, new CaptureStoppedEventArgs(reason));
     }
 
     private void StartKeepAlive()
