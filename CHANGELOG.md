@@ -252,8 +252,8 @@ phase plan these entries follow.
   given, which is what withdraws the registration, and a watcher holds a reference to itself for
   as long as Windows can still call it: registering deliberately does not count as a reference,
   which Windows documents and leaves to the caller, so a missed disposal now costs a few bytes
-  instead of the app. Reproduced in twenty-five start/stop cycles against the fix, having taken
-  three to crash without it. Two smaller leaks of the same shape went with it: a failed start —
+  instead of the app. Three start/stop cycles were enough to crash the old build; the fixed one
+  went twenty-five without it. Two smaller leaks of the same shape went with it: a failed start —
   no ffmpeg, most often — no longer abandons the capture it had already opened, and the endpoint
   lookup no longer leaves a device enumerator behind on a path that runs several times a second
   while recording.

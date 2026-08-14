@@ -132,7 +132,11 @@ public sealed class LoopbackAudioCapture : IAudioCaptureSource
     /// </remarks>
     private void OnEndpointChanged(object? sender, AudioEndpointChange change)
     {
-        if (!IsCapturing) return;
+        // Notifications are handed over on a pool thread, so one can be in flight while this is
+        // being disposed — unsubscribing afterwards does not recall a change already handed over.
+        // Both flags are set before disposal touches anything, and stopping a capture that has
+        // already released its audio client is not an exception but an access violation.
+        if (_disposed || !IsCapturing) return;
         if (!AudioEndpointRelevance.EndsTheCapture(_requestedDeviceId, change)) return;
 
         Log.Warning(
