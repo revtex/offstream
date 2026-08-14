@@ -33,8 +33,10 @@ public static partial class LastFmTrackMapper
         ArgumentNullException.ThrowIfNull(track);
         ArgumentNullException.ThrowIfNull(response);
 
-        track.Album = response.Album?.Title;
-        track.AlbumPosition = response.Album?.TrackPosition;
+        // Fills, never clears — the media session may already have supplied both, and Last.fm
+        // not knowing an album is not the same as the track not having one.
+        track.Album = string.IsNullOrWhiteSpace(response.Album?.Title) ? track.Album : response.Album.Title;
+        track.AlbumPosition = response.Album?.TrackPosition ?? track.AlbumPosition;
 
         // Last.fm reports milliseconds; everything downstream works in seconds.
         track.Length = response.Duration is > 0 ? response.Duration / 1000 : null;
@@ -46,7 +48,7 @@ public static partial class LastFmTrackMapper
         string[] albumArtists = track.Artist is null ? [] : [track.Artist];
 
         track.Performers = [.. albumArtists.Concat(track.ToString().ToPerformers())];
-        track.AlbumArtists = albumArtists;
+        track.AlbumArtists = albumArtists is { Length: > 0 } ? albumArtists : track.AlbumArtists;
     }
 
     /// <summary>

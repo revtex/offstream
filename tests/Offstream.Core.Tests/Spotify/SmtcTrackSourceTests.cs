@@ -129,4 +129,79 @@ public sealed class SmtcTrackSourceTests
     [Fact]
     public void Constructor_RejectsAMissingSessionReader() =>
         Assert.Throws<ArgumentNullException>(() => new SmtcTrackSource(null!));
+
+    // ---- the metadata floor: what the client knows, kept for when a provider cannot help ----
+
+    /// <summary>
+    /// Album artist and track number come across too, because they are what the file is tagged
+    /// with when no provider is configured or the configured one cannot match the track.
+    /// </summary>
+    [Fact]
+    public async Task ASession_ReportsAlbumArtistAndTrackNumber()
+    {
+        var snapshot = new SmtcSnapshot(
+            "Artist",
+            "Title",
+            "Album",
+            IsPlaying: true,
+            AlbumArtist: "Album Artist",
+            TrackNumber: 4);
+
+        var track = await new SmtcTrackSource(new FakeSessions(snapshot)).GetCurrentTrackAsync();
+
+        Assert.NotNull(track);
+        Assert.Equal(["Album Artist"], track!.AlbumArtists!);
+        Assert.Equal(4, track.AlbumPosition);
+    }
+
+    /// <summary>Spotify numbers from 1, so a zero means "not reported" rather than a zeroth track.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(null)]
+    public async Task ATrackNumberThatIsNotAPositionIsNotReported(int? reported)
+    {
+        var snapshot = new SmtcSnapshot("Artist", "Title", "Album", IsPlaying: true, TrackNumber: reported);
+
+        var track = await new SmtcTrackSource(new FakeSessions(snapshot)).GetCurrentTrackAsync();
+
+        Assert.Null(track!.AlbumPosition);
+    }
+
+    /// <summary>
+    /// A blank album artist is absent, not an album credited to the empty string — which would
+    /// then win over a provider that did know, since the mappers fill rather than clear.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task ABlankAlbumArtistIsNotReported(string? reported)
+    {
+        var snapshot = new SmtcSnapshot("Artist", "Title", "Album", IsPlaying: true, AlbumArtist: reported);
+
+        var track = await new SmtcTrackSource(new FakeSessions(snapshot)).GetCurrentTrackAsync();
+
+        Assert.Null(track!.AlbumArtists);
+    }
+
+    [Fact]
+    public async Task AnAlbumArtistIsTrimmed()
+    {
+        var snapshot = new SmtcSnapshot("Artist", "Title", "Album", IsPlaying: true, AlbumArtist: "  Album Artist  ");
+
+        var track = await new SmtcTrackSource(new FakeSessions(snapshot)).GetCurrentTrackAsync();
+
+        Assert.Equal(["Album Artist"], track!.AlbumArtists!);
+    }
+
+    /// <summary>The window-title path supplies neither, and must keep working unchanged.</summary>
+    [Fact]
+    public async Task ASnapshotWithoutTheOptionalFieldsReportsNeither()
+    {
+        var track = await new SmtcTrackSource(new FakeSessions(Playing("Artist", "Title", "Album")))
+            .GetCurrentTrackAsync();
+
+        Assert.Null(track!.AlbumArtists);
+        Assert.Null(track.AlbumPosition);
+    }
 }

@@ -7,12 +7,29 @@ namespace Offstream.Core.Spotify.Smtc;
 /// <param name="Title">The track title.</param>
 /// <param name="Album">The album, when Spotify supplied one.</param>
 /// <param name="IsPlaying">Whether the session is playing rather than paused or stopped.</param>
+/// <param name="AlbumArtist">
+/// Who the album is credited to, which differs from <paramref name="Artist"/> on compilations
+/// and features — the distinction a library groups by.
+/// </param>
+/// <param name="TrackNumber">The position on the album, or null when Spotify did not say.</param>
 /// <remarks>
+/// <para>
 /// A snapshot rather than the live WinRT session: it makes the mapping below a pure function of
-/// four values, which is what lets every rule in it be tested without a media session, an audio
+/// its values, which is what lets every rule in it be tested without a media session, an audio
 /// endpoint, or Spotify installed.
+/// </para>
+/// <para>
+/// The last two are optional so that every existing construction site — and the window-title
+/// path, which has no such information — keeps working unchanged.
+/// </para>
 /// </remarks>
-public readonly record struct SmtcSnapshot(string? Artist, string? Title, string? Album, bool IsPlaying);
+public readonly record struct SmtcSnapshot(
+    string? Artist,
+    string? Title,
+    string? Album,
+    bool IsPlaying,
+    string? AlbumArtist = null,
+    int? TrackNumber = null);
 
 /// <summary>Reads Spotify's media transport session, if it has one.</summary>
 public interface ISmtcSessions
@@ -72,16 +89,28 @@ public sealed class SmtcTrackSource(ISmtcSessions sessions) : ITrackSource
     /// A session that is paused is never an ad, whatever it says. The placeholder lingers after
     /// playback stops, and treating it as an ad then would suppress the next real track.
     /// </para>
+    /// <para>
+    /// <b>Album artist and track number are carried even though a provider usually replaces
+    /// them.</b> They are the floor: when no metadata provider is configured, or when the one
+    /// that is cannot match the track, these are what the file is tagged with — and they come
+    /// from the client that is playing the track, so they describe it with certainty rather than
+    /// with a lookup's confidence. See the mappers, which fill rather than clear.
+    /// </para>
     /// </remarks>
     public static Track ToTrack(SmtcSnapshot snapshot)
     {
         var hasArtist = !string.IsNullOrWhiteSpace(snapshot.Artist);
+        var albumArtist = Trimmed(snapshot.AlbumArtist);
 
         return new Track
         {
             Artist = Trimmed(snapshot.Artist),
             Title = Trimmed(snapshot.Title),
             Album = Trimmed(snapshot.Album),
+            AlbumArtists = albumArtist is null ? null : [albumArtist],
+
+            // Spotify numbers from 1, so a zero means "not reported" rather than a zeroth track.
+            AlbumPosition = snapshot.TrackNumber is > 0 ? snapshot.TrackNumber : null,
             Playing = snapshot.IsPlaying,
             Ad = snapshot.IsPlaying && (snapshot.Title.IsAdvertisement() || !hasArtist),
         };
