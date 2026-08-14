@@ -218,6 +218,7 @@ public sealed class RecordingController(IRecordingSessionFactory factory, Settin
         session.TrackSaved += OnTrackSaved;
         session.TrackEnriched += OnTrackEnriched;
         session.Failed += OnFailed;
+        session.Ended += OnSessionEnded;
 
         try
         {
@@ -253,8 +254,53 @@ public sealed class RecordingController(IRecordingSessionFactory factory, Settin
         session.TrackSaved -= OnTrackSaved;
         session.TrackEnriched -= OnTrackEnriched;
         session.Failed -= OnFailed;
+        session.Ended -= OnSessionEnded;
 
         await session.DisposeAsync();
+    }
+
+    /// <summary>
+    /// Releases a session that stopped by itself — the recording timer elapsed, or the audio
+    /// endpoint went away mid-recording.
+    /// </summary>
+    /// <remarks>
+    /// The same teardown <see cref="StopAsync"/> does, and it cannot wait until the user presses
+    /// Stop. Until it runs, the page still offers to stop a session that has stopped, the file
+    /// counter this run reached is unwritten, and the capture is still open on an endpoint the next
+    /// start would like to have.
+    /// </remarks>
+    private void OnSessionEnded(object? sender, EventArgs e) => _ = ReleaseEndedSessionAsync();
+
+    private async Task ReleaseEndedSessionAsync()
+    {
+        try
+        {
+            await _gate.WaitAsync();
+        }
+        catch (ObjectDisposedException)
+        {
+            // The controller was disposed as the session ended; the teardown already happened.
+            return;
+        }
+
+        try
+        {
+            var session = _session;
+
+            // Stop was pressed while the session was ending itself: that path has released it.
+            if (session is null) return;
+
+            _session = null;
+
+            CaptureRuntimeState(session);
+            await Release(session);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Forwards progress, and logs the part of it worth reading.</summary>

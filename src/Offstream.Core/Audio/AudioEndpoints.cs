@@ -31,9 +31,15 @@ public static class AudioEndpoints
     }
 
     /// <summary>Resolves a device by id, or the default endpoint when <paramref name="id"/> is null.</summary>
+    /// <remarks>
+    /// The enumerator is closed here and the endpoint outlives it: the two are separately
+    /// reference-counted COM objects, and the device does not need the enumerator that found it.
+    /// Keeping the enumerator instead left one behind per call, on a path the track detector runs
+    /// several times a second while recording.
+    /// </remarks>
     public static MMDevice Resolve(string? id)
     {
-        var enumerator = new MMDeviceEnumerator();
+        using var enumerator = new MMDeviceEnumerator();
 
         if (string.IsNullOrWhiteSpace(id))
             return enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);

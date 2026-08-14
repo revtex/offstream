@@ -239,6 +239,46 @@ phase plan these entries follow.
 
 ### Fixed
 
+- **Unplugging the device being recorded left the recording running against nothing.** The
+  detection for this was built and correct — it notices both ways of losing an endpoint, the
+  pinned device disappearing and Windows moving the default elsewhere — and nothing was listening
+  to it, so the session never heard. What the user saw was a recording that went on, an elapsed
+  counter that stopped counting, and a track that was never written, with the reason in no log.
+  The session now ends when its capture does: the track in flight is finished and saved on the
+  same terms as pressing stop mid-song, since what was captured before the device went is as much
+  of it as will ever exist, and the endpoint's name is reported so it is clear which device to
+  plug back in. Recording does not follow the audio to the new device — a replacement endpoint can
+  have a different sample rate and channel count, and continuing into one would put a seam in the
+  middle of the file — so plugging it back in and pressing record is the recovery.
+- **A recording that stopped itself left the page offering to stop it.** The recording timer
+  elapsing ended the session, but nothing told the window, so the transport went on showing Stop
+  for a session that had already finished, the file counter that run reached was not written back
+  until the user pressed it, and the audio device stayed open in the meantime. A session that ends
+  on its own now says so, and is released exactly as a stopped one is.
+- **Starting and stopping recording a few times crashed the app outright.** No dialog, no log
+  line, no managed exception — the process disappeared and left an access violation in the
+  Windows event log, because the fault was in the audio service calling back into the app rather
+  than in anything the app was running. Each recording session registers an endpoint-notification
+  callback with Windows so that unplugging the device being recorded ends the recording rather
+  than silently capturing nothing; stopping a session closed the capture but never withdrew that
+  registration, and the garbage collector cannot withdraw it either. Every cycle therefore left
+  another live registration pointing at an object nothing was keeping alive, and the next time an
+  endpoint changed — which is exactly what opening the next session's audio client does — the
+  audio service called into freed interop memory. A session now disposes the capture it was
+  given, which is what withdraws the registration, and a watcher holds a reference to itself for
+  as long as Windows can still call it: registering deliberately does not count as a reference,
+  which Windows documents and leaves to the caller, so a missed disposal now costs a few bytes
+  instead of the app. Three start/stop cycles were enough to crash the old build; the fixed one
+  went twenty-five without it. Two smaller leaks of the same shape went with it: a failed start —
+  no ffmpeg, most often — no longer abandons the capture it had already opened, and the endpoint
+  lookup no longer leaves a device enumerator behind on a path that runs several times a second
+  while recording.
+- **Losing the recorded device could have wedged the audio service rather than ending the
+  recording.** Endpoint notifications ran their handlers on the thread Windows delivers them on,
+  which is forbidden from blocking, from waiting, and from closing an audio object — and the
+  handler for a lost endpoint does all three, against the endpoint that just disappeared, while
+  the audio service waits for the call to return. Handlers now run on a pool thread, and the
+  notification returns immediately.
 - **An advertisement showed the previous song's cover art, album and save path.** The three
   details describing the track being written arrive together from the metadata lookup and were
   cleared only when the session stopped, so anything never enriched — an advertisement above

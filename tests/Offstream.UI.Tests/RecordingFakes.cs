@@ -48,7 +48,14 @@ internal static class RecordingFakes
     public static SettingsDocument DocumentWithBrokenFile() => new(StoreWithBrokenFile());
 
     /// <summary>A session wired to fakes, equivalent to one the real factory would build.</summary>
-    public static RecordingSession Session(IProgress<RecordingProgress> progress, ITrackSource? trackSource = null)
+    /// <param name="capture">
+    /// The capture the session takes ownership of. Passed in when a test needs to end it from
+    /// outside, which is how a lost audio endpoint reaches the session.
+    /// </param>
+    public static RecordingSession Session(
+        IProgress<RecordingProgress> progress,
+        ITrackSource? trackSource = null,
+        SilentCapture? capture = null)
     {
         var fileSystem = new MockFileSystem();
         fileSystem.Directory.CreateDirectory(@"C:\Music");
@@ -65,7 +72,7 @@ internal static class RecordingFakes
         var source = trackSource ?? Mock.Of<ITrackSource>();
 
         return new RecordingSession(
-            new SilentCapture(),
+            capture ?? new SilentCapture(),
             new SpotifyPoller(source),
             settings,
             new NoOpEncoder(),
@@ -99,6 +106,17 @@ internal sealed class SilentCapture : IAudioCaptureSource
     /// <summary>Pushes a buffer, so a test can watch it reach the level meter.</summary>
     public void Deliver(byte[] buffer) =>
         DataAvailable?.Invoke(this, new AudioDataEventArgs(buffer, buffer.Length));
+
+    /// <summary>Ends the capture the way a lost endpoint does: without being asked to.</summary>
+    public void Lose()
+    {
+        IsCapturing = false;
+
+        Stopped?.Invoke(
+            this,
+            new CaptureStoppedEventArgs(
+                new InvalidOperationException("The audio endpoint became unavailable during recording.")));
+    }
 }
 
 /// <summary>An encoder that claims success without running ffmpeg.</summary>
@@ -122,6 +140,9 @@ internal sealed class FakeSessionFactory : IRecordingSessionFactory
     /// <summary>The most recent session handed out.</summary>
     public RecordingSession? Last { get; private set; }
 
+    /// <summary>Its capture, so a test can take the audio endpoint away mid-session.</summary>
+    public SilentCapture? LastCapture { get; private set; }
+
     /// <summary>
     /// The channel the controller handed in, so a test can report what a session would.
     /// </summary>
@@ -139,7 +160,8 @@ internal sealed class FakeSessionFactory : IRecordingSessionFactory
 
         if (Failure is not null) throw Failure;
 
-        Last = RecordingFakes.Session(progress);
+        LastCapture = new SilentCapture();
+        Last = RecordingFakes.Session(progress, capture: LastCapture);
 
         return Last;
     }

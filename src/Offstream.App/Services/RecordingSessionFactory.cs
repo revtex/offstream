@@ -79,22 +79,35 @@ public sealed class RecordingSessionFactory(
             settings.Recording.AudioEndpointDeviceId,
             endpoints: new AudioEndpointWatcher());
 
-        // SMTC first, window title second. The title is only readable while Spotify has a window,
-        // so on its own it stops detecting the moment the user minimises to the tray; the media
-        // session survives that, and hands over separate artist and title fields rather than one
-        // string to split. See PreferredTrackSource for what "prefers" means and when it hands back.
-        var detector = new PreferredTrackSource(
-            new SmtcTrackSource(new WindowsSmtcSessions()),
-            new SpotifyTrackDetector(_processManager, new SpotifyPlaybackProbe(_processManager)));
+        try
+        {
+            // SMTC first, window title second. The title is only readable while Spotify has a
+            // window, so on its own it stops detecting the moment the user minimises to the tray;
+            // the media session survives that, and hands over separate artist and title fields
+            // rather than one string to split. See PreferredTrackSource for what "prefers" means
+            // and when it hands back.
+            var detector = new PreferredTrackSource(
+                new SmtcTrackSource(new WindowsSmtcSessions()),
+                new SpotifyTrackDetector(_processManager, new SpotifyPlaybackProbe(_processManager)));
 
-        return new RecordingSession(
-            capture,
-            new SpotifyPoller(detector),
-            settings.ToRecordingSettings(),
-            CreateEncoder(settings),
-            _fileSystem,
-            CreateEnricher(settings),
-            progress);
+            return new RecordingSession(
+                capture,
+                new SpotifyPoller(detector),
+                settings.ToRecordingSettings(),
+                CreateEncoder(settings),
+                _fileSystem,
+                CreateEnricher(settings),
+                progress);
+        }
+        catch
+        {
+            // Nothing owns the capture until the session does, and by now it is already holding a
+            // WASAPI client and an endpoint-notification registration. A machine without ffmpeg
+            // reaches this on every press of Record, so leaving them behind here is a leak that
+            // repeats for as long as the user keeps trying.
+            capture.Dispose();
+            throw;
+        }
     }
 
     /// <summary>

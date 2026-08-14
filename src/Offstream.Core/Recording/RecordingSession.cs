@@ -118,8 +118,12 @@ public sealed class RecordingSession : IAsyncDisposable
     private ITimer? _recordingTimer;
     private bool _stopAfterCurrentTrack;
     private bool _disposed;
+    private int _captureLost;
 
-    /// <param name="capture">The audio source feeding the shared buffer.</param>
+    /// <param name="capture">
+    /// The audio source feeding the shared buffer. Owned by the session and disposed with it —
+    /// see <see cref="DisposeAsync"/> for why that has to be deterministic.
+    /// </param>
     /// <param name="poller">Where track changes come from.</param>
     /// <param name="settings">The session's settings, including the counter it increments.</param>
     /// <param name="encoder">What the encode backlog runs.</param>
@@ -185,6 +189,19 @@ public sealed class RecordingSession : IAsyncDisposable
     /// <summary>A recording was lost, or could not be encoded.</summary>
     public event EventHandler<RecordingFailedEventArgs>? Failed;
 
+    /// <summary>
+    /// The session stopped without being asked to, and has finished stopping.
+    /// </summary>
+    /// <remarks>
+    /// Two things end a session from the inside: the recording timer elapsing, and the audio
+    /// endpoint going away mid-recording. Whoever owns the session has to hear about both, because
+    /// a session that stops by itself is still held, still counted as running by anything that asks
+    /// its owner, and still holding the file counter this run reached. Without this the Record page
+    /// went on offering Stop for a session that had already stopped, and the capture stayed open on
+    /// an endpoint the next start wanted.
+    /// </remarks>
+    public event EventHandler? Ended;
+
     /// <summary>Whether the session is running.</summary>
     public bool IsRunning { get; private set; }
 
@@ -222,6 +239,7 @@ public sealed class RecordingSession : IAsyncDisposable
         _capture.StartCapture();
         _buffer = new AudioCaptureBuffer(_capture.Format);
         _capture.DataAvailable += OnAudioAvailable;
+        _capture.Stopped += OnCaptureStopped;
 
         _backlog.Start();
 
@@ -257,6 +275,7 @@ public sealed class RecordingSession : IAsyncDisposable
         await FinishCurrentTrackAsync();
 
         _capture.DataAvailable -= OnAudioAvailable;
+        _capture.Stopped -= OnCaptureStopped;
         _capture.StopCapture();
 
         // The meter is drained by the UI, which stops asking once the session stops. Clearing it
@@ -301,6 +320,17 @@ public sealed class RecordingSession : IAsyncDisposable
             _recorder = null;
         }
 
+        // The capture is this session's to close, and closing it is not housekeeping. What it
+        // holds is a WASAPI client on the endpoint and an endpoint-notification callback
+        // registered with the audio service — and Windows keeps calling that callback until it is
+        // unregistered. Left to the garbage collector, the callback outlives the object it calls
+        // into, and the next start-and-stop cycle ends with the audio service invoking freed
+        // interop memory: an 0xc0000005 in the event log, no managed exception, no log line.
+        // Sessions are built per start and never reused, so nothing else can be holding this.
+        _capture.DataAvailable -= OnAudioAvailable;
+        _capture.Stopped -= OnCaptureStopped;
+        _capture.Dispose();
+
         _stopping.Dispose();
     }
 
@@ -309,6 +339,65 @@ public sealed class RecordingSession : IAsyncDisposable
         _buffer?.Write(e.Data);
         Level.Write(e.Data);
     }
+
+    /// <summary>
+    /// The capture ended without being asked to: the endpoint was unplugged or disabled, or
+    /// Windows moved the default somewhere else.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The track in flight is finished rather than abandoned. Everything captured up to the moment
+    /// the endpoint went is already in the buffer and is as much of that track as will ever exist,
+    /// so it is saved on the same terms as any other stop — including the minimum-length rule that
+    /// may still discard it. What cannot continue is the session: the stream it was reading has
+    /// gone, and whatever replaces the endpoint can have a different sample rate and channel count.
+    /// </para>
+    /// <para>
+    /// This is the other half of <see cref="Audio.AudioEndpointWatcher"/>, which detected the loss
+    /// from the start and had nobody listening: the capture stopped, and the session went on
+    /// believing it was recording until the user noticed the elapsed counter had frozen.
+    /// </para>
+    /// </remarks>
+    private void OnCaptureStopped(object? sender, CaptureStoppedEventArgs e)
+    {
+        if (!IsRunning) return;
+
+        // The capture reports its own ending once, but a stop the session asked for arrives here
+        // too if it lands before the unsubscribe in StopAsync does.
+        if (Interlocked.Exchange(ref _captureLost, 1) != 0) return;
+
+        var reason = e.Exception?.Message ?? "The audio capture stopped unexpectedly.";
+
+        RaiseFailed(CurrentTrack ?? new Track(), $"{reason} Recording has stopped.", e.Exception);
+
+        StopItself();
+    }
+
+    /// <summary>
+    /// Ends the session from inside it, off whatever thread noticed.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="StopAsync"/> finishes the current track and drains the encode backlog — seconds
+    /// of work and disk I/O, on a thread that is either the poll loop or an audio callback.
+    /// <see cref="Ended"/> is raised after it rather than before, so the owner tears down a session
+    /// that has finished stopping rather than one still writing files.
+    /// </remarks>
+    private void StopItself() =>
+        _ = Task.Run(
+            async () =>
+            {
+                try
+                {
+                    await StopAsync();
+                }
+                catch (Exception ex) when (ex is IOException or OperationCanceledException)
+                {
+                    Log.Warning(ex, "The session did not stop cleanly after ending itself.");
+                }
+
+                Ended?.Invoke(this, EventArgs.Empty);
+            },
+            CancellationToken.None);
 
     /// <summary>
     /// The elapsed counter ticked. Reported so the shell can show a running time without
@@ -355,7 +444,7 @@ public sealed class RecordingSession : IAsyncDisposable
             // rather than mid-song is the reference's behaviour, and the right one.
             _stopAfterCurrentTrack = false;
             Report(RecordingStage.Stopped, message: "Recording timer elapsed.");
-            _ = Task.Run(() => StopAsync(), CancellationToken.None);
+            StopItself();
 
             return;
         }
