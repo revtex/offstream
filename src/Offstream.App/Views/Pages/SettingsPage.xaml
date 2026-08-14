@@ -266,7 +266,7 @@
                             <StackPanel Margin="0,10,0,0" Orientation="Horizontal">
                                 <ui:Button AutomationProperties.AutomationId="SettingsSpotifySignIn"
                                            Command="{Binding SignInToSpotifyCommand, Mode=OneTime}"
-                                           Content="{x:Static res:Strings.SettingsSpotifySignIn}" />
+                                           Content="{Binding SpotifySignInLabel, Mode=OneWay}" />
 
                                 <TextBlock Margin="12,0,0,0"
                                            VerticalAlignment="Center"

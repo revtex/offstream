@@ -131,6 +131,7 @@ public sealed partial class SettingsViewModel : ObservableValidator
     /// <summary>Whether a Spotify refresh token is on file, i.e. whether sign-in has happened.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SpotifyAccountStatus))]
+    [NotifyPropertyChangedFor(nameof(SpotifySignInLabel))]
     private bool _isSignedInToSpotify;
 
     /// <summary>Set while the browser sign-in is open, so the button cannot be pressed twice.</summary>
@@ -247,6 +248,18 @@ public sealed partial class SettingsViewModel : ObservableValidator
     /// <summary>Signed in, or not — the one thing about the account worth showing.</summary>
     public string SpotifyAccountStatus =>
         IsSignedInToSpotify ? Strings.SettingsSpotifySignedIn : Strings.SettingsSpotifyNotSignedIn;
+
+    /// <summary>
+    /// What the sign-in button says, which is not the same thing once there is an account.
+    /// </summary>
+    /// <remarks>
+    /// It read "Sign in to Spotify" beside the words "Signed in", which is the button offering to
+    /// do something already done. Pressing it does have a use — it is the only way to move the
+    /// install to a different account, which is exactly what someone whose recordings are coming
+    /// back untagged needs — so the label names that instead of being disabled or hidden.
+    /// </remarks>
+    public string SpotifySignInLabel =>
+        IsSignedInToSpotify ? Strings.SettingsSpotifySwitchAccount : Strings.SettingsSpotifySignIn;
 
     /// <summary>Whether <see cref="SaveProblem"/> has anything worth showing.</summary>
     public bool HasSaveProblem => !string.IsNullOrWhiteSpace(SaveProblem);

@@ -227,6 +227,17 @@ phase plan these entries follow.
 
 ### Fixed
 
+- **An advertisement showed the previous song's cover art, album and save path.** The three
+  details describing the track being written arrive together from the metadata lookup and were
+  cleared only when the session stopped, so anything never enriched — an advertisement above
+  all, but equally a lookup that found nothing — inherited the last song's and displayed them
+  under its own name. Not a cosmetic fault: the card named a file path that nothing was being
+  written to. They are now dropped the moment the displayed track changes.
+- **The Spotify sign-in button said "Sign in to Spotify" beside the words "Signed in".** It
+  offered to do something already done. Pressing it does have a use once an account is
+  stored — it is the only way to move the install to a different account, which is exactly what
+  someone whose recordings are coming back untagged needs — so it now says "Sign in as a
+  different account" instead of being disabled or hidden.
 - **Spotify's own error message reached the log as `Exception of type
   'SpotifyAPI.Web.APIException' was thrown`.** The SDK parses the error body into
   `Exception.Message` only when it recognises the shape and leaves .NET's placeholder there

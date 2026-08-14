@@ -562,6 +562,38 @@ public sealed partial class RecordViewModel : ObservableObject
         CoverArt = Decode(e.CoverArtPath);
     });
 
+    /// <summary>
+    /// Drops the album, art and destination the moment the track changes.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// These three arrive together from <see cref="OnTrackEnriched"/> a second or so into a track,
+    /// and used to be cleared only when the session stopped. So they outlived the track they
+    /// described: anything that is never enriched — an advertisement, or a lookup that found
+    /// nothing — inherited the previous song's cover, album and save path and displayed them
+    /// under its own name. An advertisement showing the last song's artwork and the file path it
+    /// was written to is not a cosmetic fault; it says a file is being written that is not.
+    /// </para>
+    /// <para>
+    /// Keyed on the displayed name changing rather than on a track-changed event, because that is
+    /// exactly the moment the three become wrong, and it costs nothing on the reports that repeat
+    /// the same track fourteen times a second — <see cref="ObservableObject"/> raises nothing when
+    /// the value is unchanged, so this does not run.
+    /// </para>
+    /// <para>
+    /// The order this depends on is that the progress report naming the new track arrives before
+    /// its enrichment does, which the enricher's settle delay and round trip make certain. If it
+    /// ever inverted, the cost is one track showing no album — a blank where something unknown
+    /// goes, rather than a confident description of the wrong song.
+    /// </para>
+    /// </remarks>
+    partial void OnNowPlayingChanged(string value)
+    {
+        Album = string.Empty;
+        Destination = string.Empty;
+        CoverArt = null;
+    }
+
     /// <summary>Album and year, as one line, from whichever of the two the lookup found.</summary>
     private static string DescribeAlbum(Offstream.Core.Metadata.Track track) => (track.Album, track.Year) switch
     {

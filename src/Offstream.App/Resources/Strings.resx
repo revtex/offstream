@@ -297,6 +297,10 @@
     <value>Waiting for the browser…</value>
     <comment>Settings page: shown while the browser sign-in is open.</comment>
   </data>
+  <data name="SettingsSpotifySwitchAccount" xml:space="preserve">
+    <value>Sign in as a different account</value>
+    <comment>Settings page: the same sign-in button, once an account is already stored.</comment>
+  </data>
   <data name="SettingsSpotifySignedIn" xml:space="preserve">
     <value>Signed in. Recordings will be tagged from Spotify.</value>
     <comment>Settings page: a Spotify refresh token is stored.</comment>

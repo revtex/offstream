@@ -449,6 +449,28 @@ public sealed class SettingsViewModelTests
     }
 
     /// <summary>
+    /// The button read "Sign in to Spotify" beside the words "Signed in" — offering to do a thing
+    /// already done. It still has a use once there is an account, and that use is what it now
+    /// names.
+    /// </summary>
+    [Fact]
+    public async Task SpotifySignInLabel_FollowsWhetherAnAccountIsStored()
+    {
+        var account = new FakeSpotifyAccount { RefreshToken = "a-refresh-token" };
+        var viewModel = SettingsFakes.Settings(SettingsFakes.Document(), spotifyAccount: account);
+
+        Assert.Equal(Strings.SettingsSpotifySignIn, viewModel.SpotifySignInLabel);
+
+        viewModel.Provider = MetadataProvider.Spotify;
+        viewModel.SpotifyClientId = "0123456789abcdef";
+
+        await viewModel.SignInToSpotifyCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.IsSignedInToSpotify);
+        Assert.Equal(Strings.SettingsSpotifySwitchAccount, viewModel.SpotifySignInLabel);
+    }
+
+    /// <summary>
     /// The user is standing at the browser waiting to find out whether it worked, so a declined
     /// or abandoned sign-in says so on the page rather than only in the log.
     /// </summary>

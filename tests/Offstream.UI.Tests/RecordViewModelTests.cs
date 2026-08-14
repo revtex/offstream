@@ -277,6 +277,46 @@ public sealed class RecordViewModelTests
         Assert.Null(viewModel.Level);
     }
 
+    /// <summary>
+    /// The album, art and destination describe one track, and they used to outlive it — cleared
+    /// only when the session stopped. Anything never enriched, an advertisement above all,
+    /// inherited the previous song's cover and the path it was written to and showed them under
+    /// its own name.
+    /// </summary>
+    [Fact]
+    public void NowPlaying_WhenTheTrackChanges_DropsTheDetailsOfTheOldOne()
+    {
+        var viewModel = ViewModelFor();
+
+        viewModel.NowPlaying = "Someone - Something";
+        viewModel.Album = "An Album (2026)";
+        viewModel.Destination = @"Someone\An Album\03 Something.mp3";
+
+        viewModel.NowPlaying = "Spotify";
+
+        Assert.Empty(viewModel.Album);
+        Assert.Empty(viewModel.Destination);
+        Assert.Null(viewModel.CoverArt);
+        Assert.False(viewModel.HasAlbum);
+    }
+
+    /// <summary>
+    /// And only when it changes: the progress reports arrive around fourteen times a second, and
+    /// a repeat of the same track must not blank the details that were just looked up for it.
+    /// </summary>
+    [Fact]
+    public void NowPlaying_WhenTheSameTrackIsReportedAgain_KeepsTheDetails()
+    {
+        var viewModel = ViewModelFor();
+
+        viewModel.NowPlaying = "Someone - Something";
+        viewModel.Album = "An Album (2026)";
+
+        viewModel.NowPlaying = "Someone - Something";
+
+        Assert.Equal("An Album (2026)", viewModel.Album);
+    }
+
     [Fact]
     public void FilterOptions_OfferOneChoicePerFilter() =>
         Assert.Equal(
