@@ -136,7 +136,18 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <StackPanel Grid.Row="0" Grid.Column="0" Style="{StaticResource Field}">
+                    <!--
+                        The template, its preview and the two shortcuts run the width of the card
+                        in that order, because that is the order they are used in: type a template,
+                        read what it produces, take a shortcut if it is not what you wanted. The
+                        preview used to sit in a column beside the box, which halved the width of
+                        both — and a path is the one thing on this page that genuinely needs the
+                        whole line, since it is read for its tail as much as its head.
+                    -->
+                    <StackPanel Grid.Row="0"
+                                Grid.Column="0"
+                                Grid.ColumnSpan="3"
+                                Style="{StaticResource Field}">
                         <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedTemplateLabel}" />
 
                         <DockPanel>
@@ -160,7 +171,7 @@
 
                             <!--
                                 The one field on either page that commits per keystroke: the
-                                preview beside it is the whole point, and a preview that waits for
+                                preview under it is the whole point, and a preview that waits for
                                 focus loss is a preview of the previous template.
                             -->
                             <ui:TextBox x:Name="TemplateBox"
@@ -172,6 +183,46 @@
 
                         <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=TemplateBox, Path=(Validation.Errors)/ErrorContent}" />
 
+                        <!--
+                            Rendered by the recorder's own naming code, so what is shown here is
+                            the path that would be written, length budgeting and all.
+
+                            In a recessed well rather than as loose text: it is the one thing in
+                            this card that is output rather than input, and until it had a surface
+                            of its own it read as a caption under the box instead of as the answer
+                            the box produces.
+
+                            One line, with its label inside it. The page has to fit the window's
+                            minimum height without scrolling, and a label on its own line above a
+                            two-line well was enough on its own to push the bottom card off the
+                            end. A rendered path is one line in every realistic case, and the
+                            ellipsis and tooltip carry the ones that are not.
+                        -->
+                        <Border Margin="0,6,0,0"
+                                Padding="10,5"
+                                Background="{StaticResource OffstreamWellBrush}"
+                                BorderBrush="{StaticResource OffstreamSurfaceBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6">
+                            <DockPanel>
+                                <TextBlock Margin="0,0,10,0"
+                                           VerticalAlignment="Center"
+                                           DockPanel.Dock="Left"
+                                           Foreground="{StaticResource OffstreamIdleBrush}"
+                                           Style="{StaticResource CaptionTextBlockStyle}"
+                                           Text="{x:Static res:Strings.AdvancedPreviewLabel}" />
+
+                                <TextBlock VerticalAlignment="Center"
+                                           AutomationProperties.AutomationId="AdvancedTemplatePreview"
+                                           FontFamily="{StaticResource OffstreamMonoFontFamily}"
+                                           FontSize="{StaticResource OffstreamMonoFontSize}"
+                                           Text="{Binding TemplatePreview, Mode=OneWay}"
+                                           TextTrimming="CharacterEllipsis"
+                                           TextWrapping="NoWrap"
+                                           ToolTip="{Binding TemplatePreview, Mode=OneWay}" />
+                            </DockPanel>
+                        </Border>
+
                         <StackPanel Margin="0,8,0,0" Orientation="Horizontal">
                             <ui:Button AutomationProperties.AutomationId="AdvancedTemplateDefaultButton"
                                        Command="{Binding ResetTemplateCommand}"
@@ -181,24 +232,6 @@
                                        Command="{Binding UseGroupedTemplateCommand}"
                                        Content="{x:Static res:Strings.AdvancedTemplateGrouped}" />
                         </StackPanel>
-                    </StackPanel>
-
-                    <StackPanel Grid.Row="0" Grid.Column="2" Style="{StaticResource Field}">
-                        <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedPreviewLabel}" />
-
-                        <!--
-                            Rendered by the recorder's own naming code, so what is shown here is
-                            the path that would be written — including the length budgeting. Beside
-                            the template rather than under it: the two are read together, and a
-                            preview a line below the box it describes is a preview you have to
-                            look for.
-                        -->
-                        <TextBlock Height="34"
-                                   AutomationProperties.AutomationId="AdvancedTemplatePreview"
-                                   FontFamily="{StaticResource OffstreamMonoFontFamily}"
-                                   FontSize="{StaticResource OffstreamMonoFontSize}"
-                                   Text="{Binding TemplatePreview, Mode=OneWay}"
-                                   TextWrapping="Wrap" />
                     </StackPanel>
 
                     <StackPanel Grid.Row="1" Grid.Column="0" Style="{StaticResource Field}">
