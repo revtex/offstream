@@ -119,7 +119,10 @@ public sealed class RecordingSession : IAsyncDisposable
     private bool _stopAfterCurrentTrack;
     private bool _disposed;
 
-    /// <param name="capture">The audio source feeding the shared buffer.</param>
+    /// <param name="capture">
+    /// The audio source feeding the shared buffer. Owned by the session and disposed with it —
+    /// see <see cref="DisposeAsync"/> for why that has to be deterministic.
+    /// </param>
     /// <param name="poller">Where track changes come from.</param>
     /// <param name="settings">The session's settings, including the counter it increments.</param>
     /// <param name="encoder">What the encode backlog runs.</param>
@@ -300,6 +303,16 @@ public sealed class RecordingSession : IAsyncDisposable
             _recorder?.Dispose();
             _recorder = null;
         }
+
+        // The capture is this session's to close, and closing it is not housekeeping. What it
+        // holds is a WASAPI client on the endpoint and an endpoint-notification callback
+        // registered with the audio service — and Windows keeps calling that callback until it is
+        // unregistered. Left to the garbage collector, the callback outlives the object it calls
+        // into, and the next start-and-stop cycle ends with the audio service invoking freed
+        // interop memory: an 0xc0000005 in the event log, no managed exception, no log line.
+        // Sessions are built per start and never reused, so nothing else can be holding this.
+        _capture.DataAvailable -= OnAudioAvailable;
+        _capture.Dispose();
 
         _stopping.Dispose();
     }

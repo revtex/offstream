@@ -82,6 +82,23 @@ public static class AudioEndpointRelevance
 /// </remarks>
 public sealed class AudioEndpointWatcher : IAudioEndpointWatcher, IMMNotificationClient
 {
+    /// <summary>
+    /// Every watcher Windows can still call back, kept alive for as long as that is true.
+    /// </summary>
+    /// <remarks>
+    /// A registered <see cref="IMMNotificationClient"/> is reached from the audio service through
+    /// a COM wrapper around this object, and that registration stands until it is explicitly
+    /// unregistered — the garbage collector does not know about it and cannot end it. Collecting a
+    /// watcher that is still registered therefore leaves the audio service calling into freed
+    /// interop memory the next time an endpoint changes, which ends the process with an access
+    /// violation rather than an exception: nothing catchable, nothing logged. Holding a reference
+    /// here until <see cref="Dispose"/> unregisters means a watcher nobody disposed costs a few
+    /// bytes instead of the app.
+    /// </remarks>
+    private static readonly HashSet<AudioEndpointWatcher> Registered = [];
+
+    private static readonly Lock RegisteredGate = new();
+
     private readonly MMDeviceEnumerator _enumerator;
     private bool _disposed;
 
@@ -89,6 +106,8 @@ public sealed class AudioEndpointWatcher : IAudioEndpointWatcher, IMMNotificatio
     {
         _enumerator = new MMDeviceEnumerator();
         _enumerator.RegisterEndpointNotificationCallback(this);
+
+        lock (RegisteredGate) Registered.Add(this);
     }
 
     /// <inheritdoc />
@@ -137,6 +156,9 @@ public sealed class AudioEndpointWatcher : IAudioEndpointWatcher, IMMNotificatio
         {
             Log.Debug(ex, "Unregistering the audio endpoint callback failed.");
         }
+
+        // After the unregister, never before: until it returns, a notification can still arrive.
+        lock (RegisteredGate) Registered.Remove(this);
 
         _enumerator.Dispose();
     }

@@ -208,11 +208,11 @@ public sealed class RecordingSessionTests
         /// </summary>
         public void Play(Track? track) => Current = track;
 
-        public async ValueTask DisposeAsync()
-        {
-            await Session.DisposeAsync();
-            Capture.Dispose();
-        }
+        /// <summary>
+        /// Only the session is disposed here: disposing the capture is <em>its</em> job, and a
+        /// harness that did it too would hide the day that stopped being true.
+        /// </summary>
+        public async ValueTask DisposeAsync() => await Session.DisposeAsync();
     }
 
     private static async Task WaitFor(Func<bool> condition, string because)
@@ -739,5 +739,41 @@ public sealed class RecordingSessionTests
         await harness.Session.StopAsync();
 
         Assert.Equal(0f, harness.Session.Level.Read().Level);
+    }
+
+    /// <summary>
+    /// The capture holds a WASAPI client and an endpoint-notification registration, and Windows
+    /// goes on calling that registration until it is withdrawn. Stopping does not withdraw it —
+    /// only disposing does — so a session that stopped without disposing its capture left the
+    /// audio service calling into an object nothing was keeping alive, and a few start/stop cycles
+    /// ended the process with an access violation that never reached a log.
+    /// </summary>
+    [Fact]
+    public async Task Session_DisposesTheCaptureItWasGiven()
+    {
+        var harness = new Harness();
+
+        harness.Session.Start();
+        await harness.Session.StopAsync();
+
+        Assert.False(harness.Capture.WasDisposed);
+
+        await harness.DisposeAsync();
+
+        Assert.True(harness.Capture.WasDisposed);
+    }
+
+    /// <summary>
+    /// The capture is opened when the session is built, not when it starts, so a session that
+    /// never ran is still holding one — the case a failed start leaves behind.
+    /// </summary>
+    [Fact]
+    public async Task Session_DisposesACaptureThatNeverStarted()
+    {
+        var harness = new Harness();
+
+        await harness.DisposeAsync();
+
+        Assert.True(harness.Capture.WasDisposed);
     }
 }

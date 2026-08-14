@@ -239,6 +239,21 @@ phase plan these entries follow.
 
 ### Fixed
 
+- **Starting and stopping recording a few times crashed the app outright.** No dialog, no log
+  line, no managed exception — the process disappeared and left an access violation in the
+  Windows event log, because the fault was in the audio service calling back into the app rather
+  than in anything the app was running. Each recording session registers an endpoint-notification
+  callback with Windows so that unplugging the device being recorded ends the recording rather
+  than silently capturing nothing; stopping a session closed the capture but never withdrew that
+  registration, and the garbage collector cannot withdraw it either. Every cycle therefore left
+  another live registration pointing at an object nothing was keeping alive, and the next time an
+  endpoint changed — which is exactly what opening the next session's audio client does — the
+  audio service called into freed interop memory. A session now disposes the capture it was
+  given, which is what withdraws the registration, and a watcher stays alive for as long as
+  Windows can still call it, so a missed disposal costs a few bytes instead of the app. Two
+  smaller leaks of the same shape went with it: a failed start — no ffmpeg, most often — no
+  longer abandons the capture it had already opened, and the endpoint lookup no longer leaves a
+  device enumerator behind on a path that runs several times a second while recording.
 - **An advertisement showed the previous song's cover art, album and save path.** The three
   details describing the track being written arrive together from the metadata lookup and were
   cleared only when the session stopped, so anything never enriched — an advertisement above
