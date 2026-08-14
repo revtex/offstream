@@ -143,3 +143,42 @@ jobs:
             }
           }
           Write-Host 'Trimming and NativeAOT are off, as required.'
+
+  changelog:
+    # Pull requests only, and skipped by label. A push to main has no pull request to
+    # describe, and a genuinely user-invisible change says so with `no-changelog` rather
+    # than by quietly not writing an entry.
+    #
+    # A job of its own, which the note on `build` above argues against for publish-check.
+    # That reasoning does not carry here: publish-check was gated on `needs: build`, so its
+    # fresh VM ran strictly after a full Windows compile and test run had finished. This has
+    # no `needs`, runs on ubuntu, and answers in seconds - in parallel with the build rather
+    # than behind it. Folding it into `build` would delay the answer, not save a machine.
+    if: >-
+      github.event_name == 'pull_request' &&
+      !contains(github.event.pull_request.labels.*.name, 'no-changelog')
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Both endpoints of the comparison have to be present, and a shallow clone has
+          # neither the base commit nor the history joining it to the head.
+          fetch-depth: 0
+
+      - name: CHANGELOG.md was updated
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if git diff --name-only "$BASE" "$HEAD" | grep -qx 'CHANGELOG.md'; then
+            echo 'CHANGELOG.md was updated.'
+            exit 0
+          fi
+
+          echo '::error file=CHANGELOG.md::This pull request does not touch CHANGELOG.md.'
+          echo 'Every pull request records what it changed, under ## [Unreleased] - see CLAUDE.md.'
+          echo 'The file went ten pull requests out of date once, reading as current the whole time.'
+          echo 'Nothing user-visible in this one? Add the no-changelog label.'
+          exit 1
