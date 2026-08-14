@@ -145,13 +145,31 @@ public sealed class SmtcTrackSourceTests
             "Album",
             IsPlaying: true,
             AlbumArtist: "Album Artist",
-            TrackNumber: 4);
+            TrackNumber: 4,
+            AlbumTrackCount: 12);
 
         var track = await new SmtcTrackSource(new FakeSessions(snapshot)).GetCurrentTrackAsync();
 
         Assert.NotNull(track);
         Assert.Equal(["Album Artist"], track!.AlbumArtists!);
         Assert.Equal(4, track.AlbumPosition);
+
+        // The half that turns a track tag of "4" into "4/12".
+        Assert.Equal(12, track.AlbumTrackCount);
+    }
+
+    /// <summary>An unreported count is not a zero-track album, exactly as for the position.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(null)]
+    public async Task AnAlbumTrackCountThatIsNotACountIsNotReported(int? reported)
+    {
+        var snapshot = new SmtcSnapshot(
+            "Artist", "Title", "Album", IsPlaying: true, AlbumTrackCount: reported);
+
+        var track = await new SmtcTrackSource(new FakeSessions(snapshot)).GetCurrentTrackAsync();
+
+        Assert.Null(track!.AlbumTrackCount);
     }
 
     /// <summary>Spotify numbers from 1, so a zero means "not reported" rather than a zeroth track.</summary>

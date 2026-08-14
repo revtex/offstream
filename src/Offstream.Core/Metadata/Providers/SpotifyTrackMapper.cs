@@ -82,7 +82,9 @@ public static partial class SpotifyTrackMapper
         // {year} filename token. A release Spotify knows to the day was being truncated.
         track.ReleaseDate = NormalizeReleaseDate(spotifyAlbum.ReleaseDate);
 
-        track.AlbumTrackCount = PositiveOrNull(spotifyAlbum.TotalTracks);
+        // Also as above, now that the media session reports a count of its own: an album object
+        // that does not carry one leaves the session's standing.
+        track.AlbumTrackCount = PositiveOrNull(spotifyAlbum.TotalTracks) ?? track.AlbumTrackCount;
         track.Copyright = ChooseCopyright(spotifyAlbum.Copyrights);
     }
 

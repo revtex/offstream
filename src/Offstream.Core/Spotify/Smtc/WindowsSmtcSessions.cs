@@ -54,7 +54,8 @@ public sealed class WindowsSmtcSessions : ISmtcSessions
             properties.AlbumTitle,
             status == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing,
             properties.AlbumArtist,
-            properties.TrackNumber);
+            properties.TrackNumber,
+            properties.AlbumTrackCount);
     }
 
     private static GlobalSystemMediaTransportControlsSession? FindSpotify(

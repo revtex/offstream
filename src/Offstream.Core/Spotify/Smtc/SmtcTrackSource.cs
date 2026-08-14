@@ -12,6 +12,9 @@ namespace Offstream.Core.Spotify.Smtc;
 /// and features — the distinction a library groups by.
 /// </param>
 /// <param name="TrackNumber">The position on the album, or null when Spotify did not say.</param>
+/// <param name="AlbumTrackCount">
+/// How many tracks the album has, which is what turns a track tag of <c>5</c> into <c>5/12</c>.
+/// </param>
 /// <remarks>
 /// <para>
 /// A snapshot rather than the live WinRT session: it makes the mapping below a pure function of
@@ -19,7 +22,7 @@ namespace Offstream.Core.Spotify.Smtc;
 /// endpoint, or Spotify installed.
 /// </para>
 /// <para>
-/// The last two are optional so that every existing construction site — and the window-title
+/// The last three are optional so that every existing construction site — and the window-title
 /// path, which has no such information — keeps working unchanged.
 /// </para>
 /// </remarks>
@@ -29,7 +32,8 @@ public readonly record struct SmtcSnapshot(
     string? Album,
     bool IsPlaying,
     string? AlbumArtist = null,
-    int? TrackNumber = null);
+    int? TrackNumber = null,
+    int? AlbumTrackCount = null);
 
 /// <summary>Reads Spotify's media transport session, if it has one.</summary>
 public interface ISmtcSessions
@@ -111,6 +115,11 @@ public sealed class SmtcTrackSource(ISmtcSessions sessions) : ITrackSource
 
             // Spotify numbers from 1, so a zero means "not reported" rather than a zeroth track.
             AlbumPosition = snapshot.TrackNumber is > 0 ? snapshot.TrackNumber : null,
+
+            // Same rule, and the reason it is worth reading: the encoder writes a bare "5" until
+            // it knows the total, and "5/12" the moment it does. No provider need be configured
+            // for that, because the client already told us both halves.
+            AlbumTrackCount = snapshot.AlbumTrackCount is > 0 ? snapshot.AlbumTrackCount : null,
             Playing = snapshot.IsPlaying,
             Ad = snapshot.IsPlaying && (snapshot.Title.IsAdvertisement() || !hasArtist),
         };
