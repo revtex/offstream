@@ -255,7 +255,7 @@ public sealed class SpotifyMetadataProvider(ISpotifyClient client, SpotifyPollin
         // catalogue changes is very nearly always. See ArtistGenresAsync.
         if (track.Genres is null or { Length: 0 })
         {
-            track.Genres = await ArtistGenresAsync(spotifyTrack, cancellationToken);
+            track.Genres = await ArtistGenresAsync(track, spotifyTrack, cancellationToken);
         }
 
         return true;
@@ -282,14 +282,31 @@ public sealed class SpotifyMetadataProvider(ISpotifyClient client, SpotifyPollin
     /// what the enricher's genre fallback is for.
     /// </para>
     /// </remarks>
-    private async Task<string[]> ArtistGenresAsync(FullTrack spotifyTrack, CancellationToken cancellationToken)
+    private async Task<string[]> ArtistGenresAsync(
+        Track track,
+        FullTrack spotifyTrack,
+        CancellationToken cancellationToken)
     {
         var artistId = spotifyTrack.Artists?
             .FirstOrDefault(artist => !string.IsNullOrEmpty(artist.Id))?.Id;
 
-        if (string.IsNullOrEmpty(artistId)) return [];
+        if (string.IsNullOrEmpty(artistId))
+        {
+            Log.Debug("Spotify reported no artist id for {Track}, so it has no genres to give.", track);
+            return [];
+        }
 
-        if (_artistGenres.TryGetValue(artistId, out var cached)) return cached;
+        if (_artistGenres.TryGetValue(artistId, out var cached))
+        {
+            Log.Debug(
+                "Reusing this session's genres for artist {ArtistId}: {Genres}.",
+                artistId,
+                cached.Length == 0 ? "none" : string.Join(", ", cached));
+
+            return cached;
+        }
+
+        Log.Debug("Asking Spotify for artist {ArtistId}'s genres.", artistId);
 
         var artist = await client.Artists.Get(artistId, cancellationToken);
 
@@ -302,6 +319,11 @@ public sealed class SpotifyMetadataProvider(ISpotifyClient client, SpotifyPollin
         // Cached even when empty: an artist Spotify has no genres for has none on the next track
         // either, and re-asking every track is the exact cost this exists to avoid.
         _artistGenres[artistId] = genres;
+
+        Log.Debug(
+            "Spotify gave artist {ArtistId} the genres: {Genres}.",
+            artistId,
+            genres.Length == 0 ? "none" : string.Join(", ", genres));
 
         return genres;
     }

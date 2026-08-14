@@ -596,6 +596,37 @@ public sealed class RecordingSessionTests
             "the captured WAV should survive a failed encode");
     }
 
+    /// <summary>
+    /// A failure is narrated once, on the event, and not a second time on the progress report.
+    /// </summary>
+    /// <remarks>
+    /// Both ended up in the activity log — the event at Error and the report's message at
+    /// Information — so every failure was printed twice, identically, once in a colour that said
+    /// act on this and once in one that said carry on. The report itself still has to fire,
+    /// because it is what moves the display back to waiting; it just no longer carries the text.
+    /// </remarks>
+    [Fact]
+    public async Task Session_WhenEncodingFails_DoesNotAlsoNarrateItOnProgress()
+    {
+        await using var harness = new Harness();
+
+        harness.Encoder.Failure = new FFmpegException("ffmpeg is not installed.");
+        harness.Session.Start();
+
+        await RecordTrackAsync(harness, Harness.Playing("Artist", "Title"));
+        harness.Play(Harness.Playing("Artist", "Next"));
+
+        await WaitFor(() => !harness.Failures.IsEmpty, "the encode failure to be reported");
+
+        Assert.True(harness.Failures.TryDequeue(out var failure));
+        Assert.Contains("ffmpeg is not installed.", failure!.Message, StringComparison.Ordinal);
+
+        Assert.DoesNotContain(
+            harness.Reports,
+            report => report.Message is { } message
+                      && message.Contains("ffmpeg is not installed.", StringComparison.Ordinal));
+    }
+
     /// <summary>Stopping mid-song keeps what has played rather than throwing it away.</summary>
     [Fact]
     public async Task StopAsync_FinishesTheTrackInProgress()

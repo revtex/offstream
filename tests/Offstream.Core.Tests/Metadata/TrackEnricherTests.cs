@@ -49,6 +49,8 @@ public sealed class TrackEnricherTests
 
     private sealed class FakeGenreFallback : IGenreFallback
     {
+        public MetadataProvider Kind { get; init; } = MetadataProvider.LastFm;
+
         public string[] Result { get; set; } = ["fallback genre"];
 
         public Exception? Failure { get; set; }
@@ -259,4 +261,54 @@ public sealed class TrackEnricherTests
         Assert.True(result.Updated);
         Assert.Equal("Album", track.Album);
     }
+
+    // ---- what the activity log says about genre ----
+
+    /// <summary>
+    /// The reason this is on the line at all: genre may have come from the provider named in the
+    /// message or from the fallback, and before it was printed the only way to know it had been
+    /// written was to run ffprobe over the finished file.
+    /// </summary>
+    [Fact]
+    public void DescribeGenres_JoinsWhatWasWritten() =>
+        Assert.Equal("trance, eurodance", TrackEnricher.DescribeGenres(["trance", "eurodance"]));
+
+    /// <summary>
+    /// The source is named only when it is not the provider already named at the start of the
+    /// message — which is the case worth knowing about, because it means the primary had no
+    /// genre for this artist.
+    /// </summary>
+    [Fact]
+    public void DescribeGenres_WhenTheFallbackSuppliedThem_NamesTheSource() =>
+        Assert.Equal(
+            "trip hop (LastFm)",
+            TrackEnricher.DescribeGenres(["trip hop"], MetadataProvider.LastFm));
+
+    /// <summary>A genre the provider itself supplied needs no attribution; it is already named.</summary>
+    [Fact]
+    public void DescribeGenres_WithNoSource_PrintsTheGenresAlone() =>
+        Assert.Equal("trance", TrackEnricher.DescribeGenres(["trance"], source: null));
+
+    /// <summary>Nothing to attribute, so the source is not printed either.</summary>
+    [Fact]
+    public void DescribeGenres_WithNoGenresButASource_StillSaysNone() =>
+        Assert.Equal("none", TrackEnricher.DescribeGenres([], MetadataProvider.LastFm));
+
+    [Fact]
+    public void DescribeGenres_WithASingleGenre_PrintsItAlone() =>
+        Assert.Equal("trance", TrackEnricher.DescribeGenres(["trance"]));
+
+    /// <summary>
+    /// "none" rather than the "unknown" the album and position use — it is a different answer.
+    /// Those are missing from a reply that arrived; this means every source was asked and none
+    /// had one, which is exactly the distinction someone debugging tagging needs.
+    /// </summary>
+    [Fact]
+    public void DescribeGenres_WithNoGenresWritten_SaysNone() =>
+        Assert.Equal("none", TrackEnricher.DescribeGenres([]));
+
+    /// <inheritdoc cref="DescribeGenres_WithNoGenresWritten_SaysNone" />
+    [Fact]
+    public void DescribeGenres_WithNoGenreFieldAtAll_SaysNone() =>
+        Assert.Equal("none", TrackEnricher.DescribeGenres(null));
 }

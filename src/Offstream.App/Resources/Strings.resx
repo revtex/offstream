@@ -242,8 +242,20 @@
     <comment>Settings page: label for the metadata provider dropdown.</comment>
   </data>
   <data name="SettingsProviderNone" xml:space="preserve">
-    <value>Nothing — use the window title only</value>
-    <comment>Metadata provider option: no lookup at all.</comment>
+    <value>Nothing — use what Spotify already reports</value>
+    <comment>Metadata provider option: no lookup at all. Not "the window title only": Spotify's media session is the primary source and supplies far more than a title.</comment>
+  </data>
+  <data name="SettingsProviderSummaryNone" xml:space="preserve">
+    <value>Spotify still reports artist, title, album, album artist and track number to Windows, and those are written to every file. No lookup means no cover art, no genre and no release year.</value>
+    <comment>Settings page: what gets tagged with no provider selected.</comment>
+  </data>
+  <data name="SettingsProviderSummaryLastFm" xml:space="preserve">
+    <value>Adds cover art and genre to what Spotify already reports. Last.fm publishes no release date, so {year} in a filename stays empty — only Spotify can fill it.</value>
+    <comment>Settings page: what Last.fm adds. {year} is the literal filename token, not a format placeholder.</comment>
+  </data>
+  <data name="SettingsProviderSummarySpotify" xml:space="preserve">
+    <value>Adds cover art, genre, release year, disc number and copyright to what Spotify already reports. The only provider that can fill {year}.</value>
+    <comment>Settings page: what the Spotify Web API adds. {year} is the literal filename token, not a format placeholder.</comment>
   </data>
   <data name="SettingsProviderLastFm" xml:space="preserve">
     <value>Last.fm</value>
@@ -292,10 +304,6 @@
   <data name="SettingsSpotifyNotSignedIn" xml:space="preserve">
     <value>Not signed in. Nothing will be tagged until you are.</value>
     <comment>Settings page: no Spotify refresh token is stored.</comment>
-  </data>
-  <data name="SettingsSpotifyAttribution" xml:space="preserve">
-    <value>Track details and cover art are provided by Spotify.</value>
-    <comment>Settings page: Spotify Developer Terms require content from the API to be attributed to Spotify.</comment>
   </data>
   <data name="AdvancedNamingSection" xml:space="preserve">
     <value>File names</value>

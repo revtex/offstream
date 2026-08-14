@@ -345,6 +345,31 @@ public sealed class SpotifyTrackMapperTests
     }
 
     /// <summary>
+    /// The media session reports a track count of its own, so an album object without one leaves
+    /// it standing rather than blanking it — the same rule the album and its artists follow.
+    /// </summary>
+    [Fact]
+    public void ApplyAlbum_WithNoTrackTotal_KeepsTheOneTheMediaSessionSupplied()
+    {
+        var fullAlbum = new FullAlbum
+        {
+            Artists = [],
+            Name = "Album",
+            Genres = [],
+            Images = [],
+            ReleaseDate = "2010",
+            TotalTracks = 0,
+        };
+
+        var track = WindowTitleTrack();
+        track.AlbumTrackCount = 12;
+
+        SpotifyTrackMapper.Apply(track, fullAlbum);
+
+        Assert.Equal(12, track.AlbumTrackCount);
+    }
+
+    /// <summary>
     /// Offstream records audio, so the phonogram line describes what is actually in the file.
     /// </summary>
     [Fact]

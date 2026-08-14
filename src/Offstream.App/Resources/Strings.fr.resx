@@ -194,7 +194,16 @@
     <value>Chercher l'album et la pochette avec</value>
   </data>
   <data name="SettingsProviderNone" xml:space="preserve">
-    <value>Rien — utiliser seulement le titre de la fenêtre</value>
+    <value>Rien — utiliser ce que Spotify signale déjà</value>
+  </data>
+  <data name="SettingsProviderSummaryNone" xml:space="preserve">
+    <value>Spotify signale toujours à Windows l'artiste, le titre, l'album, l'artiste de l'album et le numéro de piste, et ces données sont écrites dans chaque fichier. Sans recherche, il n'y a ni pochette, ni genre, ni année de sortie.</value>
+  </data>
+  <data name="SettingsProviderSummaryLastFm" xml:space="preserve">
+    <value>Ajoute la pochette et le genre à ce que Spotify signale déjà. Last.fm ne publie aucune date de sortie : {year} dans un nom de fichier reste donc vide — seul Spotify peut le remplir.</value>
+  </data>
+  <data name="SettingsProviderSummarySpotify" xml:space="preserve">
+    <value>Ajoute la pochette, le genre, l'année de sortie, le numéro de disque et le copyright à ce que Spotify signale déjà. Le seul fournisseur capable de remplir {year}.</value>
   </data>
   <data name="SettingsProviderLastFm" xml:space="preserve">
     <value>Last.fm</value>
@@ -231,9 +240,6 @@
   </data>
   <data name="SettingsSpotifyNotSignedIn" xml:space="preserve">
     <value>Non connecté. Rien ne sera étiqueté tant que ce n'est pas fait.</value>
-  </data>
-  <data name="SettingsSpotifyAttribution" xml:space="preserve">
-    <value>Les détails des titres et les pochettes sont fournis par Spotify.</value>
   </data>
   <data name="AdvancedNamingSection" xml:space="preserve">
     <value>Noms de fichiers</value>

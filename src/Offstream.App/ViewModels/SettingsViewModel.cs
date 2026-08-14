@@ -113,6 +113,7 @@ public sealed partial class SettingsViewModel : ObservableValidator
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsSpotifyProvider))]
     [NotifyPropertyChangedFor(nameof(IsLastFmProvider))]
+    [NotifyPropertyChangedFor(nameof(ProviderSummary))]
     [NotifyPropertyChangedFor(nameof(NeedsLastFmApiKey))]
     [NotifyCanExecuteChangedFor(nameof(SignInToSpotifyCommand))]
     private MetadataProvider _provider;
@@ -206,6 +207,29 @@ public sealed partial class SettingsViewModel : ObservableValidator
 
     /// <summary>Whether the Last.fm-specific fields apply.</summary>
     public bool IsLastFmProvider => Provider == MetadataProvider.LastFm;
+
+    /// <summary>What the chosen provider actually contributes, in the tags.</summary>
+    /// <remarks>
+    /// <para>
+    /// The dropdown names three providers and says nothing about how they differ, which leaves
+    /// the one question worth asking here — what do I lose by picking this one — answerable only
+    /// by recording something and running ffprobe over it. The differences are not small: only
+    /// Spotify carries a release date, so <c>{year}</c> in a filename template is empty under
+    /// either of the others, and that is invisible until a library comes out unsorted.
+    /// </para>
+    /// <para>
+    /// Each line is written as what the provider <i>adds</i>, because none of them is the floor.
+    /// Spotify reports artist, title, album, album artist and track number to the Windows media
+    /// session, and Offstream tags those whatever is selected here — "Nothing" included, which
+    /// is why that option no longer claims to use the window title alone.
+    /// </para>
+    /// </remarks>
+    public string ProviderSummary => Provider switch
+    {
+        MetadataProvider.Spotify => Strings.SettingsProviderSummarySpotify,
+        MetadataProvider.LastFm => Strings.SettingsProviderSummaryLastFm,
+        _ => Strings.SettingsProviderSummaryNone,
+    };
 
     /// <summary>
     /// Last.fm is chosen but has no key, so nothing will be tagged.

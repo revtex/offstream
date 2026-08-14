@@ -87,16 +87,21 @@ public sealed class TrackEnricher : ITrackEnricher
                 return TrackEnrichment.None;
             }
 
-            await ApplyGenreFallbackAsync(track, deadline.Token);
+            var genreSource = await ApplyGenreFallbackAsync(track, deadline.Token);
 
             var coverArtPath = await _coverArt.FetchAsync(track, deadline.Token);
 
+            // Genre is on this line because it is the one tag whose source is not obvious from
+            // the outside: it may have come from the provider named here or from the fallback
+            // below, and until it was printed the only way to know it had been written at all was
+            // to run ffprobe over the finished file.
             Log.Information(
-                "{Provider} tagged {Track}: album {Album}, track {Position}.",
+                "{Provider} tagged {Track}: album {Album}, track {Position}, genre {Genre}.",
                 _provider.Kind,
                 track,
                 track.Album ?? "unknown",
-                track.AlbumPosition?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "unknown");
+                track.AlbumPosition?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "unknown",
+                DescribeGenres(track.Genres, genreSource));
 
             return new TrackEnrichment(Updated: true, coverArtPath);
         }
@@ -125,6 +130,33 @@ public sealed class TrackEnricher : ITrackEnricher
     }
 
     /// <summary>
+    /// The genre tag as the activity log prints it, naming the source when it was not the
+    /// provider doing the tagging.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>"none"</c> rather than the <c>"unknown"</c> the album and position use, because it is a
+    /// different answer: those two are missing from a reply that was received, while an empty
+    /// genre means every source in the chain was asked and none had one. Worth distinguishing on
+    /// the line where someone is trying to work out whether tagging is working.
+    /// </para>
+    /// <para>
+    /// The source is a suffix on the value rather than a line of its own. It is only interesting
+    /// when it is *not* the provider already named at the start of the message — which is exactly
+    /// when it says something worth knowing, that the primary had no genre for this artist — and
+    /// a second line per track would be noise on every other track to carry it.
+    /// </para>
+    /// </remarks>
+    internal static string DescribeGenres(string[]? genres, MetadataProvider? source = null)
+    {
+        if (genres is not { Length: > 0 }) return "none";
+
+        var joined = string.Join(", ", genres);
+
+        return source is { } kind ? $"{joined} ({kind})" : joined;
+    }
+
+    /// <summary>
     /// Fills the genre tag from a second source when the chosen provider left it empty.
     /// </summary>
     /// <remarks>
@@ -139,19 +171,46 @@ public sealed class TrackEnricher : ITrackEnricher
     /// out would be the tail wagging the dog.
     /// </para>
     /// </remarks>
-    private async Task ApplyGenreFallbackAsync(Track track, CancellationToken cancellationToken)
+    /// <returns>
+    /// The provider the genre came from when the fallback supplied it, or null when it did not —
+    /// which the caller prints, rather than logging a second line of its own.
+    /// </returns>
+    private async Task<MetadataProvider?> ApplyGenreFallbackAsync(
+        Track track,
+        CancellationToken cancellationToken)
     {
-        if (_genreFallback is null || track.Genres is { Length: > 0 }) return;
+        if (track.Genres is { Length: > 0 }) return null;
+
+        // Said out loud, because "no genre" and "nowhere to ask" look identical in the tag and
+        // used to look identical in the log too.
+        if (_genreFallback is null)
+        {
+            Log.Debug(
+                "{Provider} had no genre for {Track} and no fallback is configured. "
+                + "Setting a Last.fm API key on the Settings page would give it a second source.",
+                _provider.Kind,
+                track);
+
+            return null;
+        }
 
         try
         {
             var genres = await _genreFallback.GetGenresAsync(track, cancellationToken);
 
-            if (genres.Length == 0) return;
+            if (genres.Length == 0)
+            {
+                Log.Debug(
+                    "{Fallback} had no genre for {Track} either, so the tag is left empty.",
+                    _genreFallback.Kind,
+                    track);
+
+                return null;
+            }
 
             track.Genres = genres;
 
-            Log.Debug("Genre for {Track} came from the fallback source: {Genres}.", track, genres);
+            return _genreFallback.Kind;
         }
         catch (OperationCanceledException)
         {
@@ -163,5 +222,7 @@ public sealed class TrackEnricher : ITrackEnricher
         {
             Log.Debug(ex, "The genre fallback failed for {Track}; leaving the tag empty.", track);
         }
+
+        return null;
     }
 }

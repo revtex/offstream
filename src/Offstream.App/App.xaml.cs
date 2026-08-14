@@ -17,6 +17,16 @@ namespace Offstream.App;
 /// </summary>
 public partial class App : Application
 {
+    /// <summary>How long the whole shutdown gets before the process stops waiting for it.</summary>
+    /// <remarks>
+    /// Generous, because a queued encode is a file the user is waiting for and the backlog is
+    /// drained rather than dropped — <see cref="Offstream.Core.Encoding.EncodeBacklog"/>'s own
+    /// completion path takes no deadline at all. Finite, because it is the only thing standing
+    /// between one wedged ffmpeg and a process with no window, no tray icon, and no way to stop
+    /// it short of Task Manager.
+    /// </remarks>
+    private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(30);
+
     private readonly IHost _host;
 
     /// <summary>Held for the life of the process; see <see cref="SingleInstance"/>.</summary>
@@ -167,7 +177,7 @@ public partial class App : Application
         }
     }
 
-    protected override async void OnExit(ExitEventArgs e)
+    protected override void OnExit(ExitEventArgs e)
     {
         Log.Information("Offstream exiting.");
 
@@ -176,13 +186,66 @@ public partial class App : Application
         _instance?.Dispose();
         _instance = null;
 
-        using (_host)
+        // Blocking, and on a thread-pool thread rather than this one.
+        //
+        // This method used to be `async void`, which WPF does not await. It ran as far as its
+        // first await, returned, and let Application.Run finish tearing the Dispatcher down —
+        // and the continuation holding the rest of the shutdown was posted to a Dispatcher that
+        // would never run it again. So on every exit the host was never stopped, the capture
+        // device was never closed, the encode backlog was never drained, and the log was never
+        // flushed, which is why none of this left a trace to read afterwards. Closing the window
+        // mid-recording left all of it running with no window and no tray icon to stop it from.
+        //
+        // Task.Run is what makes blocking here safe: it keeps the await continuations off the
+        // Dispatcher. Waiting on this thread for work that wanted to resume on this thread is
+        // the other way to hang an exit, and swapping one hang for another is no fix.
+        if (!Task.Run(ShutdownAsync).Wait(ShutdownTimeout))
         {
-            await _host.StopAsync(TimeSpan.FromSeconds(5));
+            Log.Warning(
+                "Shutdown did not finish within {Seconds:F0}s. Leaving whatever is still running "
+                + "behind rather than staying up with nothing on screen to stop it.",
+                ShutdownTimeout.TotalSeconds);
+
+            Log.CloseAndFlush();
+
+            // The guarantee the user is owed: closing Offstream ends Offstream. Everything worth
+            // saving has either finished or had its chance by now, and the alternative - the one
+            // that prompted this - is a process only Task Manager can reach.
+            Environment.Exit(0);
         }
 
-        await Log.CloseAndFlushAsync();
+        Log.CloseAndFlush();
 
         base.OnExit(e);
+    }
+
+    /// <summary>Stops the host and disposes everything the container owns.</summary>
+    private async Task ShutdownAsync()
+    {
+        try
+        {
+            await _host.StopAsync(TimeSpan.FromSeconds(5));
+
+            // DisposeAsync rather than the Dispose the `using` used to call. RecordingController
+            // is a singleton implementing IAsyncDisposable *only*, and the container refuses to
+            // dispose such a service synchronously — ServiceProvider.Dispose() throws
+            // InvalidOperationException rather than falling back to a blocking wait. The
+            // controller is what owns the running session, so the sync path threw at precisely
+            // the moment the recording most needed stopping.
+            if (_host is IAsyncDisposable disposable)
+            {
+                await disposable.DisposeAsync();
+            }
+            else
+            {
+                _host.Dispose();
+            }
+        }
+#pragma warning disable CA1031 // Nothing here is worth leaving the process up for.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            Log.Error(ex, "Offstream did not shut down cleanly.");
+        }
     }
 }

@@ -141,4 +141,45 @@ public sealed class DetectedTrackMatchTests
 
         Assert.False(DetectedTrackMatch.Matches(detected, "***", reportedArtists: null));
     }
+
+    /// <summary>
+    /// The case this guard was written for: Last.fm attributed ATB's "9Pm (Till I Come)" to a
+    /// radio-show tracklist while the media session was reporting the album it actually plays from.
+    /// </summary>
+    [Fact]
+    public void AlbumAgrees_IsFalse_ForADifferentRelease()
+    {
+        Assert.False(DetectedTrackMatch.AlbumAgrees(
+            "Movin' Melodies",
+            "A Cutie Who Hates Blu Ray (W/Séverine) - N10.AS - 09 - 23 - 2020"));
+    }
+
+    [Theory]
+    [InlineData("Movin' Melodies", "Movin Melodies")]
+    [InlineData("Movin' Melodies", "MOVIN' MELODIES")]
+    // An edition suffix is more said about the same record, from either side.
+    [InlineData("Movin' Melodies", "Movin' Melodies (Deluxe Edition)")]
+    [InlineData("Movin' Melodies [Remastered]", "Movin' Melodies")]
+    public void AlbumAgrees_IsTrue_ForTheSameRelease(string detected, string reported) =>
+        Assert.True(DetectedTrackMatch.AlbumAgrees(detected, reported));
+
+    /// <summary>
+    /// A prefix only extends a name at a word boundary — otherwise every album whose title began
+    /// with another's would swallow it.
+    /// </summary>
+    [Fact]
+    public void AlbumAgrees_IsFalse_WhenTheNameOnlyStartsWithTheSameLetters() =>
+        Assert.False(DetectedTrackMatch.AlbumAgrees("Ray", "Rayman"));
+
+    /// <summary>
+    /// Nothing to disagree with: the window-title parser never reports an album, and a provider
+    /// that has none is not contradicting the one already on the track.
+    /// </summary>
+    [Theory]
+    [InlineData(null, "Movin' Melodies")]
+    [InlineData("Movin' Melodies", null)]
+    [InlineData("   ", "Movin' Melodies")]
+    [InlineData(null, null)]
+    public void AlbumAgrees_IsTrue_WhenEitherSideIsUnknown(string? detected, string? reported) =>
+        Assert.True(DetectedTrackMatch.AlbumAgrees(detected, reported));
 }
