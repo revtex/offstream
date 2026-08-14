@@ -263,15 +263,35 @@
                                 what actually produces the token a recording presents, which is why
                                 the status line beside it says plainly whether one exists.
                             -->
-                            <StackPanel Margin="0,10,0,0" Orientation="Horizontal">
-                                <ui:Button AutomationProperties.AutomationId="SettingsSpotifySignIn"
+            <!--
+                                Stacked rather than side by side. The status line is a sentence and
+                                the button's label changes with the sign-in state — and again with
+                                the language, where the French is longer still — so a horizontal row
+                                sized itself off whichever was current and clipped the sentence the
+                                moment either grew. Vertically, neither constrains the other.
+                            -->
+                            <StackPanel Margin="0,10,0,0">
+                                <ui:Button HorizontalAlignment="Left"
+                                           AutomationProperties.AutomationId="SettingsSpotifySignIn"
                                            Command="{Binding SignInToSpotifyCommand, Mode=OneTime}"
                                            Content="{Binding SpotifySignInLabel, Mode=OneWay}" />
 
-                                <TextBlock Margin="12,0,0,0"
-                                           VerticalAlignment="Center"
+                                <TextBlock Margin="0,8,0,0"
                                            Style="{StaticResource OffstreamHintStyle}"
-                                           Text="{Binding SpotifyAccountStatus, Mode=OneWay}" />
+                                           Text="{Binding SpotifyAccountStatus, Mode=OneWay}"
+                                           TextWrapping="Wrap" />
+
+                                <!--
+                                    Which account, not just whether there is one. Recordings go
+                                    untagged when this is not the account the music plays on, and
+                                    that failure is otherwise invisible from here — the lookups
+                                    simply return nothing, for a reason no screen was showing.
+                                -->
+                                <TextBlock Margin="0,4,0,0"
+                                           Style="{StaticResource OffstreamHintStyle}"
+                                           Text="{Binding SpotifyAccountName, Mode=OneWay}"
+                                           TextWrapping="Wrap"
+                                           Visibility="{Binding HasSpotifyAccountName, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
                             </StackPanel>
 
                             <TextBlock Style="{StaticResource OffstreamHintStyle}"

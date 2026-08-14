@@ -106,4 +106,21 @@ internal sealed class FakeSpotifyAccount : ISpotifyAccount
 
     public ISpotifyClient? CreateClient(
         string? clientId, string? refreshToken, Action<string> onRefreshTokenRotated) => null;
+
+    /// <summary>What <see cref="DescribeAccountAsync"/> answers — null being "could not tell".</summary>
+    public string? AccountDescription { get; set; }
+
+    /// <summary>The refresh token the account lookup was handed, to prove the stored one reaches it.</summary>
+    public string? DescribedWith { get; private set; }
+
+    public Task<string?> DescribeAccountAsync(
+        string? clientId,
+        string? refreshToken,
+        Action<string> onRefreshTokenRotated,
+        CancellationToken cancellationToken = default)
+    {
+        DescribedWith = refreshToken;
+
+        return Task.FromResult(AccountDescription);
+    }
 }

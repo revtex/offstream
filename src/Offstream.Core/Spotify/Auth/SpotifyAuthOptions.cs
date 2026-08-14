@@ -26,9 +26,20 @@ public sealed record SpotifyAuthOptions
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Offstream makes exactly two calls: <c>GET /me/player/currently-playing</c>, which this
-    /// scope covers, and <c>GET /albums/{id}</c>, which needs no user scope at all. Nothing here
-    /// grants playback control — Offstream reads, it never drives Spotify.
+    /// Offstream makes exactly three calls. <c>GET /me/player/currently-playing</c> is covered by
+    /// <c>user-read-currently-playing</c>; <c>GET /albums/{id}</c> needs no user scope at all; and
+    /// <c>GET /me</c>, which puts the signed-in account on the Settings page, needs
+    /// <c>user-read-private</c>. Nothing here grants playback control — Offstream reads, it never
+    /// drives Spotify.
+    /// </para>
+    /// <para>
+    /// <b><c>user-read-email</c> is not here, and cannot be justified.</b> The OpenAPI schema lists
+    /// it on <c>GET /me</c>, and the display name genuinely is not an identifier — two accounts can
+    /// share one, which is the case that prompted naming the account at all. The email would settle
+    /// that, except Spotify removed the field in its late-2024 cull, alongside <c>country</c>,
+    /// <c>product</c> and <c>followers</c>; the SDK marks it <c>[Obsolete]</c> with "Field 'email'
+    /// has been removed." Asking for it would buy a permission over data that no longer exists.
+    /// The account <b>id</b> does the same job for nothing — unique, stable, still returned.
     /// </para>
     /// <para>
     /// This asked for <c>user-read-playback-state</c> and <c>user-read-recently-played</c> as
@@ -38,7 +49,8 @@ public sealed record SpotifyAuthOptions
     /// is load-bearing. Ask again when something actually calls those endpoints.
     /// </para>
     /// </remarks>
-    public static readonly IReadOnlyList<string> DefaultScopes = [SpotifyScopes.UserReadCurrentlyPlaying];
+    public static readonly IReadOnlyList<string> DefaultScopes =
+        [SpotifyScopes.UserReadCurrentlyPlaying, SpotifyScopes.UserReadPrivate];
 
     /// <summary>The Client ID from the user's Spotify Developer Dashboard app.</summary>
     public required string ClientId { get; init; }

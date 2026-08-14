@@ -10,13 +10,30 @@ namespace Offstream.Core.Tests.Spotify.Auth;
 public sealed class SpotifyAuthOptionsTests
 {
     /// <summary>
-    /// Offstream reads what is playing and looks up its album. The first needs this scope, the
-    /// second needs none — so this is the whole list, and anything added here has to be justified
+    /// Offstream reads what is playing, looks up its album, and names the signed-in account. The
+    /// first needs <c>user-read-currently-playing</c>, the second needs none, and the third needs
+    /// both of the others — so this is the whole list, and anything added here has to be justified
     /// by an endpoint that is actually called.
     /// </summary>
+    /// <remarks>
+    /// The schema also puts <c>user-read-email</c> on <c>GET /me</c>, and it is deliberately not
+    /// taken: Spotify removed the <c>email</c> field in its late-2024 cull, so that scope now
+    /// covers data the endpoint no longer returns. The account id distinguishes two same-named
+    /// accounts just as well and costs no permission at all.
+    /// </remarks>
     [Fact]
     public void DefaultScopes_AreTheMinimumTheAppActuallyUses() =>
-        Assert.Equal(["user-read-currently-playing"], SpotifyAuthOptions.DefaultScopes);
+        Assert.Equal(
+            ["user-read-currently-playing", "user-read-private"],
+            SpotifyAuthOptions.DefaultScopes);
+
+    /// <summary>
+    /// A permission over a field Spotify has removed is a permission for nothing — the exact thing
+    /// the minimum-scopes rule exists to prevent, and easy to take by following the schema alone.
+    /// </summary>
+    [Fact]
+    public void DefaultScopes_DoNotAskForTheRemovedEmailField() =>
+        Assert.DoesNotContain("user-read-email", SpotifyAuthOptions.DefaultScopes);
 
     /// <summary>
     /// Nothing in Offstream drives playback, and a scope granting it would be visible to the user

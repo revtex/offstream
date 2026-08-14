@@ -27,6 +27,28 @@ public interface ISpotifyAccount
     /// every renewal. Not persisting it is how a long-running install silently stops working.
     /// </param>
     ISpotifyClient? CreateClient(string? clientId, string? refreshToken, Action<string> onRefreshTokenRotated);
+
+    /// <summary>
+    /// Which account is signed in, as one line, or null when it cannot be established.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The email is the identifying half, not the name.</b> One person can hold two Spotify
+    /// accounts under the same display name, so a line carrying only the name looks like an answer
+    /// and is not one. Both are shown when both exist, and the account id stands in when neither
+    /// does — it is always present, and naming the account is the entire job.
+    /// </para>
+    /// <para>
+    /// <b>Never throws.</b> This is a label on a settings page: a refresh token minted before these
+    /// scopes existed answers 403, an offline machine answers nothing, and neither is worth an
+    /// error beside a sign-in that still tags recordings perfectly well. The line is simply absent.
+    /// </para>
+    /// </remarks>
+    Task<string?> DescribeAccountAsync(
+        string? clientId,
+        string? refreshToken,
+        Action<string> onRefreshTokenRotated,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -101,6 +123,64 @@ public sealed class SpotifyAccount(IHttpClientFactory httpClientFactory) : ISpot
 
         return new SpotifyClient(Config().WithAuthenticator(authenticator));
     }
+
+    /// <inheritdoc />
+    public async Task<string?> DescribeAccountAsync(
+        string? clientId,
+        string? refreshToken,
+        Action<string> onRefreshTokenRotated,
+        CancellationToken cancellationToken = default)
+    {
+        var client = CreateClient(clientId, refreshToken, onRefreshTokenRotated);
+
+        if (client is null) return null;
+
+        try
+        {
+            var profile = await client.UserProfile.Current(cancellationToken);
+
+            return Describe(Blank(profile?.DisplayName), Blank(profile?.Id));
+        }
+        catch (APIException ex)
+        {
+            // Overwhelmingly this is a 403 from a refresh token minted before these scopes existed.
+            // That sign-in still tags recordings perfectly well, and re-running it is what fills
+            // this in, so it is not worth a warning beside an account that is working.
+            Log.Debug(ex, "Spotify would not say which account is signed in.");
+            return null;
+        }
+        catch (HttpRequestException ex)
+        {
+            Log.Debug(ex, "Spotify could not be reached to ask which account is signed in.");
+            return null;
+        }
+    }
+
+    /// <summary>The account as one line: the name to read, and the id that identifies it.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Both, because the name alone does not identify anything.</b> Two Spotify accounts can
+    /// carry the same display name, and telling exactly those apart is what putting the account on
+    /// screen is for — a line showing only the name would look like an answer while leaving the
+    /// question open.
+    /// </para>
+    /// <para>
+    /// The id rather than the email. The email would be the natural choice and is what Spotify's
+    /// schema still implies is available, but the field was removed in the late-2024 API cull, so
+    /// the scope covering it now grants access to nothing. The id is unique, stable, needs no extra
+    /// permission, and is the name in the account's own profile URL — so it is recognisable rather
+    /// than merely unique.
+    /// </para>
+    /// </remarks>
+    internal static string? Describe(string? name, string? id) => (name, id) switch
+    {
+        ({ } named, { } account) => $"{named} ({account})",
+        (null, { } account) => account,
+        ({ } named, null) => named,
+        _ => null,
+    };
+
+    private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     /// <summary>
     /// An SDK config routed through the factory's <see cref="HttpClient"/> rather than the
