@@ -107,7 +107,42 @@ phase plan these entries follow.
   Spotify's own precision, alongside the year the `{year}` token needs; the album's track total,
   so the track tag reads `4/12` and a player can tell a partial rip from a complete album; and
   the album's copyright line, preferring the recording's over the composition's.
-- **860 tests**, 14 of which drive the real window through FlaUI and are excluded from CI.
+- **Audio endpoints appearing and disappearing are handled.** Losing the endpoint mid-recording
+  was silent — WASAPI simply stops delivering.
+- **Extended-length path support.** Offstream does not write the output file, ffmpeg does, in a
+  separate process with its own manifest, so a `longPathAware` opt-in here would not reach it.
+  The `\\?\` prefix travels with the path through `ArgumentList` instead. It is applied only to
+  fully-qualified, already-normalised paths, because the prefix turns path normalisation off —
+  Windows stops resolving `.` and `..`, converting `/`, and trimming trailing dots and spaces,
+  so an untidy path becomes one the filesystem rejects. Per-level allowances stay clamped to
+  255: extended paths raise the total length, not the component length.
+- **VB-CABLE detection, reported beside the device picker.** Detection only, and that is a
+  licence decision rather than an unfinished one — the package is donationware whose readme
+  forbids integrating it into another installation procedure without the author's agreement.
+  Offstream carries no vendor binaries and links to vb-audio.com when the cable is absent.
+  Plan open question 9 has to be answered before any other form ships.
+- **The activity log is a tab of its own**, with a level filter and copy-what-you-see. Third
+  home in three attempts: a log wants either the whole surface or none of it, and a shared page
+  offers neither.
+- **The Record page shows what it has done** — tracks saved this session with a reveal button
+  per row, and the cover art, album and destination for the track being recorded. All of it was
+  already known and thrown away: the enricher fetches the art to embed it, and the destination
+  is rendered to decide where to write.
+- **Genre from Spotify's artists, with Last.fm behind it.** Spotify has no genre on a track at
+  any endpoint — it models genre as an attribute of the artist — so `/v1/artists/{id}` is the
+  one place the data still lives. It needs no new scope, since artist data is public, and is
+  cached per session by artist id, misses included. Artist genres describe a body of work rather
+  than a recording, which is the honest limitation and the reason for a second rung: Last.fm's
+  tags are per track, then per artist, then empty.
+- **The album's track total from the Windows media session.** Spotify reports it alongside the
+  track number and only the second was being read, so the `5/12` track tag needed a configured
+  provider even though the client had volunteered both halves.
+- **A summary of what each metadata provider contributes**, under the Settings dropdown. It
+  named three providers and said nothing about how they differ, leaving the one question worth
+  asking — what do I lose by picking this one — answerable only by recording something and
+  running `ffprobe` over it. Phrased as what each provider *adds*, because none of them is the
+  floor; only Spotify carries a release date, so `{year}` is empty under either of the others.
+- **1051 tests** (877 Core, 174 UI).
 
 ### Changed
 
@@ -145,6 +180,28 @@ phase plan these entries follow.
   than silently reverting to defaults and discarding the user's configuration.
 - **Settings live at `%APPDATA%\Offstream\settings.json`** as JSON, replacing the .NET
   `user.config` mechanism.
+- **The target framework is `net10.0-windows10.0.22621.0`.** SMTC lives in
+  `Windows.Media.Control`, which only exists to bind against when the CsWinRT projections are
+  on, and those are switched on by the TFM carrying a version. 22621 rather than Windows 11's
+  22000 floor: it is the oldest build still in support. The hand-rolled `IAudioPolicyConfig`
+  interop is unaffected by construction — it names its runtime class only as a string and
+  otherwise uses `ComImport` and raw P/Invoke — and was re-verified on build 26200 regardless.
+- **The Windows media session is the primary track source**, with the window title as fallback.
+  The title is only readable while Spotify has a window; minimised to the tray it has none, and
+  detection stopped dead — the recorder could sit idle through a whole session because the user
+  tidied the taskbar. It is also better information: the title is one string that has to be split
+  on a separator that can legitimately appear inside either half, while the media session hands
+  over separate fields and an album with them.
+- **Metadata precedence is the provider first, the media session underneath.** Not "client first
+  with the API as fallback", which sounds equivalent and is not — the two have asymmetric
+  coverage, and the API is the only source for half the tag set. The provider wins wherever it
+  answers; what the client already knew fills the gaps.
+- **The file-name template and its preview take the card's full width**, in the order they are
+  used, with the preview in a recessed well of its own — it is the one thing in that card that
+  is output rather than input.
+- **The recording display is backlit rather than reflective**, and no longer carries the track
+  name. Pale grey with near-black segments was a calculator face and the palest object in a
+  nearly black window. The track name moved to the card with the art and album it belongs to.
 
 ### Removed
 
@@ -251,6 +308,62 @@ phase plan these entries follow.
 - **The "write the counter to the track number" setting did nothing.** It is now applied to the
   tag, without disturbing the `{track}` filename token, which keeps meaning the position within
   the album.
+- **Tagging stopped an hour into every session.** The SDK's `PKCEAuthenticator` stores exactly
+  one token and renews by writing the response's fields onto it in place — but Spotify's PKCE
+  renewal is not obliged to return a new `refresh_token`, and when it omits one that null lands
+  on the good value. The first renewal still succeeds, so nothing looks wrong; the next throws
+  from inside the SDK and every lookup for the rest of the session fails identically.
+  `ResilientPkceAuthenticator` remembers the last refresh token Spotify actually sent and puts
+  it back before each request, leaving renewal itself to the SDK.
+- **Every logged cause was dropped on the way to the Record page.** `InMemoryLogSink` rendered
+  the message template and discarded `LogEvent.Exception`, so the answer to the bug above sat in
+  the log file for hours while the pane said only that something failed. It now appends the
+  exception's type and message — not the stack trace, which would swamp a one-line-per-entry
+  list.
+- **"Keep the one on disk" behaved as "overwrite"** for anyone whose template was more than
+  artist and title. The policy was checked the instant a track changed, before the metadata
+  lookup had returned anything, so a template naming an album rendered with album, year and
+  track number still empty — the check looked somewhere nothing is ever written, found nothing
+  every time, and let the rename replace the real file without a word. The authoritative check
+  moved after enrichment, where the destination is finally knowable, and all three outcomes now
+  name themselves and the file.
+- **Spotify metadata matched nothing the media session reported.** The guard compared Spotify's
+  bare track name against the detected title after running only Spotify's side through the
+  window-title splitter — a parsed string against an unparsed one, for every track the media
+  session found, which has been the common case since it became the primary source. Four
+  attempts, several seconds, then an untagged recording. `DetectedTrackMatch` reduces both sides
+  to a common form and compares them in both shapes. Normalisation stops well short of fuzzy:
+  the wrong answer here is not "no metadata" but a file tagged as a different song.
+- **Last.fm accepted any release its database happened to associate.** It had no equivalent of
+  the guard above, so whatever came back was written — and for a well-known track that is
+  regularly a DJ set or radio show it once appeared on. `DetectedTrackMatch.AlbumAgrees` now
+  checks the reported album against the one the client is playing the track out of, treating an
+  edition suffix as more said about the same record. A rejected release still yields its genre,
+  since tags describe the recording rather than the release.
+- **Last.fm reported no genre for a great many tracks it has tags for.** The lookup stopped at
+  the empty per-track tag cloud without asking about the artist, and as the *chosen* provider it
+  mapped nothing at all — genres included — unless an album came back too, which is the wrong
+  gate for a question that never asked about albums.
+- **What the media session already knew was discarded** whenever the provider could not help.
+  With the match guard rejecting every attempt, no provider configured, or Spotify down, the
+  file was written bare while artist, title, album, album artist and position had all been
+  reported for that exact track. Both mappers now fill rather than clear.
+- **Closing the window mid-recording left a process running with no window and no tray icon**,
+  killable only from Task Manager. `OnExit` was `async void`, which WPF does not await: it ran
+  to its first await, returned, and let `Application.Run` tear the Dispatcher down, so the
+  continuation carrying the rest of the shutdown was posted to a Dispatcher that would never run
+  it — the host was never stopped, the capture client never closed, the encode backlog never
+  drained, and the log never flushed, which is why the failure left nothing to read. The
+  container was then disposed synchronously, which throws on a singleton implementing
+  `IAsyncDisposable` only, and nothing bounded the drain. Shutdown is now synchronous, off the
+  Dispatcher, asynchronous in disposal, and capped at thirty seconds.
+- **Every recording failure was printed twice**, once at `Error` and once at `Information` with
+  identical text — one colour meaning *act on this* and one meaning *carry on*.
+- **A cover-art failure was filed as news.** It went out as a progress message, which lands at
+  `Information`, below the Problems filter and so invisible to anyone who went looking for
+  exactly this.
+- **The session total read "0 saved" forever.** The count was right the whole time; only the
+  derived string was never refreshed.
 
 ### Security
 
