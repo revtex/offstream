@@ -99,14 +99,14 @@ jobs:
       - name: Build
         run: dotnet build Offstream.slnx --configuration Release --no-restore
 
-      # FlaUI tests drive a real window and need an interactive desktop session, which
-      # hosted runners do not provide. They run locally and on a self-hosted agent.
+      # No filter: every test in the solution runs here. The FlaUI suite that needed one — it
+      # drove a real window and hosted runners have no interactive desktop session — is gone,
+      # and the window is verified by hand instead.
       - name: Test
         run: >
           dotnet test Offstream.slnx
           --configuration Release
           --no-build
-          --filter "Category!=Desktop"
           --logger "trx;LogFileName=test-results.trx"
           --results-directory artifacts/test-results
 

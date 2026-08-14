@@ -50,6 +50,7 @@ public sealed partial class ShellViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsRecordTab))]
     [NotifyPropertyChangedFor(nameof(IsSettingsTab))]
     [NotifyPropertyChangedFor(nameof(IsAdvancedTab))]
+    [NotifyPropertyChangedFor(nameof(IsLogsTab))]
     private ShellTab _tab = ShellTab.Record;
 
     /// <summary>The track the last progress report named, or null when nothing is playing.</summary>
@@ -120,7 +121,7 @@ public sealed partial class ShellViewModel : ObservableObject
     /// Which tab is showing, one property per tab.
     /// </summary>
     /// <remarks>
-    /// The host keeps all three pages loaded and toggles their visibility, so each needs its own
+    /// The host keeps every page loaded and toggles their visibility, so each needs its own
     /// boolean to bind. <see cref="IsRecordTab"/> earns a second job: it is also what offers the
     /// transport button, which belongs to the Record tab alone.
     /// </remarks>
@@ -131,6 +132,9 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <inheritdoc cref="IsRecordTab"/>
     public bool IsAdvancedTab => Tab == ShellTab.Advanced;
+
+    /// <inheritdoc cref="IsRecordTab"/>
+    public bool IsLogsTab => Tab == ShellTab.Logs;
 
     /// <summary>Whether <see cref="StartupWarning"/> has anything worth showing.</summary>
     public bool HasStartupWarning => !string.IsNullOrWhiteSpace(StartupWarning);

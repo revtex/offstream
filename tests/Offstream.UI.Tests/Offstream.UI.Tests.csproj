@@ -1,9 +1,9 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    FlaUI end-to-end tests. These drive a real window, so they need an interactive desktop
-    session and are excluded from the default CI test run by the Category!=Desktop filter
-    (see .github/workflows/ci.yml).
+    ViewModel, controller and service tests for the shell. Nothing here drives a window: the
+    end-to-end FlaUI suite that used to live alongside them is gone, and the window itself is
+    verified by hand.
   -->
   <PropertyGroup>
     <RootNamespace>Offstream.UI.Tests</RootNamespace>
@@ -20,11 +20,9 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
-    <PackageReference Include="FlaUI.UIA3" />
 
-    <!-- For the ViewModel and controller tests, which stand in for the pipeline rather than
-         driving a window: a fake session factory needs a track source and an encoder, and
-         SettingsStore needs somewhere to not find a settings file. -->
+    <!-- A fake session factory needs a track source and an encoder, and SettingsStore needs
+         somewhere to not find a settings file. -->
     <PackageReference Include="Moq" />
     <PackageReference Include="System.IO.Abstractions.TestingHelpers" />
   </ItemGroup>

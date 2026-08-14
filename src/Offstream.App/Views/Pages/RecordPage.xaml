@@ -4,87 +4,11 @@
              xmlns:controls="clr-namespace:Offstream.App.Views.Controls"
              xmlns:res="clr-namespace:Offstream.App.Resources"
              xmlns:serilog="clr-namespace:Serilog.Events;assembly=Serilog"
-             xmlns:svc="clr-namespace:Offstream.App.Services"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:vm="clr-namespace:Offstream.App.ViewModels">
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibility" />
-
-        <!--
-            One line of the activity log. Level is carried on the entry rather than parsed back
-            out of the text, so a warning is a colour and not a substring match.
-        -->
-        <DataTemplate x:Key="LogEntryTemplate" DataType="{x:Type vm:LogEntry}">
-            <TextBlock Text="{Binding Text, Mode=OneTime}" TextWrapping="NoWrap">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding Level, Mode=OneTime}" Value="{x:Static serilog:LogEventLevel.Warning}">
-                                <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding Level, Mode=OneTime}" Value="{x:Static serilog:LogEventLevel.Error}">
-                                <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding Level, Mode=OneTime}" Value="{x:Static serilog:LogEventLevel.Fatal}">
-                                <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
-        </DataTemplate>
-        <!--
-            One readiness check, as a pill.
-
-            A dot rather than an icon, and colour carrying only the severity: the text says what
-            is wrong, so the colour is a way to find the row rather than the only way to read it.
-            Three states because "will not start" and "will start worse" are genuinely different
-            answers and collapsing them would make the panel either alarmist or useless.
-        -->
-        <DataTemplate x:Key="ReadinessCheckTemplate" DataType="{x:Type svc:ReadinessCheck}">
-            <Border Margin="0,0,8,6"
-                    Padding="9,4"
-                    Background="{StaticResource OffstreamWellBrush}"
-                    BorderBrush="{StaticResource OffstreamSurfaceBorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="10"
-                    ToolTip="{Binding Detail, Mode=OneTime}">
-                <StackPanel Orientation="Horizontal">
-                    <Ellipse Width="7"
-                             Height="7"
-                             Margin="0,0,7,0"
-                             VerticalAlignment="Center">
-                        <Ellipse.Style>
-                            <Style TargetType="Ellipse">
-                                <Setter Property="Fill" Value="{StaticResource OffstreamReadyBrush}" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding State, Mode=OneTime}" Value="{x:Static svc:ReadinessState.Degraded}">
-                                        <Setter Property="Fill" Value="{DynamicResource SystemFillColorCautionBrush}" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding State, Mode=OneTime}" Value="{x:Static svc:ReadinessState.Blocked}">
-                                        <Setter Property="Fill" Value="{DynamicResource SystemFillColorCriticalBrush}" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Ellipse.Style>
-                    </Ellipse>
-
-                    <TextBlock Margin="0,0,6,0"
-                               VerticalAlignment="Center"
-                               Style="{StaticResource CaptionTextBlockStyle}"
-                               Text="{Binding Name, Mode=OneTime}" />
-
-                    <TextBlock MaxWidth="240"
-                               VerticalAlignment="Center"
-                               Foreground="{StaticResource OffstreamIdleBrush}"
-                               Style="{StaticResource CaptionTextBlockStyle}"
-                               Text="{Binding Detail, Mode=OneTime}"
-                               TextTrimming="CharacterEllipsis"
-                               TextWrapping="NoWrap" />
-                </StackPanel>
-            </Border>
-        </DataTemplate>
 
         <!--
             One saved recording. Name on top, where it landed underneath, length on the right.
@@ -139,7 +63,6 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!--
@@ -158,10 +81,17 @@
                     Severity="Error" />
 
         <!--
-            The display. One panel: transport state and the counter on the top line, what is
-            playing and what it is being written as on the second, the meters below. That is the
-            order a field recorder puts them in, and the borrowing is the point - the whole face
-            is legible at a glance to anyone who has held one.
+            The display. One panel: transport state and what the output is on the left, the
+            counter on the right, the meters below. That is the order a field recorder puts them
+            in, and the borrowing is the point - the whole face is legible at a glance to anyone
+            who has held one.
+
+            <b>The track name is not on it.</b> It was, on a line of its own, and it was the one
+            thing on the face that is neither a transport state nor a measurement - a proper noun
+            of arbitrary length, ellipsised, sitting where an instrument prints a legend. It has
+            a better home in the Currently recording card below, next to the cover art and the
+            album it belongs with, and taking it off leaves the face doing the one job a panel
+            like this is read for.
         -->
         <Border Grid.Row="1"
                 Margin="0,0,0,12"
@@ -180,12 +110,12 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <!-- Margin 14 matches the meter's own internal padding, so every left edge lines up. -->
-                <Grid Grid.Row="0" Margin="14,12,14,0">
+                <Grid Grid.Row="0" Margin="14,12,14,2">
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
@@ -267,39 +197,44 @@
                         </TextBlock>
                     </Border>
 
+                    <!--
+                        What the output will be, beside the transport block rather than under the
+                        counter. It is the other half of the transport state - "recording" and
+                        "recording as what" answer one question between them - and putting it here
+                        buys the counter the whole right-hand side.
+                    -->
                     <TextBlock Grid.Column="1"
+                               Margin="12,0,12,0"
                                VerticalAlignment="Center"
-                               AutomationProperties.AutomationId="RecordElapsed"
-                               FontFamily="{StaticResource OffstreamMonoFontFamily}"
-                               FontSize="28"
-                               Foreground="{StaticResource OffstreamLcdSegmentBrush}"
-                               Text="{Binding ElapsedText, Mode=OneWay}" />
-                </Grid>
-
-                <Grid Grid.Row="1" Margin="14,4,14,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-
-                    <TextBlock Grid.Column="0"
-                               VerticalAlignment="Center"
-                               AutomationProperties.AutomationId="RecordNowPlaying"
-                               FontFamily="{StaticResource OffstreamMonoFontFamily}"
-                               FontSize="17"
-                               Foreground="{StaticResource OffstreamLcdSegmentBrush}"
-                               Text="{Binding NowPlaying, Mode=OneWay}"
-                               TextTrimming="CharacterEllipsis"
-                               ToolTip="{Binding NowPlaying, Mode=OneWay}" />
-
-                    <TextBlock Grid.Column="1"
-                               Margin="16,0,0,0"
-                               VerticalAlignment="Bottom"
                                AutomationProperties.AutomationId="RecordFormat"
                                FontFamily="{StaticResource OffstreamMonoFontFamily}"
-                               FontSize="11"
+                               FontSize="12"
                                Foreground="{StaticResource OffstreamLcdInkBrush}"
-                               Text="{Binding FormatText, Mode=OneWay}" />
+                               Text="{Binding FormatText, Mode=OneWay}"
+                               TextTrimming="CharacterEllipsis"
+                               TextWrapping="NoWrap" />
+
+                    <!--
+                        The counter, with the legend an instrument prints above its readout. The
+                        legend is what lets the number lose its own explanation: a bare 00:03:42
+                        on a recorder face could be elapsed, remaining, or a timestamp, and one
+                        small word settles it once instead of the user settling it every glance.
+                    -->
+                    <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                        <TextBlock HorizontalAlignment="Right"
+                                   FontFamily="{StaticResource OffstreamMonoFontFamily}"
+                                   FontSize="9"
+                                   Foreground="{StaticResource OffstreamLcdInkBrush}"
+                                   Text="{x:Static res:Strings.RecordElapsedLabel}" />
+
+                        <TextBlock Margin="0,-2,0,0"
+                                   HorizontalAlignment="Right"
+                                   AutomationProperties.AutomationId="RecordElapsed"
+                                   FontFamily="{StaticResource OffstreamMonoFontFamily}"
+                                   FontSize="34"
+                                   Foreground="{StaticResource OffstreamLcdSegmentBrush}"
+                                   Text="{Binding ElapsedText, Mode=OneWay}" />
+                    </StackPanel>
                 </Grid>
 
                 <!--
@@ -308,8 +243,8 @@
                     shows through, which is what MaskBrush is for. The numeric readout is off
                     because the format line above already carries the technical figures.
                 -->
-                <controls:LcdMeterView Grid.Row="2"
-                                       Margin="0,0,0,8"
+                <controls:LcdMeterView Grid.Row="1"
+                                       Margin="0,0,0,10"
                                        AutomationProperties.AutomationId="RecordLevelMeter"
                                        AutomationProperties.Name="{x:Static res:Strings.RecordLevelLabel}"
                                        BezelBrush="Transparent"
@@ -327,10 +262,10 @@
                     The scanlines go over everything, last child and spanning every row, because
                     that is where they are on the real thing: the line structure is the panel the
                     segments are behind, not a texture under them. Not hit-testable, so it never
-                    intercepts the tooltip on the track name beneath it.
+                    intercepts anything drawn beneath it.
                 -->
                 <Border Grid.Row="0"
-                        Grid.RowSpan="3"
+                        Grid.RowSpan="2"
                         Background="{StaticResource OffstreamLcdScanlineBrush}"
                         CornerRadius="3"
                         IsHitTestVisible="False" />
@@ -338,41 +273,51 @@
         </Border>
 
         <!--
-            What the display cannot hold: the cover, the album the lookup found, where this
-            recording is going, and what the session has produced so far.
+            What the display cannot hold: the cover, the names the lookup found, and where this
+            recording is going.
 
             Below the panel rather than on it. The display is a field recorder's face and
             everything on it is segments — a colour photograph behind the glass would read as a
             different device. This is the paper label beside the machine.
+
+            Three labelled rows in one column rather than a free-form stack. The labels are the
+            same width down the block, so the values start on a shared edge and the card can be
+            read down its left margin instead of scanned line by line — which matters here because
+            two of the three rows arrive a second later than the first, when the metadata lookup
+            lands, and a block that re-flows as it fills is one nobody trusts.
         -->
         <Border Grid.Row="2"
                 Margin="0,0,0,12"
                 Padding="12"
                 Style="{StaticResource OffstreamCardStyle}">
             <StackPanel>
+                <ContentControl Margin="0,0,0,10"
+                                Content="{x:Static res:Strings.RecordNowSection}"
+                                Style="{StaticResource OffstreamGroupHeaderStyle}" />
+
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
                     <!--
                         The art is already on disk — the enricher fetches it to embed in the file
                         — so showing it costs a decode and nothing else. The placeholder keeps the
-                        row's height fixed, so a track without art does not make the strip jump.
+                        block's height fixed, so a track without art does not make the card jump.
                     -->
                     <Border Grid.Column="0"
-                            Width="56"
-                            Height="56"
-                            Margin="0,0,12,0"
+                            Width="76"
+                            Height="76"
+                            Margin="0,0,14,0"
+                            VerticalAlignment="Top"
                             Background="{StaticResource OffstreamWellBrush}"
                             BorderBrush="{StaticResource OffstreamSurfaceBorderBrush}"
                             BorderThickness="1"
                             CornerRadius="4">
                         <Grid>
                             <ui:SymbolIcon AutomationProperties.Name="{x:Static res:Strings.RecordNoArt}"
-                                           FontSize="22"
+                                           FontSize="28"
                                            Foreground="{StaticResource OffstreamIdleBrush}"
                                            Symbol="MusicNote224" />
 
@@ -383,60 +328,84 @@
                         </Grid>
                     </Border>
 
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock AutomationProperties.AutomationId="RecordAlbum"
+                    <Grid Grid.Column="1" VerticalAlignment="Center">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0"
+                                   Grid.Column="0"
+                                   Margin="0,0,12,0"
+                                   VerticalAlignment="Center"
+                                   Foreground="{StaticResource OffstreamIdleBrush}"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Text="{x:Static res:Strings.RecordArtistLabel}" />
+
+                        <TextBlock Grid.Row="0"
+                                   Grid.Column="1"
+                                   VerticalAlignment="Center"
+                                   AutomationProperties.AutomationId="RecordNowPlaying"
+                                   FontSize="15"
+                                   Text="{Binding NowPlaying, Mode=OneWay}"
+                                   TextTrimming="CharacterEllipsis"
+                                   TextWrapping="NoWrap"
+                                   ToolTip="{Binding NowPlaying, Mode=OneWay}" />
+
+                        <!--
+                            The album row is hidden rather than blanked, because an empty value
+                            beside a label reads as "the lookup says there is no album" when what
+                            it means is "no lookup has come back yet".
+                        -->
+                        <TextBlock Grid.Row="1"
+                                   Grid.Column="0"
+                                   Margin="0,4,12,0"
+                                   VerticalAlignment="Center"
+                                   Foreground="{StaticResource OffstreamIdleBrush}"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Text="{x:Static res:Strings.RecordAlbumLabel}"
+                                   Visibility="{Binding HasAlbum, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+
+                        <TextBlock Grid.Row="1"
+                                   Grid.Column="1"
+                                   Margin="0,4,0,0"
+                                   VerticalAlignment="Center"
+                                   AutomationProperties.AutomationId="RecordAlbum"
                                    Text="{Binding Album, Mode=OneWay}"
                                    TextTrimming="CharacterEllipsis"
                                    TextWrapping="NoWrap"
+                                   ToolTip="{Binding Album, Mode=OneWay}"
                                    Visibility="{Binding HasAlbum, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
 
-                        <StackPanel Margin="0,2,0,0"
-                                    Orientation="Horizontal"
-                                    Visibility="{Binding HasDestination, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
-                            <TextBlock Margin="0,0,8,0"
-                                       Foreground="{StaticResource OffstreamIdleBrush}"
-                                       Style="{StaticResource CaptionTextBlockStyle}"
-                                       Text="{x:Static res:Strings.RecordDestinationLabel}" />
-
-                            <TextBlock AutomationProperties.AutomationId="RecordDestination"
-                                       FontFamily="{StaticResource OffstreamMonoFontFamily}"
-                                       FontSize="{StaticResource OffstreamMonoFontSize}"
-                                       Text="{Binding Destination, Mode=OneWay}"
-                                       TextTrimming="CharacterEllipsis"
-                                       TextWrapping="NoWrap"
-                                       ToolTip="{Binding Destination, Mode=OneWay}" />
-                        </StackPanel>
-                    </StackPanel>
-
-                    <!--  Session totals. Right-aligned so they stay put as the text beside them changes.  -->
-                    <StackPanel Grid.Column="2"
-                                Margin="12,0,0,0"
-                                VerticalAlignment="Center"
-                                Visibility="{Binding HasSaved, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
-                        <TextBlock HorizontalAlignment="Right"
-                                   AutomationProperties.AutomationId="RecordSessionTracks"
-                                   Text="{Binding SavedCountText, Mode=OneWay}" />
-                        <TextBlock HorizontalAlignment="Right"
+                        <TextBlock Grid.Row="2"
+                                   Grid.Column="0"
+                                   Margin="0,4,12,0"
+                                   VerticalAlignment="Center"
                                    Foreground="{StaticResource OffstreamIdleBrush}"
                                    Style="{StaticResource CaptionTextBlockStyle}"
-                                   Text="{Binding SavedDurationText, Mode=OneWay}" />
-                    </StackPanel>
-                </Grid>
+                                   Text="{x:Static res:Strings.RecordDestinationLabel}"
+                                   Visibility="{Binding HasDestination, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
 
-                <!--
-                    Readiness. Wrapped rather than a row, so a narrow window folds it instead of
-                    truncating whichever check happened to be last.
-                -->
-                <ItemsControl Margin="0,10,0,-6"
-                              AutomationProperties.AutomationId="RecordReadiness"
-                              ItemTemplate="{StaticResource ReadinessCheckTemplate}"
-                              ItemsSource="{Binding Readiness, Mode=OneWay}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <WrapPanel />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                </ItemsControl>
+                        <TextBlock Grid.Row="2"
+                                   Grid.Column="1"
+                                   Margin="0,4,0,0"
+                                   VerticalAlignment="Center"
+                                   AutomationProperties.AutomationId="RecordDestination"
+                                   FontFamily="{StaticResource OffstreamMonoFontFamily}"
+                                   FontSize="{StaticResource OffstreamMonoFontSize}"
+                                   Text="{Binding Destination, Mode=OneWay}"
+                                   TextTrimming="CharacterEllipsis"
+                                   TextWrapping="NoWrap"
+                                   ToolTip="{Binding Destination, Mode=OneWay}"
+                                   Visibility="{Binding HasDestination, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
+                    </Grid>
+                </Grid>
             </StackPanel>
         </Border>
 
@@ -445,7 +414,6 @@
             that grows and the thing a running session is actually watched for.
         -->
         <Border Grid.Row="3"
-                Margin="0,0,0,12"
                 Padding="12"
                 Style="{StaticResource OffstreamCardStyle}">
             <Grid>
@@ -454,10 +422,55 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <ContentControl Grid.Row="0"
-                                Margin="0,0,0,4"
-                                Content="{x:Static res:Strings.RecordSavedSection}"
-                                Style="{StaticResource OffstreamGroupHeaderStyle}" />
+                <!--
+                    Heading and totals on one line, with a rule filling whatever is between them.
+
+                    They were stacked in the strip above, which put a running total in the middle
+                    of a card describing one track — two different timescales in one block. Here
+                    they are an annotation on the thing they count, and the rule is what makes the
+                    right-hand pair read as belonging to the heading rather than floating beside it.
+                -->
+                <Grid Grid.Row="0" Margin="0,0,0,6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <ContentControl Grid.Column="0"
+                                    Content="{x:Static res:Strings.RecordSavedSection}"
+                                    Style="{StaticResource OffstreamGroupHeaderStyle}" />
+
+                    <Border Grid.Column="1"
+                            Height="1"
+                            Margin="12,1,12,0"
+                            VerticalAlignment="Center"
+                            Background="{StaticResource OffstreamRowSeparatorBrush}" />
+
+                    <StackPanel Grid.Column="2"
+                                VerticalAlignment="Center"
+                                Orientation="Horizontal">
+                        <TextBlock VerticalAlignment="Center"
+                                   AutomationProperties.AutomationId="RecordSessionTracks"
+                                   FontFamily="{StaticResource OffstreamMonoFontFamily}"
+                                   FontSize="{StaticResource OffstreamMonoFontSize}"
+                                   Foreground="{StaticResource OffstreamIdleBrush}"
+                                   Text="{Binding SavedCountText, Mode=OneWay}" />
+
+                        <TextBlock Margin="8,0"
+                                   VerticalAlignment="Center"
+                                   Foreground="{StaticResource OffstreamRowSeparatorBrush}"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Text="|" />
+
+                        <TextBlock VerticalAlignment="Center"
+                                   AutomationProperties.AutomationId="RecordSessionDuration"
+                                   FontFamily="{StaticResource OffstreamMonoFontFamily}"
+                                   FontSize="{StaticResource OffstreamMonoFontSize}"
+                                   Foreground="{StaticResource OffstreamIdleBrush}"
+                                   Text="{Binding SavedDurationText, Mode=OneWay}" />
+                    </StackPanel>
+                </Grid>
 
                 <TextBlock Grid.Row="1"
                            Margin="2,6,0,0"
@@ -494,63 +507,6 @@
             </Grid>
         </Border>
 
-        <!--
-            The activity log, collapsed.
-
-            It used to be the whole page, which had it backwards: a log is what you open when
-            something is wrong, and giving it the largest surface on the page made the tab look
-            like a console with an instrument bolted on. Expanded it takes a fixed height and
-            scrolls inside it, so opening the log never pushes the saved list off the page.
-        -->
-        <Expander Grid.Row="4"
-                  AutomationProperties.AutomationId="RecordLogExpander"
-                  Header="{x:Static res:Strings.RecordActivitySection}"
-                  IsExpanded="{Binding IsLogExpanded, Mode=TwoWay}">
-            <Border Padding="12" Style="{StaticResource OffstreamCardStyle}">
-                <Grid Height="220">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-
-                    <StackPanel Grid.Row="0"
-                                Margin="0,0,0,8"
-                                HorizontalAlignment="Right"
-                                Orientation="Horizontal">
-                        <ComboBox Width="150"
-                                  Margin="0,0,8,0"
-                                  VerticalAlignment="Center"
-                                  AutomationProperties.AutomationId="RecordLogFilter"
-                                  AutomationProperties.Name="{x:Static res:Strings.RecordFilterLabel}"
-                                  DisplayMemberPath="Name"
-                                  ItemsSource="{Binding FilterOptions, Mode=OneTime}"
-                                  SelectedValue="{Binding Filter, Mode=TwoWay}"
-                                  SelectedValuePath="Value" />
-
-                        <ui:Button Margin="0,0,8,0"
-                                   AutomationProperties.AutomationId="RecordCopyLogButton"
-                                   Command="{Binding CopyLogCommand}"
-                                   Content="{x:Static res:Strings.RecordCopyLog}" />
-                        <ui:Button AutomationProperties.AutomationId="RecordClearLogButton"
-                                   Command="{Binding ClearLogCommand}"
-                                   Content="{x:Static res:Strings.RecordClearLog}" />
-                    </StackPanel>
-
-                    <ListBox x:Name="LogList"
-                             Grid.Row="1"
-                             AutomationProperties.AutomationId="RecordLogList"
-                             Background="Transparent"
-                             BorderThickness="0"
-                             FontFamily="{StaticResource OffstreamMonoFontFamily}"
-                             FontSize="{StaticResource OffstreamMonoFontSize}"
-                             ItemTemplate="{StaticResource LogEntryTemplate}"
-                             ItemsSource="{Binding LogLines, Mode=OneWay}"
-                             ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                             VirtualizingPanel.IsVirtualizing="True"
-                             VirtualizingPanel.VirtualizationMode="Recycling" />
-                </Grid>
-            </Border>
-        </Expander>
     </Grid>
 
 </UserControl>

@@ -91,7 +91,6 @@ public sealed partial class RecordViewModel : ObservableObject
 
     private readonly InMemoryLogSink _logSink;
     private readonly RecordingController _controller;
-    private readonly ReadinessProbe _readiness;
 
     /// <summary>Every line received, before filtering. The pane shows a subset of this.</summary>
     private readonly List<LogLine> _received = [];
@@ -185,8 +184,14 @@ public sealed partial class RecordViewModel : ObservableObject
     private string _destination = string.Empty;
 
     /// <summary>Files written this session.</summary>
+    /// <remarks>
+    /// <see cref="SavedCountText"/> has to be notified explicitly. It was not, so the header
+    /// read "0 saved" for the life of every session however many files landed — the count itself
+    /// was right the whole time and only the text derived from it was stale.
+    /// </remarks>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSaved))]
+    [NotifyPropertyChangedFor(nameof(SavedCountText))]
     private int _savedCount;
 
     /// <summary>Combined length of everything saved this session.</summary>
@@ -194,19 +199,13 @@ public sealed partial class RecordViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(SavedDurationText))]
     private TimeSpan _savedDuration;
 
-    /// <summary>Whether the activity log is expanded. Collapsed by default — it is diagnostics.</summary>
-    [ObservableProperty]
-    private bool _isLogExpanded;
-
-    public RecordViewModel(InMemoryLogSink logSink, RecordingController controller, ReadinessProbe readiness)
+    public RecordViewModel(InMemoryLogSink logSink, RecordingController controller)
     {
         ArgumentNullException.ThrowIfNull(logSink);
         ArgumentNullException.ThrowIfNull(controller);
-        ArgumentNullException.ThrowIfNull(readiness);
 
         _logSink = logSink;
         _controller = controller;
-        _readiness = readiness;
 
         // Startup logs before this page is ever shown, so replay what is already there before
         // subscribing - otherwise the first thing the user sees is an empty log.
@@ -223,7 +222,6 @@ public sealed partial class RecordViewModel : ObservableObject
         // Seeds the format line, which describes what pressing Start would produce and so has
         // something to say before anything is running.
         Sync();
-        RefreshReadiness();
     }
 
     /// <summary>Lines currently shown, after <see cref="Filter"/>.</summary>
@@ -238,9 +236,6 @@ public sealed partial class RecordViewModel : ObservableObject
     /// appeared, and a list that grows downward puts it wherever the scroll happens to be.
     /// </remarks>
     public ObservableCollection<SavedRecording> Saved { get; } = [];
-
-    /// <summary>Whether recording will work, and what will be missing if it half-works.</summary>
-    public ObservableCollection<ReadinessCheck> Readiness { get; } = [];
 
     /// <summary>The filter dropdown's items.</summary>
     public IReadOnlyList<LogFilterOption> FilterOptions { get; } =
@@ -264,14 +259,17 @@ public sealed partial class RecordViewModel : ObservableObject
     /// that changes width partway through a session has to be found again each time. Two leading
     /// zeroes buy a number that never moves.
     /// </para>
-    /// <para>
+    /// </remarks>
+    public string ElapsedText => Clock(Elapsed);
+
+    /// <summary>A duration as a fixed-width <c>00:03:42</c> clock.</summary>
+    /// <remarks>
     /// Built from <see cref="TimeSpan.TotalHours"/> rather than formatted with <c>hh</c>, which
     /// counts hours within a day and would roll a very long session back to zero.
-    /// </para>
     /// </remarks>
-    public string ElapsedText => string.Create(
+    private static string Clock(TimeSpan value) => string.Create(
         CultureInfo.CurrentCulture,
-        $"{(int)Elapsed.TotalHours:00}:{Elapsed.Minutes:00}:{Elapsed.Seconds:00}");
+        $"{(int)value.TotalHours:00}:{value.Minutes:00}:{value.Seconds:00}");
 
     /// <summary>
     /// The inverse of <see cref="IsRecording"/>, so the two transport buttons can swap places
@@ -287,17 +285,20 @@ public sealed partial class RecordViewModel : ObservableObject
 
     public bool HasSaved => SavedCount > 0;
 
-    /// <summary>Session total, as a sentence rather than a clock — it is a sum, not a counter.</summary>
+    /// <summary>How many files this session has written, labelled.</summary>
     public string SavedCountText =>
         string.Format(CultureInfo.CurrentCulture, TracksFormat, SavedCount);
 
-    /// <inheritdoc cref="SavedCountText" />
-    public string SavedDurationText => string.Format(
-        CultureInfo.CurrentCulture,
-        DurationFormat,
-        SavedDuration.TotalHours >= 1
-            ? string.Create(CultureInfo.CurrentCulture, $"{(int)SavedDuration.TotalHours}h {SavedDuration.Minutes}m")
-            : string.Create(CultureInfo.CurrentCulture, $"{SavedDuration.Minutes}m {SavedDuration.Seconds}s"));
+    /// <summary>
+    /// How much audio this session has written, on the same clock as the counter above.
+    /// </summary>
+    /// <remarks>
+    /// It read <c>4m 12s</c>, which is friendlier prose and a worse readout: it sits inches from
+    /// a fixed-width <c>00:04:12</c> on the display, and two spellings of a duration on one screen
+    /// make the reader convert between them to compare. One clock format, one place to look.
+    /// </remarks>
+    public string SavedDurationText =>
+        string.Format(CultureInfo.CurrentCulture, DurationFormat, Clock(SavedDuration));
 
     /// <summary>Whether <see cref="Problem"/> has anything worth interrupting for.</summary>
     public bool HasProblem => !string.IsNullOrWhiteSpace(Problem);
@@ -528,11 +529,7 @@ public sealed partial class RecordViewModel : ObservableObject
         };
     });
 
-    private void OnStateChanged(object? sender, EventArgs e) => Dispatch(() =>
-    {
-        Sync();
-        RefreshReadiness();
-    });
+    private void OnStateChanged(object? sender, EventArgs e) => Dispatch(Sync);
 
     /// <summary>Adds a finished file to the session list and the totals.</summary>
     private void OnTrackSaved(object? sender, TrackSavedEventArgs e) => Dispatch(() =>
@@ -624,13 +621,6 @@ public sealed partial class RecordViewModel : ObservableObject
                && path.StartsWith(root, StringComparison.OrdinalIgnoreCase)
             ? path[root.Length..].TrimStart('\\', '/')
             : path;
-    }
-
-    private void RefreshReadiness()
-    {
-        Readiness.Clear();
-
-        foreach (var check in _readiness.Run()) Readiness.Add(check);
     }
 
     /// <summary>Pulls the controller's state onto the page.</summary>

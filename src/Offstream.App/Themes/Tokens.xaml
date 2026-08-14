@@ -1,4 +1,4 @@
-<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:conv="clr-namespace:Offstream.App.Views.Converters"
                     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
@@ -60,24 +60,34 @@
         The ghost colour is the load-bearing one. Unlit cells on a real LCD are never invisible;
         keeping them faintly present is what makes a silent meter look like a working meter
         showing nothing, rather than a meter that has stopped.
+
+        <b>The panel is backlit, not reflective.</b> It was a pale grey ground with near-black
+        segments — a calculator face, legible but dim, and the palest object in a nearly black
+        window. Inverting it puts the panel a shade under the window and the segments at close to
+        white, which is the transflective backlight every field recorder made this century
+        actually has. The contrast ratio goes up rather than down, and the display finally reads
+        as the one lit thing on the page instead of the one washed-out one.
     -->
-    <Color x:Key="OffstreamLcdPanelColor">#C3C9C1</Color>
+    <Color x:Key="OffstreamLcdPanelColor">#0B100E</Color>
     <SolidColorBrush x:Key="OffstreamLcdPanelBrush" Color="{StaticResource OffstreamLcdPanelColor}" />
-    <SolidColorBrush x:Key="OffstreamLcdGhostBrush" Color="#B0B7AE" />
-    <SolidColorBrush x:Key="OffstreamLcdSegmentBrush" Color="#191D19" />
-    <SolidColorBrush x:Key="OffstreamLcdInkBrush" Color="#4E554D" />
-    <SolidColorBrush x:Key="OffstreamLcdBezelBrush" Color="#2A2E2A" />
+    <SolidColorBrush x:Key="OffstreamLcdGhostBrush" Color="#1B231F" />
+    <SolidColorBrush x:Key="OffstreamLcdSegmentBrush" Color="#E9F2EB" />
+    <SolidColorBrush x:Key="OffstreamLcdInkBrush" Color="#7C8B82" />
+    <SolidColorBrush x:Key="OffstreamLcdBezelBrush" Color="#333A35" />
 
     <!--
         The glass itself: a faint vertical gradient with scanlines over it. A flat fill reads as
         a coloured rectangle; the sheen and the line structure are what make the eye accept it as
         a panel with depth behind it. Both are near-invisible individually and only work together,
         which is why they are one brush rather than a tint anyone could tune out.
+
+        Lit from the top now that the panel is dark, because that is where a backlight's diffuser
+        is brightest. The same gradient run the other way reads as a shadow across the glass.
     -->
     <LinearGradientBrush x:Key="OffstreamLcdGlassBrush" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Offset="0" Color="#CDD3CB" />
-        <GradientStop Offset="0.55" Color="#C3C9C1" />
-        <GradientStop Offset="1" Color="#B6BDB5" />
+        <GradientStop Offset="0" Color="#121A16" />
+        <GradientStop Offset="0.55" Color="#0B100E" />
+        <GradientStop Offset="1" Color="#070B09" />
     </LinearGradientBrush>
 
     <!--
@@ -104,12 +114,17 @@
         <GradientStop Offset="1" Color="#A63A31" />
     </LinearGradientBrush>
 
+    <!--
+        Scanlines. Light on the dark panel rather than dark on the pale one: a black line over a
+        near-black ground is a line nobody can see, and the structure is what makes the glass a
+        panel rather than a fill. Same weight either way — just the other side of the ground.
+    -->
     <DrawingBrush x:Key="OffstreamLcdScanlineBrush"
                   TileMode="Tile"
                   Viewport="0,0,2,3"
                   ViewportUnits="Absolute">
         <DrawingBrush.Drawing>
-            <GeometryDrawing Brush="#0F000000">
+            <GeometryDrawing Brush="#0AFFFFFF">
                 <GeometryDrawing.Geometry>
                     <RectangleGeometry Rect="0,0,2,1" />
                 </GeometryDrawing.Geometry>
@@ -142,15 +157,6 @@
         cut through it.
     -->
     <SolidColorBrush x:Key="OffstreamWellBrush" Color="#101216" />
-
-    <!--
-        "Nothing wrong here", for the readiness pills.
-
-        Deliberately not the accent: the accent means "this is the control that does the thing",
-        and five green dots claiming that would spend it on rows nobody clicks. Muted enough to
-        read as a resting state — the pills worth noticing are the amber and red ones.
-    -->
-    <SolidColorBrush x:Key="OffstreamReadyBrush" Color="#3E9B62" />
 
     <Color x:Key="OffstreamAccentColor">#2563EB</Color>
     <SolidColorBrush x:Key="OffstreamAccentBrush" Color="{StaticResource OffstreamAccentColor}" />

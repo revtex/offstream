@@ -229,16 +229,18 @@ public sealed class SpotifyMetadataProvider(ISpotifyClient client, SpotifyPollin
     }
 
     /// <summary>
-    /// Whether the track Spotify says is playing is the one the window title already
-    /// identified — comparing on the title only, the one field both sources agree is present
-    /// before any enrichment has run.
+    /// Whether the track Spotify says is playing is the one that was detected.
     /// </summary>
-    private static bool MatchesDetectedTrack(Track track, FullTrack spotifyTrack)
-    {
-        var (titleTags, _) = SpotifyTitleParser.SplitTitle(spotifyTrack.Name ?? string.Empty);
-
-        return SpotifyTitleParser.TagAt(titleTags, 1) == track.Title;
-    }
+    /// <remarks>
+    /// Spotify's name and artists both go into the comparison, because the detected string may
+    /// carry the artist and Spotify's name never does. See <see cref="DetectedTrackMatch"/> for
+    /// why comparing the two directly did not work.
+    /// </remarks>
+    private static bool MatchesDetectedTrack(Track track, FullTrack spotifyTrack) =>
+        DetectedTrackMatch.Matches(
+            track,
+            spotifyTrack.Name,
+            spotifyTrack.Artists?.Select(artist => artist.Name));
 
     /// <summary>What Spotify answered, for a log line that can actually be diagnosed.</summary>
     private static string Describe(FullTrack? reported) => reported?.Name ?? "nothing playing";

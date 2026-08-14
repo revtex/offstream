@@ -68,9 +68,8 @@ public static class AppServices
         services.AddSingleton<ISpotifyAccount, SpotifyAccount>();
         services.AddSingleton<IProcessManager, ProcessManager>();
         services.AddSingleton<RecordingController>();
-        services.AddSingleton<ReadinessProbe>();
 
-        // Pages are singletons because the shell keeps all three loaded and switches them by
+        // Pages are singletons because the shell keeps them all loaded and switches them by
         // visibility: switching tabs must not discard the activity log or a half-filled form.
         services.AddSingleton<RecordPage>();
         services.AddSingleton<RecordViewModel>();
@@ -78,6 +77,10 @@ public static class AppServices
         services.AddSingleton<SettingsViewModel>();
         services.AddSingleton<AdvancedPage>();
         services.AddSingleton<AdvancedViewModel>();
+
+        // No ViewModel of its own: the Logs page is a second view onto RecordViewModel, which
+        // already holds the lines and has been subscribed to the sink since startup.
+        services.AddSingleton<LogsPage>();
 
         AddSpotify(services, configuration);
 

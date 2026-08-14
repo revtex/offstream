@@ -1,4 +1,4 @@
-<ui:FluentWindow x:Class="Offstream.App.Views.ShellWindow"
+﻿<ui:FluentWindow x:Class="Offstream.App.Views.ShellWindow"
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:res="clr-namespace:Offstream.App.Resources"
@@ -173,6 +173,19 @@
                         <TextBlock VerticalAlignment="Center" Text="{x:Static res:Strings.NavAdvanced}" />
                     </StackPanel>
                 </RadioButton>
+
+                <RadioButton AutomationProperties.AutomationId="NavLogs"
+                             GroupName="ShellTabs"
+                             IsChecked="{Binding Tab, Mode=TwoWay, ConverterParameter={x:Static vm:ShellTab.Logs}, Converter={StaticResource EnumToBoolean}}"
+                             Style="{StaticResource OffstreamTabStyle}">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Margin="0,0,8,0"
+                                       VerticalAlignment="Center"
+                                       FontSize="18"
+                                       Symbol="TextBulletListSquare24" />
+                        <TextBlock VerticalAlignment="Center" Text="{x:Static res:Strings.NavLogs}" />
+                    </StackPanel>
+                </RadioButton>
             </StackPanel>
 
             <!--
@@ -250,15 +263,16 @@
                     Severity="Warning" />
 
         <!--
-            One host, three pages, all alive at once. Every page is a DI singleton, so this hands
-            out the same instance each time and a tab switch costs nothing — which is what keeps
-            the activity log, a half-typed template, and the meter's own timer intact across a
-            trip to Settings and back.
+            One host, every page alive at once. Every page is a DI singleton, so this hands out
+            the same instance each time and a tab switch costs nothing — which is what keeps the
+            activity log's scroll position, a half-typed template, and the meter's own timer
+            intact across a trip to Settings and back.
         -->
         <Grid Grid.Row="3" Margin="24,12,24,24">
             <ContentControl x:Name="RecordHost" Visibility="{Binding IsRecordTab, Converter={StaticResource BooleanToVisibility}}" />
             <ContentControl x:Name="SettingsHost" Visibility="{Binding IsSettingsTab, Converter={StaticResource BooleanToVisibility}}" />
             <ContentControl x:Name="AdvancedHost" Visibility="{Binding IsAdvancedTab, Converter={StaticResource BooleanToVisibility}}" />
+            <ContentControl x:Name="LogsHost" Visibility="{Binding IsLogsTab, Converter={StaticResource BooleanToVisibility}}" />
         </Grid>
     </Grid>
 
