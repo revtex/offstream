@@ -150,7 +150,15 @@ if ($Publish) {
         --nologo
     Assert-ExitCode 'Publish'
 
-    $out = Join-Path $app "bin\Release\net10.0-windows\$Runtime\publish"
+    # Read the TFM rather than repeat it. This line held a second copy of it and went stale the
+    # moment Phase 7 raised the target to net10.0-windows10.0.22621.0 for the WinRT projections,
+    # pointing the success message at a directory that no longer existed.
+    $props = [xml](Get-Content (Join-Path $PSScriptRoot 'Directory.Build.props'))
+    $tfm = @($props.Project.PropertyGroup.TargetFramework | Where-Object { $_ })[0]
+
+    if (-not $tfm) { throw 'Could not read TargetFramework from Directory.Build.props.' }
+
+    $out = Join-Path $app "bin\Release\$tfm\$Runtime\publish"
     Write-Host "`nPublished to: $out" -ForegroundColor Green
 }
 

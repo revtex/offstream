@@ -1,7 +1,21 @@
 <Project>
 
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <!--
+      Versioned, not bare `net10.0-windows`: the version is what turns on the CsWinRT
+      projections, and without them `Windows.Media.Control` - the SMTC session manager that
+      Phase 7 makes the primary track source - does not exist to bind against.
+
+      22621 (Windows 11 22H2) rather than the 22000 floor: it is the oldest build still in
+      support, so nothing is gained by targeting below it. Offstream is Windows 11 only
+      (decided 2026-08-11), so this costs no supported user.
+
+      Raising this changes what the compiler generates around WinRT types, which is why the
+      hand-rolled IAudioPolicyConfig interop in Interop/Routing is worth re-checking after any
+      further move - it declares an IInspectable-based activation factory as IUnknown and
+      would be the first thing to break if the projections started claiming those types.
+    -->
+    <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>

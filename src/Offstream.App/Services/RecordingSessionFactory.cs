@@ -10,6 +10,7 @@ using Offstream.Core.Metadata.Providers;
 using Offstream.Core.Recording;
 using Offstream.Core.Settings;
 using Offstream.Core.Spotify;
+using Offstream.Core.Spotify.Smtc;
 using Serilog;
 
 namespace Offstream.App.Services;
@@ -72,7 +73,14 @@ public sealed class RecordingSessionFactory(
         ArgumentNullException.ThrowIfNull(progress);
 
         var capture = new LoopbackAudioCapture(settings.Recording.AudioEndpointDeviceId);
-        var detector = new SpotifyTrackDetector(_processManager, new SpotifyPlaybackProbe(_processManager));
+
+        // SMTC first, window title second. The title is only readable while Spotify has a window,
+        // so on its own it stops detecting the moment the user minimises to the tray; the media
+        // session survives that, and hands over separate artist and title fields rather than one
+        // string to split. See PreferredTrackSource for what "prefers" means and when it hands back.
+        var detector = new PreferredTrackSource(
+            new SmtcTrackSource(new WindowsSmtcSessions()),
+            new SpotifyTrackDetector(_processManager, new SpotifyPlaybackProbe(_processManager)));
 
         return new RecordingSession(
             capture,
