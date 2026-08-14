@@ -35,7 +35,11 @@ public sealed class SpotifyMetadataProviderTests
 
         /// <summary>Real behaviour, test timings: the delays are the only thing shortened.</summary>
         public SpotifyMetadataProvider Provider =>
-            new(Client.Object, new SpotifyPollingOptions(TimeSpan.Zero, TimeSpan.Zero, MaximumAttempts: 4));
+            new(Client.Object, new SpotifyPollingOptions(
+                TimeSpan.Zero,
+                TimeSpan.Zero,
+                MaximumAttempts: 4,
+                MaximumEmptyAttempts: 30));
 
         /// <summary>Answers with each playback in turn, repeating the last one thereafter.</summary>
         public void ReturnsPlaybackInTurn(params CurrentlyPlaying?[] answers)
@@ -221,6 +225,41 @@ public sealed class SpotifyMetadataProviderTests
             new CurrentlyPlaying { IsPlaying = true, Item = PlayingTrack("The Previous Song") });
 
         Assert.False(await harness.Provider.EnrichAsync(DetectedTrack()));
+    }
+
+    /// <summary>
+    /// The shape actually seen in the wild: four polls answering 204 No Content, three seconds
+    /// apart, while the client had already advanced. A 204 deserializes to a null playback, so it
+    /// reaches the loop as the same "no track" answer an advertisement does — and it has to,
+    /// because reading <c>currently_playing_type</c> is impossible when there is no body to read
+    /// it from.
+    /// </summary>
+    [Fact]
+    public async Task EnrichAsync_WhileSpotifyAnswersNoContent_KeepsAskingPastTheMismatchBudget()
+    {
+        var harness = new Harness();
+
+        harness.ReturnsPlaybackInTurn(
+            null,
+            null,
+            null,
+            null,
+            null,
+            new CurrentlyPlaying { IsPlaying = true, Item = PlayingTrack("Title") });
+
+        harness.ReturnsAlbum("album-1", new FullAlbum
+        {
+            Name = "Album Name",
+            Artists = [],
+            Genres = [],
+            Images = [],
+            ReleaseDate = "2020",
+        });
+
+        var track = DetectedTrack();
+
+        Assert.True(await harness.Provider.EnrichAsync(track));
+        Assert.Equal("Album Name", track.Album);
     }
 
     /// <summary>An advertisement carries no item, which is what makes the type field necessary.</summary>

@@ -36,12 +36,20 @@ public interface ISpotifyMetadataProvider : IMetadataProvider
 /// <summary>How hard to chase Spotify's player state at a track boundary.</summary>
 /// <param name="SettleDelay">How long the backend gets before the first poll.</param>
 /// <param name="RetryDelay">How long to wait before asking again after a mismatch.</param>
-/// <param name="MaximumAttempts">Polls in total, counting the first.</param>
+/// <param name="MaximumAttempts">Polls in total, counting the first, when a track is reported.</param>
+/// <param name="MaximumEmptyAttempts">
+/// Polls allowed while Spotify reports no track at all, which is a different failure with a
+/// different cure — see the loop in <see cref="SpotifyMetadataProvider"/>.
+/// </param>
 /// <remarks>
 /// Injectable so tests can exercise the retry without waiting out the real delays; the recording
 /// pipeline always takes <see cref="Default"/>.
 /// </remarks>
-public sealed record SpotifyPollingOptions(TimeSpan SettleDelay, TimeSpan RetryDelay, int MaximumAttempts)
+public sealed record SpotifyPollingOptions(
+    TimeSpan SettleDelay,
+    TimeSpan RetryDelay,
+    int MaximumAttempts,
+    int MaximumEmptyAttempts)
 {
     /// <summary>
     /// The reference's timings, with a longer tail.
@@ -51,9 +59,18 @@ public sealed record SpotifyPollingOptions(TimeSpan SettleDelay, TimeSpan RetryD
     /// because the whole thing is bounded by <see cref="TrackEnricher.DefaultDeadline"/> and runs
     /// concurrently with a recording that lasts minutes — roughly three seconds of chasing costs
     /// nothing and covers a backend that is slower than usual to advance.
+    /// </para>
+    /// <para>
+    /// Thirty for an answer carrying no track, because that is not a backend one poll behind: it
+    /// is a free account's advertisement break, which runs far longer than three seconds and was
+    /// costing every track played after one its tags. It stays well inside the enricher's
+    /// deadline, so a track the API will never report delays that recording and no other.
     /// </remarks>
-    public static SpotifyPollingOptions Default { get; } =
-        new(TimeSpan.FromMilliseconds(100), TimeSpan.FromSeconds(1), MaximumAttempts: 4);
+    public static SpotifyPollingOptions Default { get; } = new(
+        TimeSpan.FromMilliseconds(100),
+        TimeSpan.FromSeconds(1),
+        MaximumAttempts: 4,
+        MaximumEmptyAttempts: 30);
 }
 
 /// <summary>
@@ -221,47 +238,38 @@ public sealed class SpotifyMetadataProvider(ISpotifyClient client, SpotifyPollin
             // A podcast episode is not a track and never will be, whatever we ask again.
             if (playback?.Item is not null && reported is null) return false;
 
-            if (IsAdvertisement(playback))
-            {
-                // An advertisement is not a mismatch — it is Spotify saying the track has not
-                // started on its side yet, and it will. So it must not spend the attempt budget:
-                // a free-tier break runs far longer than the three seconds four attempts buy, and
-                // every poll landing inside one is exactly how a recording ends up untagged with
-                // nothing in the log above Debug to say why. The wait is bounded by the deadline
-                // TrackEnricher imposes on the whole lookup, not by a count.
-                Log.Debug("Spotify is playing an advertisement; waiting for {Track} to start.", track);
-            }
-            else if (++attempts >= _polling.MaximumAttempts)
+            // An answer with no track at all is not a mismatch. Something *is* playing — a
+            // recording is running, which is why this lookup exists — so Spotify is either
+            // between tracks, serving a free account's advertisement break, or answering 204
+            // while its player state catches up. All three resolve on their own, and all three
+            // used to spend the mismatch budget: four attempts, three seconds, then an untagged
+            // recording. They get a budget of their own, long enough to outlast a break.
+            //
+            // Not unbounded. If the API never reports this track — a restricted account, a
+            // device the player endpoint cannot see — waiting to the enricher's deadline would
+            // add that delay to every recording rather than to one.
+            var budget = reported is null ? _polling.MaximumEmptyAttempts : _polling.MaximumAttempts;
+
+            if (++attempts >= budget)
             {
                 Log.Debug(
                     "Spotify still reported {Reported} for {Track} after {Attempts} attempts.",
-                    Describe(reported),
+                    Describe(playback),
                     track,
                     attempts);
 
                 return false;
             }
-            else
-            {
-                Log.Debug(
-                    "Spotify reported {Reported} while {Track} was detected; asking again.",
-                    Describe(reported),
-                    track);
-            }
+
+            Log.Debug(
+                "Spotify reported {Reported} while {Track} was detected; asking again.",
+                Describe(playback),
+                track);
 
             await Task.Delay(_polling.RetryDelay, cancellationToken);
         }
     }
 
-    /// <summary>Whether Spotify is playing an advertisement rather than anything tagged.</summary>
-    /// <remarks>
-    /// Free accounts play these between tracks, and the response carries no item at all — which
-    /// is otherwise indistinguishable from "nothing is playing", a state that never resolves into
-    /// the detected track. <c>currently_playing_type</c> is the schema's own field for this and
-    /// takes <c>track</c>, <c>episode</c>, <c>ad</c> or <c>unknown</c>.
-    /// </remarks>
-    private static bool IsAdvertisement(CurrentlyPlaying? playback) =>
-        string.Equals(playback?.CurrentlyPlayingType, "ad", StringComparison.OrdinalIgnoreCase);
 
     private async Task<bool> ApplyAsync(Track track, FullTrack spotifyTrack, CancellationToken cancellationToken)
     {
@@ -367,5 +375,19 @@ public sealed class SpotifyMetadataProvider(ISpotifyClient client, SpotifyPollin
             spotifyTrack.Artists?.Select(artist => artist.Name));
 
     /// <summary>What Spotify answered, for a log line that can actually be diagnosed.</summary>
-    private static string Describe(FullTrack? reported) => reported?.Name ?? "nothing playing";
+    /// <summary>What Spotify answered, in the terms that distinguish the reasons for a miss.</summary>
+    /// <remarks>
+    /// This used to print <c>"nothing playing"</c> for every answer without a track, which
+    /// collapsed a 204 and an advertisement into one indistinguishable line — and those are the
+    /// two cases whose handling differs, so the log said nothing about the only question being
+    /// asked of it. Naming the shape is what makes the difference readable at Debug.
+    /// </remarks>
+    private static string Describe(CurrentlyPlaying? playback) =>
+        playback switch
+        {
+            null => "nothing at all (204 No Content)",
+            { Item: FullTrack track } => track.Name ?? "an unnamed track",
+            { CurrentlyPlayingType: { Length: > 0 } type } => $"a {type} and no track",
+            _ => "no track and no type",
+        };
 }

@@ -375,13 +375,19 @@ phase plan these entries follow.
   exactly this.
 - **The session total read "0 saved" forever.** The count was right the whole time; only the
   derived string was never refreshed.
-- **A free account's advertisements cost it every tag.** Spotify's `currently-playing` reports
-  the advertisement rather than the track that is about to start, and the lookup counted each
-  such answer as a failed match — so the four attempts it allows were spent inside a break that
-  runs far longer, and the recording was saved bare. An advertisement is now a reason to keep
-  waiting rather than a mismatch to count, bounded by the enrichment deadline instead of by an
-  attempt budget. That deadline moves from 20s to 45s so it can outlast a break; the recording it
-  runs alongside is unaffected either way, since enrichment starts when the track does.
+- **A break between tracks cost the track after it every tag.** Spotify's `currently-playing`
+  answers a free account's advertisement, or 204 No Content, rather than the track about to
+  start — and the lookup counted each such answer as a failed match, so the four attempts it
+  allows were spent inside a break that runs far longer and the recording was saved bare. An
+  answer carrying no track at all is now a different failure from an answer carrying the wrong
+  one: something is playing, since a recording is running, so it resolves on its own and gets a
+  budget of its own — thirty polls rather than four. Bounded rather than open-ended, because a
+  track the API will never report should delay one recording and not every one. The enrichment
+  deadline moves 20s to 45s to leave room for it; the recording it runs alongside is unaffected
+  either way, since enrichment starts when the track does.
+- **The log could not tell a 204 from an advertisement.** Both printed "nothing playing", which
+  is the one distinction worth having when a lookup keeps missing — so the line naming what
+  Spotify answered named the shape of the answer rather than the absence of a track.
 - **One song could be recorded twice, and enriched twice.** The Windows media session fills its
   fields as they arrive, so the first read after it becomes available can carry a title and no
   artist. That counted as a track change: the take in progress ended, was reported as an
