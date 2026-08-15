@@ -15,6 +15,18 @@ phase plan these entries follow.
 
 ### Added
 
+- **A security policy, and the reporting channel it points at.** `SECURITY.md` says where to send a
+  vulnerability and what the app actually handles that is worth attention — track metadata being
+  untrusted input that reaches ffmpeg arguments and file paths, the PKCE sign-in, DPAPI token
+  storage, and the hand-marshalled COM interop — along with what is deliberate, such as the Last.fm
+  key sitting in plain text next to a DPAPI-protected refresh token. Private vulnerability
+  reporting, Dependabot alerts and security updates, and secret scanning with push protection are
+  enabled on the repository, so a reporter has somewhere private to go and a committed credential
+  is refused at push time rather than found later.
+- **CodeQL code scanning** on pushes to `main`, on pull requests, and weekly, over C#, the workflows
+  themselves and the one Python script. It runs on Ubuntu with `build-mode: none`: the analysis
+  reads C# without compiling it, which is what makes scanning a Windows-only WPF app on a Linux
+  runner possible at all.
 - **Solution scaffold on .NET 10.** SDK-style projects (`Offstream.Core`, `Offstream.App`,
   `Offstream.Core.Tests`, `Offstream.UI.Tests`, `Offstream.FakeSpotify`) under an `.slnx`
   solution, central package management, nullable reference types, and analyzers as errors.
