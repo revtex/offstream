@@ -21,6 +21,7 @@
     .\build.ps1 -Clean -Test             # rebuild from scratch, then test
     .\build.ps1 -VerifyFormat            # what CI enforces
     .\build.ps1 -Publish                 # self-contained win-x64 publish
+    .\build.ps1 -Publish -BundleFfmpeg   # ...with the ffmpeg a release ships (108 MB)
     .\build.ps1 -Run                     # build and launch the app
 #>
 [CmdletBinding()]
@@ -35,6 +36,7 @@ param(
     [switch] $Format,
     [switch] $VerifyFormat,
     [switch] $Publish,
+    [switch] $BundleFfmpeg,
     [switch] $Run,
 
     [string] $Runtime = 'win-x64'
@@ -159,6 +161,16 @@ if ($Publish) {
     if (-not $tfm) { throw 'Could not read TargetFramework from Directory.Build.props.' }
 
     $out = Join-Path $app "bin\Release\$tfm\$Runtime\publish"
+
+    # Off by default: a developer machine has ffmpeg on PATH, which FFmpegLocator finds on
+    # its own, and 108 MB is a lot to fetch for a publish that is only being smoke-tested.
+    # A release always bundles - this switch is for reproducing that locally.
+    if ($BundleFfmpeg) {
+        Step 'Bundling ffmpeg...'
+        & (Join-Path $PSScriptRoot 'build\windows\fetch-ffmpeg.ps1') -Destination (Join-Path $out 'ffmpeg')
+        Assert-ExitCode 'Bundling ffmpeg'
+    }
+
     Write-Host "`nPublished to: $out" -ForegroundColor Green
 }
 

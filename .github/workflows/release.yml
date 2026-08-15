@@ -1,0 +1,329 @@
+name: Release
+
+# A `v*` tag is the trigger and the source of the version number. Nothing in the repo
+# records the released version, so the tag and the build can never disagree about what
+# shipped - see the note above VersionPrefix in Directory.Build.props.
+#
+# workflow_dispatch builds the same artefacts and publishes nothing, which is how to find
+# out whether the pipeline works without spending a version number to do it.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (no leading v). Produces artefacts only, no release.'
+        required: true
+        default: '0.1.0-dev'
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  release:
+    # Windows for the same reason CI is: net10.0-windows, WPF, WASAPI and the routing COM
+    # interop build nowhere else. signtool is Windows-only too.
+    runs-on: windows-latest
+
+    permissions:
+      # Only this job creates the release, so the workflow-level read stays read.
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/Directory.Packages.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      # Rejecting a malformed tag here rather than shipping whatever it happened to say.
+      # A tag is not editable in any useful sense once people have fetched it, so the
+      # cheap moment to be strict about its shape is before anything is built from it.
+      - name: Work out the version
+        id: version
+        shell: pwsh
+        env:
+          # Through the environment, never interpolated into the script body. `inputs` is
+          # attacker-controlled in the general case, and a value substituted into the
+          # source of a shell script runs as script rather than arriving as data. The
+          # regex below is what makes every later use of this value safe to interpolate.
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            $raw = $env:GITHUB_REF_NAME
+            if ($raw -notmatch '^v(?<v>\d+\.\d+\.\d+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?)$') {
+              throw "Tag '$raw' is not a release tag. Expected vMAJOR.MINOR.PATCH, optionally with a prerelease suffix (v1.2.3, v1.2.3-rc.1)."
+            }
+            $version = $Matches.v
+            $publish = 'true'
+          }
+          else {
+            $version = $env:INPUT_VERSION
+            if ($version -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?$') {
+              throw "Version '$version' is not semantic versioning. Expected MAJOR.MINOR.PATCH, optionally with a prerelease suffix."
+            }
+            $publish = 'false'
+          }
+
+          # A prerelease suffix marks the GitHub release as one, so `v1.2.3-rc.1` does not
+          # become what "latest release" resolves to for everyone.
+          $prerelease = if ($version -like '*-*') { 'true' } else { 'false' }
+
+          "version=$version"       | Out-File $env:GITHUB_OUTPUT -Append
+          "publish=$publish"       | Out-File $env:GITHUB_OUTPUT -Append
+          "prerelease=$prerelease" | Out-File $env:GITHUB_OUTPUT -Append
+
+          Write-Host "Building $version (publish: $publish, prerelease: $prerelease)"
+
+      # Before the build, not after: a tag whose release notes do not exist should fail in
+      # seconds rather than at the end of a five-minute pipeline.
+      #
+      # Cutting a release is two steps, and this is what makes the first one impossible to
+      # skip. `## [Unreleased]` is renamed to `## [1.2.3] - YYYY-MM-DD` in a pull request,
+      # *then* the tag is pushed. The alternative - having this workflow rewrite the
+      # changelog and commit it back - would need write access to repository contents from a
+      # tag build and would leave a commit no one reviewed.
+      #
+      # Falling back to `[Unreleased]` here instead would work exactly once. Every later
+      # release would republish everything above it, including entries that shipped in the
+      # previous one, and the only fix is amending a release people have already read.
+      - name: The changelog names this version
+        if: steps.version.outputs.publish == 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '${{ steps.version.outputs.version }}'
+          $heading = "## [$version]"
+
+          # -not (array -match ...) and not (array -notmatch ...): the second returns every
+          # line that failed to match, which is a non-empty array on any real changelog and
+          # therefore true every single time.
+          if (-not ((Get-Content CHANGELOG.md) -match "^$([regex]::Escape($heading))")) {
+            throw @"
+          CHANGELOG.md has no '$heading' section, so this release has no notes.
+
+          Cutting a release is two steps:
+            1. In a pull request, rename '## [Unreleased]' to '$heading - $(Get-Date -Format yyyy-MM-dd)'
+               and open a fresh empty '## [Unreleased]' above it.
+            2. Tag the merge commit and push the tag.
+
+          Delete the tag, do step 1, and tag again.
+          "@
+          }
+
+          Write-Host "Found $heading."
+
+      - name: Restore
+        run: dotnet restore Offstream.slnx
+
+      - name: Build
+        run: dotnet build Offstream.slnx --configuration Release --no-restore -p:Version=${{ steps.version.outputs.version }}
+
+      # A tag can be pushed at any commit, including one that never went through CI, so the
+      # suite runs again here rather than being assumed. The encode-integration tests are
+      # the exception: they shell out to a downloaded ffmpeg, they gate every pull request
+      # already, and re-downloading a 30 MB toolchain to re-prove them at tag time buys
+      # nothing this step does not.
+      - name: Test
+        run: >
+          dotnet test Offstream.slnx
+          --configuration Release
+          --no-build
+          --filter "Category!=Ffmpeg"
+          -p:Version=${{ steps.version.outputs.version }}
+
+      # Self-contained, untrimmed, non-AOT. These three are correctness constraints, not
+      # size preferences - the routing COM interop does not survive AOT and WPF trims
+      # poorly (CLAUDE.md, plan §2.2).
+      - name: Publish
+        run: >
+          dotnet publish src/Offstream.App/Offstream.App.csproj
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:PublishTrimmed=false
+          -p:Version=${{ steps.version.outputs.version }}
+          --output artifacts/publish
+
+      - name: Sign
+        shell: pwsh
+        env:
+          OFFSTREAM_SIGNING_PFX_BASE64: ${{ secrets.OFFSTREAM_SIGNING_PFX_BASE64 }}
+          OFFSTREAM_SIGNING_PASSWORD: ${{ secrets.OFFSTREAM_SIGNING_PASSWORD }}
+          OFFSTREAM_SIGNING_TIMESTAMP_URL: ${{ vars.OFFSTREAM_SIGNING_TIMESTAMP_URL }}
+        run: ./build/windows/sign.ps1 -Path artifacts/publish/Offstream.exe
+
+      # Symbols travel separately. They belong to whoever is reading a crash dump, not in
+      # every user's download, and a single-file publish leaves them beside the executable
+      # where they would otherwise be swept into the zip.
+      - name: Package
+        id: package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '${{ steps.version.outputs.version }}'
+
+          # One folder at the root of the zip, not loose files. Unzipping into Downloads is
+          # what people actually do, and an archive that scatters five files through it is
+          # the kind of thing that gets an app deleted before it is ever run.
+          $name = "Offstream-$version-win-x64"
+          $staging = "artifacts/staging/$name"
+
+          New-Item -ItemType Directory -Path artifacts/symbols, $staging -Force | Out-Null
+          Move-Item artifacts/publish/*.pdb artifacts/symbols -ErrorAction SilentlyContinue
+
+          Copy-Item artifacts/publish/* $staging -Recurse
+          Copy-Item LICENSE, NOTICE, README.md, CHANGELOG.md $staging
+
+          # Into the subfolder FFmpegLocator looks in, so the shipped app finds its own copy
+          # without the user installing anything. A configured path still overrides it.
+          ./build/windows/fetch-ffmpeg.ps1 -Destination "$staging/ffmpeg"
+
+          $zip = "artifacts/$name.zip"
+          Compress-Archive -Path $staging -DestinationPath $zip
+
+          # Checksums matter more here than they would for a signed build: with no
+          # signature to check, this is the only way to tell a download apart from
+          # something that looks like one.
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $(Split-Path $zip -Leaf)" | Out-File "$zip.sha256" -Encoding ascii
+
+          "zip=$zip" | Out-File $env:GITHUB_OUTPUT -Append
+          "staging=$staging" | Out-File $env:GITHUB_OUTPUT -Append
+          Write-Host "$hash  $(Split-Path $zip -Leaf)"
+
+      # From the same staged folder the zip was made from, so the two downloads cannot hold
+      # different software under one version number. Inno Setup 6 is on the runner image.
+      - name: Build the installer
+        id: installer
+        shell: pwsh
+        env:
+          OFFSTREAM_SIGNING_PFX_BASE64: ${{ secrets.OFFSTREAM_SIGNING_PFX_BASE64 }}
+          OFFSTREAM_SIGNING_PASSWORD: ${{ secrets.OFFSTREAM_SIGNING_PASSWORD }}
+          OFFSTREAM_SIGNING_TIMESTAMP_URL: ${{ vars.OFFSTREAM_SIGNING_TIMESTAMP_URL }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          ./build/windows/build-installer.ps1 `
+            -Version '${{ steps.version.outputs.version }}' `
+            -SourceDir '${{ steps.package.outputs.staging }}' | Out-Null
+
+          $installer = "artifacts/Offstream-${{ steps.version.outputs.version }}-setup.exe"
+          $hash = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $(Split-Path $installer -Leaf)" | Out-File "$installer.sha256" -Encoding ascii
+
+          "path=$installer" | Out-File $env:GITHUB_OUTPUT -Append
+          Write-Host "$hash  $(Split-Path $installer -Leaf)"
+
+      # Distributing LGPL binaries means distributing the source they were built from.
+      # Attaching it beats a written offer: an offer has to outlive whatever was going to
+      # host it, and this one cannot, because the source is sitting next to the binary.
+      - name: Fetch ffmpeg's source
+        id: ffmpeg-source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $manifest = Get-Content build/windows/ffmpeg.json -Raw | ConvertFrom-Json
+          $out = "artifacts/ffmpeg-$($manifest.version)-source.tar.gz"
+
+          $previous = $ProgressPreference
+          $ProgressPreference = 'SilentlyContinue'
+          try { Invoke-WebRequest -Uri $manifest.sourceUrl -OutFile $out }
+          finally { $ProgressPreference = $previous }
+
+          "path=$out" | Out-File $env:GITHUB_OUTPUT -Append
+          Write-Host "Fetched $([math]::Round((Get-Item $out).Length / 1MB, 1)) MB of ffmpeg source."
+
+      - name: Upload build artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: offstream-${{ steps.version.outputs.version }}-win-x64
+          path: |
+            artifacts/*.zip
+            artifacts/*setup.exe
+            artifacts/*.sha256
+
+      - name: Upload symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: offstream-${{ steps.version.outputs.version }}-symbols
+          path: artifacts/symbols
+          if-no-files-found: ignore
+
+      # Everything above runs for a manual dispatch too. Only this step is tag-only.
+      - name: Publish the GitHub release
+        if: steps.version.outputs.publish == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '${{ steps.version.outputs.version }}'
+          $notes = 'artifacts/notes.md'
+          $manifest = Get-Content build/windows/ffmpeg.json -Raw | ConvertFrom-Json
+
+          # The changelog is the release notes, and only this version's own section is. The
+          # step near the top of this job has already refused to get here without one.
+          $changelog = Get-Content CHANGELOG.md -Raw
+          $section = [regex]::Match(
+            $changelog,
+            "(?ms)^## \[$([regex]::Escape($version))\][^`n]*`n(?<body>.*?)(?=^## \[|\z)")
+
+          $body = $section.Groups['body'].Value.Trim()
+
+          @(
+            "**Install it** with ``Offstream-$version-setup.exe`` — a per-user install that never asks"
+            'for administrator rights — or take the zip and run it from wherever you unpack it.'
+            'Both hold the same build.'
+            ''
+            '> **This build is not code-signed.** Windows SmartScreen will warn the first time you'
+            '> run it: choose **More info** and then **Run anyway**. Verify the download against its'
+            '> SHA-256 below before you do.'
+            ''
+            '> **VB-CABLE is not included.** Offstream detects it and tells you if it is missing;'
+            '> install it yourself from <https://vb-audio.com/Cable/> if you want to record Spotify'
+            '> alone rather than everything the machine plays.'
+            ''
+            "**ffmpeg $($manifest.version) is included** ($($manifest.licence)), unmodified and run as a"
+            'separate process. Its source is attached to this release as required, and its licence'
+            'travels in the `ffmpeg` folder beside it.'
+            ''
+            '```'
+            (Get-Content "${{ steps.installer.outputs.path }}.sha256" -Raw).Trim()
+            (Get-Content "${{ steps.package.outputs.zip }}.sha256" -Raw).Trim()
+            '```'
+            ''
+            $body
+          ) | Out-File $notes -Encoding utf8
+
+          $arguments = @(
+            'release', 'create', $env:GITHUB_REF_NAME
+            '--title', "Offstream $version"
+            '--notes-file', $notes
+          )
+
+          if ('${{ steps.version.outputs.prerelease }}' -eq 'true') { $arguments += '--prerelease' }
+
+          & gh @arguments `
+            '${{ steps.installer.outputs.path }}' `
+            "${{ steps.installer.outputs.path }}.sha256" `
+            '${{ steps.package.outputs.zip }}' `
+            "${{ steps.package.outputs.zip }}.sha256" `
+            '${{ steps.ffmpeg-source.outputs.path }}'
+          if ($LASTEXITCODE -ne 0) { throw "gh release create failed (exit $LASTEXITCODE)." }

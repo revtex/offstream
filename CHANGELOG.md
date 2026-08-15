@@ -15,6 +15,62 @@ phase plan these entries follow.
 
 ### Added
 
+- **A release pipeline, with the git tag as the only place a version number lives.** Pushing `v1.2.3`
+  builds, tests, publishes, signs and attaches a self-contained `win-x64` zip and its SHA-256 to a
+  GitHub release; the changelog becomes the release notes. Nothing in the repository records a
+  released version, so a build cannot claim a number the tag disagrees with — a file that has to be
+  bumped in lockstep with a tag is a file that eventually is not. A malformed tag is rejected before
+  anything is built, because a tag stops being editable the moment anyone fetches it, and a
+  prerelease suffix (`v1.2.3-rc.1`) marks the GitHub release as one so it does not become what
+  "latest" resolves to. Unreleased builds call themselves `0.1.0-dev` rather than borrowing the last
+  release's number, which is what turns "which build is this?" into a question with an answer. The
+  same workflow runs from the Actions tab to exercise the pipeline without spending a version.
+  Cutting a release is two steps — close `## [Unreleased]` into `## [1.2.3]` in a pull request, then
+  tag — and a tag with no matching section fails in seconds rather than at the end of the pipeline.
+  Falling back to `[Unreleased]` would have worked exactly once, and every release after that would
+  republish the previous one's entries with no fix short of amending a release people had read.
+- **A per-user installer that never asks for administrator rights.** Offstream needs no elevation to
+  run — routing, session mute and loopback capture were all verified unelevated — so the thing that
+  installs it asks for none either. An elevation prompt is a decision the user has to make about
+  software they have not run yet. It installs into `%LOCALAPPDATA%\Programs\Offstream`, refuses
+  anything below Windows 11 with a sentence during setup rather than a crash on first run, notices a
+  running copy through the app's own single-instance mutex instead of failing halfway through
+  replacing a locked file, and is offered in English and French to match the app.
+  It is built from **the same staged folder the portable zip is made from**, so the two downloads
+  cannot hold different software under one version number, and the installer script is compiled on
+  every pull request — one that is only compiled when a tag is pushed is one that breaks when a tag
+  is pushed.
+  **Uninstalling asks about settings and logs rather than guessing.** Deleting them silently loses a
+  Last.fm API key and a Spotify sign-in; keeping them silently is wrong for someone uninstalling
+  because they are done. Recordings are never in scope: they live outside the install folder and no
+  uninstaller should reach them.
+- **ffmpeg travels with the app.** Releases carry an unmodified LGPL-3.0 build of ffmpeg in an
+  `ffmpeg` folder beside the executable, which is where the locator already looked, so a download
+  records audio without the user installing anything first. A copy on `PATH`, or one named on the
+  Settings page, still wins — bundling is a floor, not a preference. It costs about 45 MB of the
+  download, which is the price of the app working when it is opened.
+  The build is **pinned by SHA-256**, not fetched by name from a moving tag: an encoder that changes
+  between two builds of the same Offstream version turns a reproducible bug into an unreproducible
+  one, and a release asset can be replaced after the fact. A mismatch fails the release rather than
+  quietly shipping something else. The binaries are not committed — 108 MB of someone else's build
+  does not belong in a git history — so `build/windows/ffmpeg.json` records what to fetch and
+  `fetch-ffmpeg.ps1` fetches it, for the pipeline and for `build.ps1 -Publish -BundleFfmpeg` alike.
+  Only `ffmpeg.exe` ships; `ffprobe` is used by the integration tests and by nothing in the app, and
+  would have added another 108 MB.
+  **The LGPL obligation is met by attaching the source, not by offering it.** Every release carries
+  the FFmpeg source archive for the exact commit the binary was built from, because a written offer
+  has to outlive whatever was going to host it and this one does not have to. The bundle also carries
+  ffmpeg's own licence text and a `SOURCE.txt` naming that commit, and the vendor binary is never
+  re-signed or otherwise altered on its way in.
+- **Signing, wired and waiting.** `build/windows/sign.ps1` Authenticode-signs whatever it is given,
+  and when no certificate is configured it says so and exits 0 rather than failing the build.
+  Offstream has no certificate yet, so **every artefact is currently unsigned and Windows SmartScreen
+  will warn on first run** — the release notes say this outright instead of letting users find out,
+  and ship a SHA-256 as the only integrity check available in the meantime. Building the step now
+  means acquiring a certificate later is two repository secrets rather than a pipeline change, and it
+  gets reviewed while nothing depends on it. Timestamping is on by default: without it every
+  signature stops verifying the day the certificate expires, including on copies installed years
+  earlier.
 - **A security policy, and the reporting channel it points at.** `SECURITY.md` says where to send a
   vulnerability and what the app actually handles that is worth attention — track metadata being
   untrusted input that reaches ffmpeg arguments and file paths, the PKCE sign-in, DPAPI token

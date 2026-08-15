@@ -34,9 +34,10 @@ drops into the list below as it is completed.*
 
 Three things worth knowing up front, so nothing is a surprise:
 
-**There's no installer yet.** Offstream is still in development, so there is no download — you build
-it from source — a few downloads and one build, with every step below. Packaging is the next piece
-of work.
+**There's no release yet.** Offstream is still in development, so there is nothing to download — you
+build it from source, which is a few downloads and one build, with every step below. The installer
+and the release pipeline are built and waiting on a version tag; check
+[Releases](https://github.com/revtex/offstream/releases) before assuming this is still true.
 
 **It records your PC's sound, not Spotify specifically.** By default Offstream captures whatever
 your speakers are playing, so a Windows notification chime or a YouTube tab in the background lands
@@ -45,8 +46,10 @@ in the recording too. Either keep the machine quiet while it records, or install
 settings, and record that instead — then only Spotify is captured. Offstream tells you on the
 Settings page whether VB-CABLE is installed.
 
-**You need ffmpeg.** It's the free tool Offstream uses to turn the captured audio into MP3s. One
-command installs it; see [Getting Offstream running](#getting-offstream-running).
+**You need ffmpeg — for now.** It's the free tool Offstream uses to turn the captured audio into
+MP3s. One command installs it; see [Getting Offstream running](#getting-offstream-running).
+Releases bundle their own copy, so this is only true while building from source. If you have one
+installed anyway, or point Offstream at a particular build on the Settings page, yours wins.
 
 ## Getting Offstream running
 
@@ -494,6 +497,63 @@ tools/   Offstream.FakeSpotify (window-title harness)
 build/   installer, signing, icons
 docs/    modernization plan, decision records, screenshots
 ```
+
+</details>
+
+<details>
+<summary><b>Releasing</b></summary>
+
+**The tag is the version.** Nothing in the repo records a released version number, so the two cannot
+disagree about what shipped.
+
+Cutting a release is two steps, and the pipeline refuses to skip the first.
+
+**1. Close the changelog, in a pull request.** Rename `## [Unreleased]` to `## [0.1.0] - 2026-08-14`
+and open a fresh empty `## [Unreleased]` above it. That section becomes the release notes verbatim.
+
+**2. Tag the merge commit and push the tag.** Everything else is automatic — build, test, publish,
+sign, package, GitHub release.
+
+```powershell
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Pushing a tag with no matching changelog section fails in seconds, before anything is built, and says
+what to do. Falling back to `[Unreleased]` instead would work exactly once: every later release would
+republish everything above it, including entries that shipped in the previous one, and the only fix
+is amending a release people have already read.
+
+A tag that is not `vMAJOR.MINOR.PATCH` — optionally with a prerelease suffix, `v1.2.3-rc.1` — is
+rejected before anything is built, since a tag is not meaningfully editable once anyone has fetched
+it. A prerelease suffix also marks the GitHub release as a prerelease, so it does not become what
+"latest" resolves to.
+
+To exercise the pipeline without spending a version number, run the **Release** workflow manually
+from the Actions tab: it builds and uploads the same artefacts and creates no release.
+
+`VersionPrefix` in `Directory.Build.props` only decides what an *unreleased* build calls itself
+(`0.1.0-dev`). Nudge it after a release so dev builds sort after it; nothing breaks if you forget.
+
+**The installer is per-user and never asks for administrator rights** — `build/windows/offstream.iss`,
+compiled by `build-installer.ps1` from the same staged folder the portable zip is made from, so the
+two downloads cannot hold different software under one version number. It installs into
+`%LOCALAPPDATA%\Programs\Offstream`, refuses to run on anything below Windows 11, and asks on
+uninstall whether to remove settings and logs as well. Recordings are never in its scope. CI compiles
+the script on every pull request, because a script that is only compiled at tag time is one that
+breaks at tag time.
+
+**ffmpeg is bundled, and pinned.** `build/windows/ffmpeg.json` names the exact LGPL build, its
+SHA-256 and the commit it came from; `fetch-ffmpeg.ps1` refuses anything that does not match. The
+binaries are not in this repository — 108 MB of someone else's build does not belong in a git
+history — so a release fetches them, and `build.ps1 -Publish -BundleFfmpeg` reproduces that locally.
+Distributing an LGPL binary obliges distributing its source, so each release attaches the matching
+source archive rather than offering to supply it later.
+
+**Builds are not code-signed yet.** `build/windows/sign.ps1` is wired into the pipeline and does
+nothing while no certificate is configured — it says so and exits 0. Setting the
+`OFFSTREAM_SIGNING_PFX_BASE64` and `OFFSTREAM_SIGNING_PASSWORD` repository secrets is all that is
+needed to turn it on. Until then, SmartScreen warns on first run and the release notes say so.
 
 </details>
 
