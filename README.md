@@ -45,8 +45,10 @@ in the recording too. Either keep the machine quiet while it records, or install
 settings, and record that instead — then only Spotify is captured. Offstream tells you on the
 Settings page whether VB-CABLE is installed.
 
-**You need ffmpeg.** It's the free tool Offstream uses to turn the captured audio into MP3s. One
-command installs it; see [Getting Offstream running](#getting-offstream-running).
+**You need ffmpeg — for now.** It's the free tool Offstream uses to turn the captured audio into
+MP3s. One command installs it; see [Getting Offstream running](#getting-offstream-running).
+Releases bundle their own copy, so this is only true while building from source. If you have one
+installed anyway, or point Offstream at a particular build on the Settings page, yours wins.
 
 ## Getting Offstream running
 
@@ -531,6 +533,13 @@ from the Actions tab: it builds and uploads the same artefacts and creates no re
 
 `VersionPrefix` in `Directory.Build.props` only decides what an *unreleased* build calls itself
 (`0.1.0-dev`). Nudge it after a release so dev builds sort after it; nothing breaks if you forget.
+
+**ffmpeg is bundled, and pinned.** `build/windows/ffmpeg.json` names the exact LGPL build, its
+SHA-256 and the commit it came from; `fetch-ffmpeg.ps1` refuses anything that does not match. The
+binaries are not in this repository — 108 MB of someone else's build does not belong in a git
+history — so a release fetches them, and `build.ps1 -Publish -BundleFfmpeg` reproduces that locally.
+Distributing an LGPL binary obliges distributing its source, so each release attaches the matching
+source archive rather than offering to supply it later.
 
 **Builds are not code-signed yet.** `build/windows/sign.ps1` is wired into the pipeline and does
 nothing while no certificate is configured — it says so and exits 0. Setting the

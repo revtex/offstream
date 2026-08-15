@@ -33,8 +33,31 @@ Third-party components
   Serilog, and its Console and File sinks      Apache-2.0
   TagLibSharp                   LGPL-2.1-only
 
-ffmpeg is invoked as an external process and never linked into Offstream. Offstream
-resolves an LGPL build, or the one on the user's PATH; no GPL build is bundled.
+
+ffmpeg
+------
+
+ffmpeg is invoked as an external process and never linked into Offstream. Nothing in this
+repository is a derivative work of it, and its licence governs ffmpeg alone.
+
+Releases bundle an unmodified LGPL-3.0-or-later build of ffmpeg, in the `ffmpeg` folder
+beside the executable, along with its own LICENSE.txt and a SOURCE.txt naming the exact
+commit it was built from. No GPL build is ever bundled: a GPL build would reach Offstream's
+own licensing, and buys nothing this app uses - libmp3lame, libopus and native flac and aac
+are all present in an LGPL build. A copy on the user's PATH, or one they point the setting
+at, is used in preference and may be any build they like.
+
+The precise build, its digest and its source are pinned in build/windows/ffmpeg.json.
+Distributing an LGPL binary obliges distributing the source it was built from, and every
+Offstream release attaches that source archive rather than offering to supply it later - an
+offer has to outlive whatever was going to host it, and this one does not have to.
+
+The bundled ffmpeg is never re-signed or otherwise altered on its way into a release. It
+ships exactly as its publisher built it.
+
+
+VB-CABLE
+--------
 
 VB-CABLE is not bundled. It is donationware from VB-Audio Software, installed by the user
 from vb-audio.com; Offstream only detects whether it is present.

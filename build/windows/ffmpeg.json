@@ -1,0 +1,32 @@
+{
+  "$comment": [
+    "The ffmpeg Offstream ships. Pinned rather than tracked: 'latest' is a moving target,",
+    "and an encoder that changes between two builds of the same Offstream version turns a",
+    "reproducible bug into an unreproducible one. Nothing here is fetched at build time",
+    "without its sha256 matching.",
+
+    "LGPL, not GPL. This build is configured without --enable-gpl and with --enable-version3,",
+    "which makes it LGPL-3.0-or-later. Every encoder Offstream needs is present: libmp3lame,",
+    "libopus, and native flac and aac. A GPL build would drag Offstream's own licensing along",
+    "with it, and buys nothing this app uses.",
+
+    "The whole zip is 146 MB and holds ffmpeg, ffprobe, ffplay and the HTML manual. Only",
+    "ffmpeg.exe and the licence are bundled - ffprobe is used by the integration tests and",
+    "nothing in the app, and shipping it would add another 108 MB to every download.",
+
+    "sourceCommit is the obligation, not a courtesy: distributing LGPL binaries means",
+    "distributing the source they were built from. The release attaches that archive rather",
+    "than promising it on request, so the offer cannot outlive whatever was going to host it."
+  ],
+
+  "version": "n8.1.2-40-g852b0552f0",
+  "licence": "LGPL-3.0-or-later",
+
+  "release": "autobuild-2026-08-14-13-16",
+  "asset": "ffmpeg-n8.1.2-40-g852b0552f0-win64-lgpl-8.1.zip",
+  "sha256": "928a2215433d2060698b07037bfe301638b477978a525b7af41d79a98e357a11",
+
+  "sourceCommit": "852b0552f072826723749db6891928d839f536d8",
+  "sourceUrl": "https://github.com/FFmpeg/FFmpeg/archive/852b0552f072826723749db6891928d839f536d8.tar.gz",
+  "buildScriptsUrl": "https://github.com/BtbN/FFmpeg-Builds/tree/autobuild-2026-08-14-13-16"
+}

@@ -29,6 +29,24 @@ phase plan these entries follow.
   tag — and a tag with no matching section fails in seconds rather than at the end of the pipeline.
   Falling back to `[Unreleased]` would have worked exactly once, and every release after that would
   republish the previous one's entries with no fix short of amending a release people had read.
+- **ffmpeg travels with the app.** Releases carry an unmodified LGPL-3.0 build of ffmpeg in an
+  `ffmpeg` folder beside the executable, which is where the locator already looked, so a download
+  records audio without the user installing anything first. A copy on `PATH`, or one named on the
+  Settings page, still wins — bundling is a floor, not a preference. It costs about 45 MB of the
+  download, which is the price of the app working when it is opened.
+  The build is **pinned by SHA-256**, not fetched by name from a moving tag: an encoder that changes
+  between two builds of the same Offstream version turns a reproducible bug into an unreproducible
+  one, and a release asset can be replaced after the fact. A mismatch fails the release rather than
+  quietly shipping something else. The binaries are not committed — 108 MB of someone else's build
+  does not belong in a git history — so `build/windows/ffmpeg.json` records what to fetch and
+  `fetch-ffmpeg.ps1` fetches it, for the pipeline and for `build.ps1 -Publish -BundleFfmpeg` alike.
+  Only `ffmpeg.exe` ships; `ffprobe` is used by the integration tests and by nothing in the app, and
+  would have added another 108 MB.
+  **The LGPL obligation is met by attaching the source, not by offering it.** Every release carries
+  the FFmpeg source archive for the exact commit the binary was built from, because a written offer
+  has to outlive whatever was going to host it and this one does not have to. The bundle also carries
+  ffmpeg's own licence text and a `SOURCE.txt` naming that commit, and the vendor binary is never
+  re-signed or otherwise altered on its way in.
 - **Signing, wired and waiting.** `build/windows/sign.ps1` Authenticode-signs whatever it is given,
   and when no certificate is configured it says so and exits 0 rather than failing the build.
   Offstream has no certificate yet, so **every artefact is currently unsigned and Windows SmartScreen

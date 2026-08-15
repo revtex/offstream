@@ -191,6 +191,10 @@ jobs:
           Copy-Item artifacts/publish/* $staging -Recurse
           Copy-Item LICENSE, NOTICE, README.md, CHANGELOG.md $staging
 
+          # Into the subfolder FFmpegLocator looks in, so the shipped app finds its own copy
+          # without the user installing anything. A configured path still overrides it.
+          ./build/windows/fetch-ffmpeg.ps1 -Destination "$staging/ffmpeg"
+
           $zip = "artifacts/$name.zip"
           Compress-Archive -Path $staging -DestinationPath $zip
 
@@ -202,6 +206,25 @@ jobs:
 
           "zip=$zip" | Out-File $env:GITHUB_OUTPUT -Append
           Write-Host "$hash  $(Split-Path $zip -Leaf)"
+
+      # Distributing LGPL binaries means distributing the source they were built from.
+      # Attaching it beats a written offer: an offer has to outlive whatever was going to
+      # host it, and this one cannot, because the source is sitting next to the binary.
+      - name: Fetch ffmpeg's source
+        id: ffmpeg-source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $manifest = Get-Content build/windows/ffmpeg.json -Raw | ConvertFrom-Json
+          $out = "artifacts/ffmpeg-$($manifest.version)-source.tar.gz"
+
+          $previous = $ProgressPreference
+          $ProgressPreference = 'SilentlyContinue'
+          try { Invoke-WebRequest -Uri $manifest.sourceUrl -OutFile $out }
+          finally { $ProgressPreference = $previous }
+
+          "path=$out" | Out-File $env:GITHUB_OUTPUT -Append
+          Write-Host "Fetched $([math]::Round((Get-Item $out).Length / 1MB, 1)) MB of ffmpeg source."
 
       - name: Upload build artefacts
         uses: actions/upload-artifact@v4
@@ -228,6 +251,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $version = '${{ steps.version.outputs.version }}'
           $notes = 'artifacts/notes.md'
+          $manifest = Get-Content build/windows/ffmpeg.json -Raw | ConvertFrom-Json
 
           # The changelog is the release notes, and only this version's own section is. The
           # step near the top of this job has already refused to get here without one.
@@ -247,6 +271,10 @@ jobs:
             '> install it yourself from <https://vb-audio.com/Cable/> if you want to record Spotify'
             '> alone rather than everything the machine plays.'
             ''
+            "**ffmpeg $($manifest.version) is included** ($($manifest.licence)), unmodified and run as a"
+            'separate process. Its source is attached to this release as required, and its licence'
+            'travels in the `ffmpeg` folder beside it.'
+            ''
             '```'
             (Get-Content "${{ steps.package.outputs.zip }}.sha256" -Raw).Trim()
             '```'
@@ -262,5 +290,8 @@ jobs:
 
           if ('${{ steps.version.outputs.prerelease }}' -eq 'true') { $arguments += '--prerelease' }
 
-          & gh @arguments '${{ steps.package.outputs.zip }}' "${{ steps.package.outputs.zip }}.sha256"
+          & gh @arguments `
+            '${{ steps.package.outputs.zip }}' `
+            "${{ steps.package.outputs.zip }}.sha256" `
+            '${{ steps.ffmpeg-source.outputs.path }}'
           if ($LASTEXITCODE -ne 0) { throw "gh release create failed (exit $LASTEXITCODE)." }
