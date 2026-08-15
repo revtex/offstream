@@ -715,6 +715,37 @@ public sealed class RecordingSessionTests
             "an elapsed-time report naming the track");
     }
 
+    /// <summary>
+    /// Every report says what is playing, separately from what the report is about.
+    /// </summary>
+    /// <remarks>
+    /// The two are not the same. A track is encoded, tagged and saved while the next one is
+    /// already recording, so those reports name a song that has finished — and a shell that read
+    /// the subject as the now-playing line put the previous track back on the page, taking the
+    /// album, cover art and destination of the one actually recording down with it. Reporting
+    /// both facts is what lets the shell tell them apart; the flag is here so it does not have to
+    /// compare names, which two plays of the same song would defeat.
+    /// </remarks>
+    [Fact]
+    public async Task Session_ReportsWhatIsPlayingAlongsideWhatTheReportIsAbout()
+    {
+        await using var harness = new Harness();
+
+        harness.Session.Start();
+
+        await RecordTrackAsync(harness, Harness.Playing("Artist", "Title"));
+
+        await WaitFor(
+            () => harness.Reports.Any(r => r.Stage == RecordingStage.Recording && r.NowPlaying == "Artist - Title"),
+            "a recording report naming what is playing");
+
+        // The invariant the shell leans on: a report that claims to be about the live track has
+        // to actually name it, or the elapsed counter it carries belongs to something else.
+        Assert.DoesNotContain(
+            harness.Reports,
+            r => r.ConcernsNowPlaying && r.Track is not null && r.Track != r.NowPlaying);
+    }
+
     [Fact]
     public async Task Level_MeasuresWhatCaptureDelivers()
     {

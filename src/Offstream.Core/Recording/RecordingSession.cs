@@ -415,7 +415,7 @@ public sealed class RecordingSession : IAsyncDisposable
 
         Report(
             recording is null ? RecordingStage.WaitingForTrack : RecordingStage.Recording,
-            (recording ?? _poller.CurrentTrack)?.ToString(),
+            recording ?? _poller.CurrentTrack,
             TimeSpan.FromSeconds(e.TrackTimeSeconds));
     }
 
@@ -453,7 +453,7 @@ public sealed class RecordingSession : IAsyncDisposable
 
         if (!_policy.IsTypeAllowed(track))
         {
-            Report(RecordingStage.WaitingForTrack, track.ToString(), message: DescribeSkipped(track));
+            Report(RecordingStage.WaitingForTrack, track, message: DescribeSkipped(track));
             return;
         }
 
@@ -461,7 +461,7 @@ public sealed class RecordingSession : IAsyncDisposable
         {
             Report(
                 RecordingStage.WaitingForTrack,
-                track.ToString(),
+                track,
                 message: $"File counter reached its maximum ({_settings.OrderNumberMax}); not recording.");
 
             return;
@@ -476,7 +476,7 @@ public sealed class RecordingSession : IAsyncDisposable
         {
             Report(
                 RecordingStage.WaitingForTrack,
-                track.ToString(),
+                track,
                 message: $"Kept the file already on disk and did not record {track}.");
 
             return;
@@ -521,7 +521,7 @@ public sealed class RecordingSession : IAsyncDisposable
             _recording = Task.Run(() => recorder.RunAsync(_stopping.Token), CancellationToken.None);
         }
 
-        Report(RecordingStage.Recording, track.ToString(), message: $"Recording {track}.");
+        Report(RecordingStage.Recording, track, message: $"Recording {track}.");
     }
 
     /// <summary>
@@ -688,7 +688,7 @@ public sealed class RecordingSession : IAsyncDisposable
 
                 Report(
                     RecordingStage.Encoding,
-                    recording.Track.ToString(),
+                    recording.Track,
                     recording.Duration,
                     $"Encoding {recording.Track}.");
 
@@ -697,7 +697,7 @@ public sealed class RecordingSession : IAsyncDisposable
             case RecordingOutcome.TooShort:
                 Report(
                     RecordingStage.WaitingForTrack,
-                    recording.Track.ToString(),
+                    recording.Track,
                     recording.Duration,
                     $"Discarded {recording.Track}: shorter than "
                     + $"{_settings.MinimumRecordedLengthSeconds}s.");
@@ -707,7 +707,7 @@ public sealed class RecordingSession : IAsyncDisposable
             case RecordingOutcome.AlreadyRecorded:
                 Report(
                     RecordingStage.WaitingForTrack,
-                    recording.Track.ToString(),
+                    recording.Track,
                     recording.Duration,
                     $"Kept the file already on disk and discarded this recording of {recording.Track}: "
                     + $"{recording.Destination}");
@@ -763,7 +763,7 @@ public sealed class RecordingSession : IAsyncDisposable
 
                 Report(
                     RecordingStage.WaitingForTrack,
-                    track.ToString(),
+                    track,
                     recording.Duration,
                     $"Kept the file already on disk and discarded this recording of {track}: {destination}");
 
@@ -788,14 +788,14 @@ public sealed class RecordingSession : IAsyncDisposable
                     "Cover art could not be embedded in {Track}. The recording itself is fine.",
                     track);
 
-                Report(RecordingStage.Tagging, track.ToString());
+                Report(RecordingStage.Tagging, track);
             }
 
             TrackSaved?.Invoke(this, new TrackSavedEventArgs(track, destination, recording.Duration));
 
             Report(
                 RecordingStage.WaitingForTrack,
-                track.ToString(),
+                track,
                 recording.Duration,
                 DescribeSaved(outputFile, replacing));
         }
@@ -909,9 +909,65 @@ public sealed class RecordingSession : IAsyncDisposable
     private void RaiseFailed(Track track, string message, Exception? exception = null)
     {
         Failed?.Invoke(this, new RecordingFailedEventArgs(track, message, exception));
-        Report(RecordingStage.WaitingForTrack, track.ToString());
+        Report(RecordingStage.WaitingForTrack, track);
     }
 
-    private void Report(RecordingStage stage, string? track = null, TimeSpan? elapsed = null, string? message = null) =>
-        _progress?.Report(new RecordingProgress(stage, track, elapsed, message));
+    /// <summary>
+    /// Emits a progress report, and works out what is playing while it does.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The track a report is about is not always the track playing.</b> Encoding, tagging and
+    /// the save message all describe the <i>previous</i> song and arrive well after the next one
+    /// has started, because finalising to disk deliberately overlaps the following recording.
+    /// Consumers that showed <see cref="RecordingProgress.Track"/> as the now-playing line
+    /// therefore flipped back to the finished song for as long as it took the next elapsed tick
+    /// to correct them — and anything keyed on that line changing, like the shell dropping a
+    /// track's album and cover art, fired twice on a track it should not have touched at all.
+    /// </para>
+    /// <para>
+    /// Both facts are computed here rather than at the eleven call sites, so a new report cannot
+    /// forget to carry them and cannot disagree with the others about what "now" means. The live
+    /// track is the one being recorded, falling back to whatever Spotify is showing when nothing
+    /// is being recorded — an advertisement is still playing, and a now-playing line that blanks
+    /// out for one reads as a bug. Identity is by reference, not by name: the poller hands each
+    /// track over once and the session snapshots it, so two plays of the same song are two
+    /// objects and are told apart correctly.
+    /// </para>
+    /// </remarks>
+    private void Report(RecordingStage stage, Track? track = null, TimeSpan? elapsed = null, string? message = null)
+    {
+        if (_progress is null) return;
+
+        // Stopped and idle mean the session is not listening, so nothing is playing as far as
+        // this report is concerned — whatever the poller last saw is stale by definition.
+        var live = stage is RecordingStage.Stopped or RecordingStage.Idle
+            ? null
+            : Named(CurrentTrack ?? _poller.CurrentTrack);
+
+        var subject = Named(track);
+
+        _progress.Report(new RecordingProgress(
+            stage,
+            subject?.ToString(),
+            elapsed,
+            message,
+            live?.ToString(),
+            subject is null || ReferenceEquals(subject, live)));
+    }
+
+    /// <summary>
+    /// A track worth naming, or null for one that only stands in for the absence of a track.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="SpotifyPoller.Start"/> seeds an empty <see cref="Track"/> so that the song
+    /// already playing counts as a change, and Spotify's own title when nothing is on parses to
+    /// the same thing. Either renders as the bare word "Spotify", so without this the page said
+    /// a song called Spotify was playing and the tray offered to be recording it, from the
+    /// instant the user pressed start.
+    /// </remarks>
+    private static Track? Named(Track? track) =>
+        track is not null && (!string.IsNullOrEmpty(track.Artist) || !string.IsNullOrEmpty(track.Title))
+            ? track
+            : null;
 }

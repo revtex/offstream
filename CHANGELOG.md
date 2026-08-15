@@ -274,6 +274,25 @@ phase plan these entries follow.
 
 ### Fixed
 
+- **Every track after the first showed nothing but the artist and title.** The album, cover art
+  and destination arrived a second into each song and were gone a moment later, on every track
+  except the first one of a session — while the files themselves were tagged correctly, so the
+  lookup was plainly working and only the page was wrong. The cause was that a report from the
+  pipeline named the track it was *about*, and the shell read that as the track playing. Encoding,
+  tagging and saving happen to the previous song while the next one is already recording, so those
+  reports named a track that had finished: the now-playing line snapped back to it, which was the
+  signal to drop the album, art and path of the song that was recording, and the next elapsed tick
+  a seventieth of a second later snapped it forward again and dropped them a second time. Nothing
+  re-runs a lookup for a track already under way, so the card stayed bare for the rest of it. The
+  first track escaped only because nothing was finishing behind it. Reports now carry what is
+  playing separately from what they are about, and the page takes its now-playing line, elapsed
+  counter and transport state from the former — which also stops the counter jumping to the
+  previous track's length and the transport flickering out of Recording each time a file lands.
+  While it was there: the page and the tray no longer announce a song called "Spotify". The poller
+  seeds an empty track when it starts listening, so that whatever is already playing counts as a
+  change, and Spotify's own idle window title parses to the same empty thing — both of which
+  render as the bare application name. A placeholder for the absence of a track is now reported
+  as no track.
 - **Unplugging the device being recorded left the recording running against nothing.** The
   detection for this was built and correct — it notices both ways of losing an endpoint, the
   pinned device disappearing and Windows moving the default elsewhere — and nothing was listening

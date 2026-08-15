@@ -500,25 +500,40 @@ public sealed partial class RecordViewModel : ObservableObject
     /// Applies a progress report to the status line, now-playing and the elapsed counter.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// These arrive around fourteen times a second while a track plays, which is what makes the
     /// counter smooth and what makes this method's cost matter. Every assignment here is an
     /// <see cref="ObservableObject"/> property that raises nothing when the value is unchanged,
     /// so a report that repeats the previous one costs three comparisons and no layout.
+    /// </para>
+    /// <para>
+    /// The now-playing line comes from <see cref="RecordingProgress.NowPlaying"/> rather than
+    /// from <see cref="RecordingProgress.Track"/>, and the counter and the transport are only
+    /// touched by a report that concerns the track playing. The pipeline finishes the previous
+    /// song while the next one records, so its encoding, tagging and saved reports name a track
+    /// that is over and carry the length it ran to — applied here, they rewrote the card with
+    /// the finished song's name and jumped the counter to its duration until the next tick undid
+    /// both.
+    /// </para>
     /// </remarks>
     private void OnProgress(object? sender, RecordingProgress progress) => Dispatch(() =>
     {
-        NowPlaying = progress.Track ?? Strings.RecordNothingPlaying;
-        Elapsed = progress.Elapsed ?? TimeSpan.Zero;
-        IsCapturing = progress.Stage == RecordingStage.Recording;
+        NowPlaying = progress.NowPlaying ?? Strings.RecordNothingPlaying;
 
-        Transport = progress.Stage switch
+        if (progress.ConcernsNowPlaying)
         {
-            RecordingStage.Recording => Strings.RecordTransportRecording,
-            RecordingStage.WaitingForTrack => Strings.RecordTransportWaiting,
-            _ => Strings.RecordTransportStopped,
-        };
+            Elapsed = progress.Elapsed ?? TimeSpan.Zero;
+            IsCapturing = progress.Stage == RecordingStage.Recording;
 
-        if (IsBusy) return;
+            Transport = progress.Stage switch
+            {
+                RecordingStage.Recording => Strings.RecordTransportRecording,
+                RecordingStage.WaitingForTrack => Strings.RecordTransportWaiting,
+                _ => Strings.RecordTransportStopped,
+            };
+        }
+
+        if (IsBusy || !progress.ConcernsNowPlaying) return;
 
         Status = progress.Stage switch
         {
@@ -579,6 +594,14 @@ public sealed partial class RecordViewModel : ObservableObject
     /// exactly the moment the three become wrong, and it costs nothing on the reports that repeat
     /// the same track fourteen times a second — <see cref="ObservableObject"/> raises nothing when
     /// the value is unchanged, so this does not run.
+    /// </para>
+    /// <para>
+    /// That only holds because the name is now taken from <see cref="RecordingProgress.NowPlaying"/>,
+    /// which changes when the song does. It used to be taken from the report's subject, which the
+    /// previous track's encoding and tagging reports set back to the finished song — so every
+    /// track after the first had its album, art and destination cleared twice moments after
+    /// enrichment supplied them, and nothing left to put them back. Only the first track of a
+    /// session escaped, having nothing finishing behind it.
     /// </para>
     /// <para>
     /// The order this depends on is that the progress report naming the new track arrives before

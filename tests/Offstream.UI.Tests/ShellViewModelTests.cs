@@ -60,7 +60,10 @@ public sealed class ShellViewModelTests
         var tooltip = await TooltipAfter(
             viewModel,
             () => factory.Progress!.Report(
-                new RecordingProgress(RecordingStage.Recording, "Someone - Something")));
+                new RecordingProgress(
+                    RecordingStage.Recording,
+                    "Someone - Something",
+                    NowPlaying: "Someone - Something")));
 
         Assert.Equal(
             string.Format(CultureInfo.CurrentCulture, RecordingFormat, "Someone - Something"),
@@ -79,7 +82,10 @@ public sealed class ShellViewModelTests
         await TooltipAfter(
             viewModel,
             () => factory.Progress!.Report(
-                new RecordingProgress(RecordingStage.Recording, "Someone - Something")));
+                new RecordingProgress(
+                    RecordingStage.Recording,
+                    "Someone - Something",
+                    NowPlaying: "Someone - Something")));
 
         await controller.StopAsync();
 
