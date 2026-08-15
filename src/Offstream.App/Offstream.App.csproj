@@ -27,6 +27,23 @@
   </ItemGroup>
 
   <!--
+    The licence text ships inside the executable, not beside it. Offstream carries the
+    predecessor's MIT copyright notice and bundles an LGPL ffmpeg, and both licences oblige the
+    notice to travel with the software - so it cannot depend on a loose file surviving a zip
+    unpacked selectively, a copy of just the .exe, or a run out of bin\. LogicalName is set
+    explicitly because these sit above the project directory and the default name derived from
+    their path would not be a stable identifier.
+
+    Link makes them visible in the IDE without a second copy on disk; the files at the
+    repository root stay the only originals, which is what keeps the window and the repository
+    from ever disagreeing.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\LICENSE" LogicalName="Offstream.App.LICENSE" Link="LICENSE" />
+    <EmbeddedResource Include="..\..\NOTICE" LogicalName="Offstream.App.NOTICE" Link="NOTICE" />
+  </ItemGroup>
+
+  <!--
     Generates a public `Offstream.App.Resources.Strings` class from the neutral .resx, so XAML
     can reach a key through `{x:Static res:Strings.NavRecord}` and a typo fails the build
     instead of rendering an empty label. The generated file goes to obj/ rather than into the

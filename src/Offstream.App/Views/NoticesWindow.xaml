@@ -1,0 +1,101 @@
+<ui:FluentWindow x:Class="Offstream.App.Views.NoticesWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:res="clr-namespace:Offstream.App.Resources"
+                 xmlns:svc="clr-namespace:Offstream.App.Services"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="{x:Static res:Strings.NoticesTitle}"
+                 Width="760"
+                 Height="640"
+                 MinWidth="480"
+                 MinHeight="360"
+                 ExtendsContentIntoTitleBar="True"
+                 Icon="pack://application:,,,/Offstream;component/Assets/offstream.ico"
+                 ShowInTaskbar="False"
+                 WindowBackdropType="None"
+                 WindowCornerPreference="Round"
+                 WindowStartupLocation="CenterOwner">
+
+    <!--
+        The licence text, shown rather than shipped and hoped for.
+
+        The obligations are real: the MIT licence inherited from the predecessor requires its
+        copyright notice travel with the software, and the bundled ffmpeg is LGPL. A NOTICE file
+        beside the executable satisfies both on paper, but nobody opens a folder to read one, and
+        an installed copy puts it somewhere the user never navigates to. This window is the
+        version a person actually encounters.
+
+        No ViewModel. Both strings are static and neither changes while the window is open, so
+        binding them through x:Static is the whole of it — a ViewModel here would exist only to
+        re-expose two constants and to need constructing from the container.
+    -->
+
+    <Grid Background="{StaticResource OffstreamWindowBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0"
+                     Title="{x:Static res:Strings.NoticesTitle}"
+                     Background="Transparent"
+                     ShowMaximize="False"
+                     ShowMinimize="False" />
+
+        <!--
+            The running build, named here because this is the window someone is already in when
+            they go looking for it, and a bug report is worth more with it attached.
+        -->
+        <TextBlock Grid.Row="1"
+                   Margin="24,4,24,12"
+                   AutomationProperties.AutomationId="NoticesVersion"
+                   Style="{StaticResource OffstreamHintStyle}"
+                   Text="{x:Static svc:ThirdPartyNotices.Version}"
+                   TextWrapping="Wrap" />
+
+        <!--
+            A read-only TextBox, not a TextBlock: the text is a licence, so it has to be
+            selectable and copyable. IsReadOnly rather than IsEnabled="False" keeps it selectable
+            while refusing edits, and IsReadOnlyCaretVisible gives the keyboard a caret to
+            navigate with, which is what makes the scroll region reachable without a mouse.
+
+            Monospace and no wrapping below the pane's width: the file is hand-wrapped at 90
+            columns, and re-wrapping it on top of that ragged the rules apart.
+        -->
+        <Border Grid.Row="2"
+                Margin="24,0,24,0"
+                Background="{StaticResource OffstreamWellBrush}"
+                BorderBrush="{StaticResource OffstreamSurfaceBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="6">
+            <TextBox Padding="12"
+                     AutomationProperties.AutomationId="NoticesText"
+                     AutomationProperties.Name="{x:Static res:Strings.NoticesTitle}"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     FontFamily="{StaticResource OffstreamMonoFontFamily}"
+                     FontSize="{StaticResource OffstreamMonoFontSize}"
+                     HorizontalScrollBarVisibility="Auto"
+                     IsReadOnly="True"
+                     IsReadOnlyCaretVisible="True"
+                     Text="{x:Static svc:ThirdPartyNotices.Text}"
+                     TextWrapping="NoWrap"
+                     VerticalScrollBarVisibility="Auto" />
+        </Border>
+
+        <!--
+            IsCancel, so Escape closes the window and the button needs no handler. The window is
+            shown with ShowDialog, which is what makes that work.
+        -->
+        <ui:Button Grid.Row="3"
+                   Margin="24,16,24,24"
+                   HorizontalAlignment="Right"
+                   AutomationProperties.AutomationId="NoticesClose"
+                   Content="{x:Static res:Strings.NoticesClose}"
+                   IsCancel="True"
+                   IsDefault="True" />
+    </Grid>
+
+</ui:FluentWindow>

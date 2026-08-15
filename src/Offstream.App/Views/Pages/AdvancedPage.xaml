@@ -441,7 +441,38 @@
                     Padding="20,16,20,4"
                     Style="{StaticResource OffstreamCardStyle}">
                 <StackPanel>
-                    <ContentControl Content="{x:Static res:Strings.AdvancedAppSection}" Style="{StaticResource OffstreamGroupHeaderStyle}" />
+                    <!--
+                        The section header, with the licence behind a link on the same line.
+
+                        On the header rather than under the last setting, and the reason is
+                        structural: this card already reaches the bottom of the window at its
+                        minimum size, and the shell's minimum size is a promise that no setting is
+                        ever out of reach without scrolling. A control added below the ffmpeg path
+                        broke that promise the first time it was tried — the version line and its
+                        button were clipped off the bottom edge. The header line is the one place
+                        in the card with room that costs nothing, and the rule simply runs up to
+                        the link instead of across.
+
+                        The running version is not repeated here; it is the first thing in the
+                        window the link opens.
+                    -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ContentControl Content="{x:Static res:Strings.AdvancedAppSection}" Style="{StaticResource OffstreamGroupHeaderStyle}" />
+
+                        <ui:HyperlinkButton Grid.Column="1"
+                                            Margin="12,0,0,8"
+                                            Padding="4,0"
+                                            VerticalAlignment="Center"
+                                            AutomationProperties.AutomationId="AdvancedNotices"
+                                            Click="OnShowNotices"
+                                            Content="{x:Static res:Strings.AdvancedNoticesButton}"
+                                            FontSize="12" />
+                    </Grid>
 
                     <Grid>
                         <Grid.ColumnDefinitions>

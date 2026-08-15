@@ -114,6 +114,8 @@ public sealed partial class SettingsViewModel : ObservableValidator
     [NotifyPropertyChangedFor(nameof(IsSpotifyProvider))]
     [NotifyPropertyChangedFor(nameof(IsLastFmProvider))]
     [NotifyPropertyChangedFor(nameof(ProviderSummary))]
+    [NotifyPropertyChangedFor(nameof(ProviderAttribution))]
+    [NotifyPropertyChangedFor(nameof(HasProviderAttribution))]
     [NotifyPropertyChangedFor(nameof(NeedsLastFmApiKey))]
     [NotifyCanExecuteChangedFor(nameof(SignInToSpotifyCommand))]
     private MetadataProvider _provider;
@@ -236,6 +238,32 @@ public sealed partial class SettingsViewModel : ObservableValidator
         MetadataProvider.LastFm => Strings.SettingsProviderSummaryLastFm,
         _ => Strings.SettingsProviderSummaryNone,
     };
+
+    /// <summary>
+    /// Who the track details belong to, credited beside the provider that supplies them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// An obligation, not a courtesy. Spotify's Developer Terms require content taken from the
+    /// Web API be attributed to Spotify, and Last.fm asks the same of its API. Both are met by
+    /// naming the source where the user chooses it — which is the only place in the app where it
+    /// is obvious what the line refers to, and why this is not folded into the third-party
+    /// notices window with the licences.
+    /// </para>
+    /// <para>
+    /// Empty when nothing is selected: with no provider there is no content to credit, and a
+    /// standing attribution to a service the app is not calling would be a false one.
+    /// </para>
+    /// </remarks>
+    public string ProviderAttribution => Provider switch
+    {
+        MetadataProvider.Spotify => Strings.SettingsAttributionSpotify,
+        MetadataProvider.LastFm => Strings.SettingsAttributionLastFm,
+        _ => string.Empty,
+    };
+
+    /// <summary>Whether <see cref="ProviderAttribution"/> has anything to show.</summary>
+    public bool HasProviderAttribution => ProviderAttribution.Length > 0;
 
     /// <summary>
     /// Last.fm is chosen but has no key, so nothing will be tagged.
