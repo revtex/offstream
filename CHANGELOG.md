@@ -5,13 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Offstream has not shipped a release yet; everything below is work towards the first one.
 Because Offstream succeeds **Spytify** (.NET Framework 4.6.1 / WinForms) rather than starting
 from nothing, the `Changed`, `Removed` and `Fixed` entries are written against that predecessor
 — they say how Offstream differs from the app it replaces. `docs/MODERNIZATION-PLAN.md` is the
 phase plan these entries follow.
 
 ## [Unreleased]
+
+## [0.1.0] - 2026-08-15
+
+The first release. Everything below is the whole of Offstream rather than a change to it:
+phases 0–8 of `docs/MODERNIZATION-PLAN.md`, from the .NET 10 retarget through to a per-user
+installer.
 
 ### Added
 
@@ -28,6 +33,15 @@ phase plan these entries follow.
   Last.fm now says whose data is being written into the recordings — an attribution Spotify's
   Developer Terms require and that the app had never carried anywhere. It is empty when no provider
   is selected, because crediting a service the app is not calling would be a false statement.
+- **The Settings page names which Spotify account is signed in**, as display name and account id
+  — not just that one exists. Recordings go untagged when the signed-in account is not the one
+  the music plays on, and nothing on screen says which it is, so the only way to find out was to
+  read the logs. Costs one scope, `user-read-private`. The id is there because a display name is
+  not an identifier: two accounts can share one, and telling exactly those apart is what this is
+  for. `user-read-email` would be the obvious way to do that and is deliberately not requested —
+  Spotify removed the `email` field in its late-2024 cull, so that permission now covers data the
+  endpoint no longer returns.
+
 - **A release pipeline, with the git tag as the only place a version number lives.** Pushing `v1.2.3`
   builds, tests, publishes, signs and attaches a self-contained `win-x64` zip and its SHA-256 to a
   GitHub release; the changelog becomes the release notes. Nothing in the repository records a
@@ -328,18 +342,6 @@ phase plan these entries follow.
   `Offstream.Core` with tests of its own since Phase 2. What remained was a hand-run console
   harness nothing built on, carried in the solution and the layout docs as though it were part of
   the app. `docs/decisions/0001-phase-0-retarget-spike.md` keeps the findings.
-
-### Added
-
-- **The Settings page names which Spotify account is signed in**, as display name and account id
-  — not just that one exists. Recordings go untagged when the signed-in account is not the one
-  the music plays on, and nothing on screen said which it was, so the only way to find out was
-  to read the logs. Costs one scope, `user-read-private`, and existing installs show nothing
-  here until they sign in again, since a refresh token predating the scope cannot read the
-  profile. The id is there because a display name is not an identifier: two accounts can share
-  one, and telling exactly those apart is what this is for. `user-read-email` would be the
-  obvious way to do that and is deliberately not requested — Spotify removed the `email` field
-  in its late-2024 cull, so that permission now covers data the endpoint no longer returns.
 
 ### Fixed
 
