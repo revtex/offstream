@@ -317,6 +317,112 @@ public sealed class RecordViewModelTests
         Assert.Equal("An Album (2026)", viewModel.Album);
     }
 
+    /// <summary>
+    /// The defect that made every track after the first show nothing but artist and title.
+    /// </summary>
+    /// <remarks>
+    /// A track is encoded, tagged and saved while the <i>next</i> one is already recording, and
+    /// those reports name the track they are about — the one that finished. Read as the
+    /// now-playing line, they set the card back to the previous song, which cleared the album,
+    /// art and destination that enrichment had just supplied, and the next elapsed tick a
+    /// seventieth of a second later cleared them again on the way back. Nothing re-raises
+    /// enrichment for a track already recording, so the card stayed bare for the rest of the
+    /// song. The first track of a session escaped because nothing was finishing behind it.
+    /// </remarks>
+    [Fact]
+    public async Task Progress_WhileThePreviousTrackFinishes_KeepsTheDetailsOfTheOneRecording()
+    {
+        var factory = new FakeSessionFactory();
+        var controller = ControllerFor(factory);
+        var viewModel = new RecordViewModel(new InMemoryLogSink(), controller);
+
+        await viewModel.StartCommand.ExecuteAsync(null);
+        await DeliverAsync(
+            factory,
+            controller,
+            new RecordingProgress(RecordingStage.Recording, "Someone - Something", NowPlaying: "Someone - Something"));
+
+        // Enrichment lands about a second in, and fills the card.
+        viewModel.Album = "An Album (2026)";
+        viewModel.Destination = @"Someone\An Album\03 Something.mp3";
+
+        // Now the track before this one reaches disk. Three reports, all naming it, all arriving
+        // while "Someone - Something" is the song actually playing.
+        await DeliverAsync(
+            factory,
+            controller,
+            new RecordingProgress(
+                RecordingStage.Encoding,
+                "Earlier - Track",
+                TimeSpan.FromMinutes(4),
+                "Encoding Earlier - Track.",
+                NowPlaying: "Someone - Something",
+                ConcernsNowPlaying: false));
+
+        await DeliverAsync(
+            factory,
+            controller,
+            new RecordingProgress(
+                RecordingStage.Tagging,
+                "Earlier - Track",
+                NowPlaying: "Someone - Something",
+                ConcernsNowPlaying: false));
+
+        await DeliverAsync(
+            factory,
+            controller,
+            new RecordingProgress(
+                RecordingStage.WaitingForTrack,
+                "Earlier - Track",
+                TimeSpan.FromMinutes(4),
+                @"Saved Earlier\Earlier - Track.mp3",
+                NowPlaying: "Someone - Something",
+                ConcernsNowPlaying: false));
+
+        Assert.Equal("Someone - Something", viewModel.NowPlaying);
+        Assert.Equal("An Album (2026)", viewModel.Album);
+        Assert.Equal(@"Someone\An Album\03 Something.mp3", viewModel.Destination);
+    }
+
+    /// <summary>
+    /// Same reports, the other half of the damage: they carry the finished recording's length and
+    /// a stage that is not what the session is doing, so the counter jumped to four minutes and
+    /// the transport claimed the app had stopped writing — both undone by the next tick, which is
+    /// what made it read as a flicker rather than as a wrong number.
+    /// </summary>
+    [Fact]
+    public async Task Progress_WhileThePreviousTrackFinishes_LeavesTheCounterAndTransportAlone()
+    {
+        var factory = new FakeSessionFactory();
+        var controller = ControllerFor(factory);
+        var viewModel = new RecordViewModel(new InMemoryLogSink(), controller);
+
+        await viewModel.StartCommand.ExecuteAsync(null);
+        await DeliverAsync(
+            factory,
+            controller,
+            new RecordingProgress(
+                RecordingStage.Recording,
+                "Someone - Something",
+                TimeSpan.FromSeconds(18),
+                NowPlaying: "Someone - Something"));
+
+        await DeliverAsync(
+            factory,
+            controller,
+            new RecordingProgress(
+                RecordingStage.Encoding,
+                "Earlier - Track",
+                TimeSpan.FromMinutes(4),
+                "Encoding Earlier - Track.",
+                NowPlaying: "Someone - Something",
+                ConcernsNowPlaying: false));
+
+        Assert.Equal(TimeSpan.FromSeconds(18), viewModel.Elapsed);
+        Assert.True(viewModel.IsCapturing);
+        Assert.Equal(Strings.RecordTransportRecording, viewModel.Transport);
+    }
+
     [Fact]
     public void FilterOptions_OfferOneChoicePerFilter() =>
         Assert.Equal(
@@ -525,6 +631,45 @@ public sealed class RecordViewModelTests
     /// one report can raise several, and the interesting one is not always first.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Reports progress and waits for it to have reached the view model, whether or not it
+    /// changed anything.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="ReportAsync"/> waits on a property, which is no use for a report whose whole
+    /// point is that it must leave the page alone — the condition is true before the report is
+    /// delivered and stays true after, so the assertion runs against a page that has not seen it
+    /// yet and passes for the wrong reason. This waits on the controller forwarding the very
+    /// instance that was reported. The view model subscribes in its constructor, so it is ahead
+    /// of this handler on the multicast list and has already applied the report by the time the
+    /// wait completes.
+    /// </remarks>
+    private static async Task DeliverAsync(
+        FakeSessionFactory factory,
+        RecordingController controller,
+        RecordingProgress progress)
+    {
+        var delivered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        void OnForwarded(object? sender, RecordingProgress forwarded)
+        {
+            if (ReferenceEquals(forwarded, progress)) delivered.TrySetResult();
+        }
+
+        controller.Progress += OnForwarded;
+
+        try
+        {
+            factory.Progress!.Report(progress);
+
+            await delivered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            controller.Progress -= OnForwarded;
+        }
+    }
+
     private static async Task ReportAsync(
         FakeSessionFactory factory,
         RecordViewModel viewModel,

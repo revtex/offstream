@@ -177,9 +177,14 @@ public sealed partial class ShellViewModel : ObservableObject
         UpdateTooltip();
     });
 
+    /// <remarks>
+    /// The tooltip answers "what is being recorded", so it follows
+    /// <see cref="RecordingProgress.NowPlaying"/> and not the report's subject — the reports that
+    /// finish the previous track name a song that has already stopped playing.
+    /// </remarks>
     private void OnProgress(object? sender, RecordingProgress progress) => UiThread.Dispatch(() =>
     {
-        _track = progress.Track;
+        _track = progress.NowPlaying;
         UpdateTooltip();
     });
 
