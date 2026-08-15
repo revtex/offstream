@@ -148,6 +148,15 @@ phase plan these entries follow.
 
 ### Changed
 
+- **The README now explains the app before it explains the build.** It opened on a phase list and
+  a retarget spike, so someone arriving at the repository could read half of it without learning
+  what Offstream does, that it splits a listening session into one tagged file per song, or what
+  the window looks like — while the two facts they most needed were absent: there is no installer
+  yet, and recording an ordinary output device captures every sound the machine makes, not only
+  Spotify. Screenshots of the Record, Settings and Advanced pages now sit beside a walkthrough
+  from install to first recording, and the developer material — setup, `build.ps1`, IDEs, testing,
+  the naming rule, the relationship to the predecessor — is intact below, in collapsed sections.
+  The status line was two phases out of date.
 - **SpotifyAPI.Web upgraded 5.1.1 → 7.4.2.** `SpotifyWebAPI` and `AuthorizationCodeAuth` are
   gone; auth is PKCE end to end, which needs no client secret at all — a public desktop app was
   never able to keep one confidential regardless of how it was stored.
