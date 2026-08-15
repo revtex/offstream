@@ -90,6 +90,44 @@ jobs:
 
           Write-Host "Building $version (publish: $publish, prerelease: $prerelease)"
 
+      # Before the build, not after: a tag whose release notes do not exist should fail in
+      # seconds rather than at the end of a five-minute pipeline.
+      #
+      # Cutting a release is two steps, and this is what makes the first one impossible to
+      # skip. `## [Unreleased]` is renamed to `## [1.2.3] - YYYY-MM-DD` in a pull request,
+      # *then* the tag is pushed. The alternative - having this workflow rewrite the
+      # changelog and commit it back - would need write access to repository contents from a
+      # tag build and would leave a commit no one reviewed.
+      #
+      # Falling back to `[Unreleased]` here instead would work exactly once. Every later
+      # release would republish everything above it, including entries that shipped in the
+      # previous one, and the only fix is amending a release people have already read.
+      - name: The changelog names this version
+        if: steps.version.outputs.publish == 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '${{ steps.version.outputs.version }}'
+          $heading = "## [$version]"
+
+          # -not (array -match ...) and not (array -notmatch ...): the second returns every
+          # line that failed to match, which is a non-empty array on any real changelog and
+          # therefore true every single time.
+          if (-not ((Get-Content CHANGELOG.md) -match "^$([regex]::Escape($heading))")) {
+            throw @"
+          CHANGELOG.md has no '$heading' section, so this release has no notes.
+
+          Cutting a release is two steps:
+            1. In a pull request, rename '## [Unreleased]' to '$heading - $(Get-Date -Format yyyy-MM-dd)'
+               and open a fresh empty '## [Unreleased]' above it.
+            2. Tag the merge commit and push the tag.
+
+          Delete the tag, do step 1, and tag again.
+          "@
+          }
+
+          Write-Host "Found $heading."
+
       - name: Restore
         run: dotnet restore Offstream.slnx
 
@@ -107,6 +145,7 @@ jobs:
           --configuration Release
           --no-build
           --filter "Category!=Ffmpeg"
+          -p:Version=${{ steps.version.outputs.version }}
 
       # Self-contained, untrimmed, non-AOT. These three are correctness constraints, not
       # size preferences - the routing COM interop does not survive AOT and WPF trims
@@ -140,14 +179,20 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $version = '${{ steps.version.outputs.version }}'
 
-          New-Item -ItemType Directory -Path artifacts/symbols, artifacts/staging -Force | Out-Null
+          # One folder at the root of the zip, not loose files. Unzipping into Downloads is
+          # what people actually do, and an archive that scatters five files through it is
+          # the kind of thing that gets an app deleted before it is ever run.
+          $name = "Offstream-$version-win-x64"
+          $staging = "artifacts/staging/$name"
+
+          New-Item -ItemType Directory -Path artifacts/symbols, $staging -Force | Out-Null
           Move-Item artifacts/publish/*.pdb artifacts/symbols -ErrorAction SilentlyContinue
 
-          Copy-Item artifacts/publish/* artifacts/staging -Recurse
-          Copy-Item LICENSE, NOTICE, README.md, CHANGELOG.md artifacts/staging
+          Copy-Item artifacts/publish/* $staging -Recurse
+          Copy-Item LICENSE, NOTICE, README.md, CHANGELOG.md $staging
 
-          $zip = "artifacts/Offstream-$version-win-x64.zip"
-          Compress-Archive -Path artifacts/staging/* -DestinationPath $zip
+          $zip = "artifacts/$name.zip"
+          Compress-Archive -Path $staging -DestinationPath $zip
 
           # Checksums matter more here than they would for a signed build: with no
           # signature to check, this is the only way to tell a download apart from
@@ -184,18 +229,14 @@ jobs:
           $version = '${{ steps.version.outputs.version }}'
           $notes = 'artifacts/notes.md'
 
-          # The changelog is the release notes. Prefer this version's own section; fall
-          # back to Unreleased, which is where entries live until a release names them.
+          # The changelog is the release notes, and only this version's own section is. The
+          # step near the top of this job has already refused to get here without one.
           $changelog = Get-Content CHANGELOG.md -Raw
           $section = [regex]::Match(
             $changelog,
             "(?ms)^## \[$([regex]::Escape($version))\][^`n]*`n(?<body>.*?)(?=^## \[|\z)")
 
-          if (-not $section.Success) {
-            $section = [regex]::Match($changelog, "(?ms)^## \[Unreleased\][^`n]*`n(?<body>.*?)(?=^## \[|\z)")
-          }
-
-          $body = if ($section.Success) { $section.Groups['body'].Value.Trim() } else { '' }
+          $body = $section.Groups['body'].Value.Trim()
 
           @(
             '> **This build is not code-signed.** Windows SmartScreen will warn the first time you'

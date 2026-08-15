@@ -25,6 +25,10 @@ phase plan these entries follow.
   "latest" resolves to. Unreleased builds call themselves `0.1.0-dev` rather than borrowing the last
   release's number, which is what turns "which build is this?" into a question with an answer. The
   same workflow runs from the Actions tab to exercise the pipeline without spending a version.
+  Cutting a release is two steps — close `## [Unreleased]` into `## [1.2.3]` in a pull request, then
+  tag — and a tag with no matching section fails in seconds rather than at the end of the pipeline.
+  Falling back to `[Unreleased]` would have worked exactly once, and every release after that would
+  republish the previous one's entries with no fix short of amending a release people had read.
 - **Signing, wired and waiting.** `build/windows/sign.ps1` Authenticode-signs whatever it is given,
   and when no certificate is configured it says so and exits 0 rather than failing the build.
   Offstream has no certificate yet, so **every artefact is currently unsigned and Windows SmartScreen

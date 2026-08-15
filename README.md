@@ -501,13 +501,25 @@ docs/    modernization plan, decision records, screenshots
 <summary><b>Releasing</b></summary>
 
 **The tag is the version.** Nothing in the repo records a released version number, so the two cannot
-disagree about what shipped. Pushing a `v*` tag builds, tests, publishes, signs, packages and creates
-the GitHub release:
+disagree about what shipped.
+
+Cutting a release is two steps, and the pipeline refuses to skip the first.
+
+**1. Close the changelog, in a pull request.** Rename `## [Unreleased]` to `## [0.1.0] - 2026-08-14`
+and open a fresh empty `## [Unreleased]` above it. That section becomes the release notes verbatim.
+
+**2. Tag the merge commit and push the tag.** Everything else is automatic — build, test, publish,
+sign, package, GitHub release.
 
 ```powershell
 git tag v0.1.0
 git push origin v0.1.0
 ```
+
+Pushing a tag with no matching changelog section fails in seconds, before anything is built, and says
+what to do. Falling back to `[Unreleased]` instead would work exactly once: every later release would
+republish everything above it, including entries that shipped in the previous one, and the only fix
+is amending a release people have already read.
 
 A tag that is not `vMAJOR.MINOR.PATCH` — optionally with a prerelease suffix, `v1.2.3-rc.1` — is
 rejected before anything is built, since a tag is not meaningfully editable once anyone has fetched
