@@ -209,6 +209,10 @@ public sealed class RecordingSessionTests
         public static Track Playing(string artist, string title) =>
             new() { Artist = artist, Title = title, Playing = true };
 
+        /// <summary>The same song, showing in Spotify but stopped.</summary>
+        public static Track Paused(string artist, string title) =>
+            new() { Artist = artist, Title = title, Playing = false };
+
         /// <summary>
         /// Changes what Spotify reports. The session owns the poller, so the running poll loop
         /// picks this up on its own — driving <c>PollOnceAsync</c> by hand here would race with it.
@@ -744,6 +748,58 @@ public sealed class RecordingSessionTests
         Assert.DoesNotContain(
             harness.Reports,
             r => r.ConcernsNowPlaying && r.Track is not null && r.Track != r.NowPlaying);
+    }
+
+    /// <summary>
+    /// Pressing record with Spotify paused, then pressing play, has to start recording.
+    /// </summary>
+    /// <remarks>
+    /// Playing is half of what makes a track recordable, and the check ran only when the track
+    /// changed. Since <see cref="Track.Equals"/> ignores the play state, a song that starts
+    /// playing is not a new track — so the session skipped it once as not recordable and then
+    /// waited for a change that never came. What the user saw was a level meter moving, a counter
+    /// running, and no file, until they stopped and started again.
+    /// </remarks>
+    [Fact]
+    public async Task Session_WhenPlaybackStartsOnTheTrackAlreadyShowing_RecordsIt()
+    {
+        await using var harness = new Harness();
+
+        harness.Session.Start();
+        harness.Play(Harness.Paused("Artist", "Title"));
+
+        await WaitFor(
+            () => harness.Reports.Any(r => r.Message?.Contains("Not a recordable track", StringComparison.Ordinal) == true),
+            "the paused track to be passed over");
+
+        Assert.Null(harness.Session.CurrentTrack);
+
+        harness.Play(Harness.Playing("Artist", "Title"));
+
+        await WaitFor(
+            () => harness.Session.CurrentTrack?.Title == "Title",
+            "the recorder to start once playback begins");
+    }
+
+    /// <summary>
+    /// And exactly one recorder for it. Starting with Spotify already playing is a single poll
+    /// that sees both a new track and a change of play state, and both used to be a reason to
+    /// start — the second one tearing down the first and discarding the fragment as too short.
+    /// </summary>
+    [Fact]
+    public async Task Session_WhenPlaybackIsAlreadyUnderWay_StartsOneRecorder()
+    {
+        await using var harness = new Harness();
+
+        harness.Session.Start();
+
+        await RecordTrackAsync(harness, Harness.Playing("Artist", "Title"));
+
+        await harness.Session.StopAsync();
+
+        await WaitFor(() => !harness.Recorded.IsEmpty, "the recording to finish");
+
+        Assert.Single(harness.Recorded);
     }
 
     [Fact]
