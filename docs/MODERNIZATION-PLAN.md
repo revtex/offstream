@@ -158,7 +158,7 @@ Left column: what to read in the reference tree at `../spy-spotify`. Right colum
 | `MapperID3` (TagLib#) | `Core/Metadata/CoverArtWriter.cs` — **replaced but for Ogg/Opus cover art**; ffmpeg writes tags, see §5.2 |
 | `frmEspionSpotify.*` (1,200 lines + designer) | **Dropped entirely** — `App/Views/*` + `App/ViewModels/*` |
 | `Properties/Settings.*`, `App.config` | **Dropped entirely** — `Core/Settings/*` over JSON (§6) |
-| `EspionSpotify.Updater` | `Offstream.Updater` — rewritten (§10, Phase 8) |
+| `EspionSpotify.Updater` | **Nothing** — question 4 (2026-08-14) dropped self-update from v1; the release page is how a new version is found |
 | `EspionSpotify.Tests` (293 tests) | `tests/Offstream.Core.Tests` — **assertions kept**, namespaces and fixtures renamed; the safety net for the whole port |
 | `EspionSpotify.FakeSpotify` | `tools/Offstream.FakeSpotify` — retargeted |
 
@@ -239,7 +239,7 @@ MP3 128/160/256/320 · WAV · Opus · **FLAC (new)** · **AAC (new)** · filenam
 Last.fm provider · Spotify Web API provider · None provider · cover art · counter as track number · extra title → subtitle · re-tag already-recorded tracks.
 
 ### Shell / UX
-Tabs (**Record / Settings / Advanced**, and **Logs** from 2026-08-14) · console log pane · minimise to tray · en/fr localisation · VB-CABLE **detection** (detection is the whole of it — question 9, 2026-08-14) · Spotify API credentials dialog · FAQ links · **update check (new)** · **local-only crash diagnostics (new, never auto-sent)** · analytics stays removed.
+Tabs (**Record / Settings / Advanced**, and **Logs** from 2026-08-14) · console log pane · minimise to tray · en/fr localisation · VB-CABLE **detection** (detection is the whole of it — question 9, 2026-08-14) · Spotify API credentials dialog · FAQ links · **third-party notices (new)** · **local-only crash diagnostics (new, never auto-sent)** · analytics stays removed.
 
 > The tab *structure* carries over because it works. The **tab labels do not** — the predecessor's "Spy" tab is Offstream's **Record** tab, and its "spy options" are **detection options**. §0 applies to user-visible strings as much as to code.
 >
@@ -431,7 +431,7 @@ These mean the final count will not land on exactly 293. The number that matters
 ### Phase 4 — Dependency modernisation (4–5 days) — ✅ **complete**
 - ✅ SpotifyAPI.Web 7.4.2 with PKCE + loopback redirect; EmbedIO dropped.
 - ✅ `HttpClient`/`IHttpClientFactory` (the Spotify OAuth client routes through it); DI container wiring; options pattern (`SpotifyAuthOptions`).
-- ✅ `System.Text.Json` — landed in Phase 5, where the app first writes JSON of its own (settings). ⬜ `System.IO.Compression` — still no use for it before the Phase 8 updater.
+- ✅ `System.Text.Json` — landed in Phase 5, where the app first writes JSON of its own (settings). ⬜ `System.IO.Compression` — no in-app use for it at all now that question 4 dropped the updater; the release zip is compressed by the build, not by the app.
 
 **Exit:** contract tests pass; manual Spotify auth verified against a real app registration. **Met.**
 **Contract tests: 42 new tests (517 total), all offline.** **Manual verification: done**, via `tools/Offstream.SpotifyAuthProbe` against a real Spotify Developer Dashboard app registration — sign-in, a real `GetCurrentlyPlaying` call (returned an actual playing track), and a token refresh all succeeded on the first run, no code changes needed.
@@ -838,10 +838,10 @@ error paths and the scope list.
 - **No VB-CABLE payload, ever** (question 9 → detect only). The installer grows no driver step. The specific act its licence forbids is integrating the package into another installation procedure without the author's agreement, and the point of the answer is that Offstream does not go near that line.
 - **Third-party notices reachable from inside the app**, not only as a file in the repo: ffmpeg (LGPL + source offer), TagLibSharp (LGPL-2.1-only), the predecessor's MIT notice, and the VB-CABLE origin and donationware attribution. `NOTICE` is the source of truth and ships with the build.
 - **A signing step that is inert until a certificate exists** (question 3). It signs the executable and the installer when one is configured and skips silently when none is, so acquiring a certificate later is configuration rather than a pipeline change.
-- **An update *check*, not an updater** (question 4). It asks GitHub for the newest release tag, compares, and links. No download, no manifest, no apply-on-restart.
+- **No update mechanism of any kind in v1** (question 4). Not an updater, and not an in-app version check either: the installer registers the releases page with Windows (`AppUpdatesURL`) and that page is where a new version is announced. An in-app check is a later version's problem, and adding one now would be a network call, a settings toggle and a pair of resource strings spent on something the release notes already say.
 - **Tag-driven GitHub Actions release pipeline** — `v*` tag → publish → package → attach installer and portable zip to a GitHub release.
 
-**Exit:** clean-VM install → record → uninstall, no leftovers; third-party notices complete and accurate for whatever actually shipped. *(The original exit criterion said install → record → **update** → uninstall; with no updater in v1, the update leg is the check reporting a newer tag and opening the release page.)*
+**Exit:** clean-VM install → record → uninstall, no leftovers; third-party notices complete and accurate for whatever actually shipped. *(The original exit criterion said install → record → **update** → uninstall. Question 4 removed the update leg rather than reinterpreting it: there is nothing in the app to exercise. What replaces it is the installer's own upgrade path — installing a newer build over an older one and finding one entry in Apps & Features, not two — which is what a stable `AppId` buys and the only update behaviour v1 has.)*
 
 ### Phase 9 — Hardening (5+ days, ongoing)
 - 12-hour soak; memory and handle profiling.
@@ -869,7 +869,7 @@ Deliberate, and this is the complete list — anything else goes to a backlog.
 7. **Structured rotating logs** — replaces console text stuffed into a settings string.
 8. **Device hot-plug handling.**
 9. **Self-contained publish** — no .NET Framework 4.6.1 dependency (out of support since April 2022).
-10. **A real installer**, with signing wired and waiting on a certificate, and an update *check* rather than an updater (questions 3 and 4, both settled 2026-08-14).
+10. **A real installer**, with signing wired and waiting on a certificate, and no self-update at all (questions 3 and 4, both settled 2026-08-14).
 11. **Testable UI** — ViewModels under test; the predecessor's form has zero coverage.
 12. **A settings layer with no inherited vocabulary** — grouped JSON schema, clean slate, no importer (§6).
 
@@ -902,7 +902,7 @@ Explicitly **not** changing: the three-tab structure, the console-log metaphor, 
 1. ~~.NET 10 confirmed as current LTS, and WPF-UI's support for it?~~ **Answered (DR-0001).** .NET 10 is LTS to 14 Nov 2028; WPF-UI 4.3.0 ships a `net10.0-windows7.0` target and compiles clean with CommunityToolkit.Mvvm 8.4.2.
 2. ~~Bundle ffmpeg (recommended) or resolve at runtime?~~ **Answered (DR-0001).** Bundle an LGPL-only build with a runtime override; every required encoder (`libmp3lame`, `libopus`, `aac`, native `flac`) is present in a stock build, so no GPL component is needed.
 3. ~~Signing certificate: EV (immediate SmartScreen reputation, hardware token) or OV (cheaper, reputation accrues)?~~ **Deferred 2026-08-14: ship unsigned, with the signing step already in place.** There is no certificate yet and buying one is procurement rather than engineering, so the release pipeline carries a signing step that is a no-op while no certificate is configured and signs everything the moment one is. What this costs is stated plainly rather than hidden: SmartScreen warns on first run of an unsigned installer, and every user has to click through it. The EV/OV choice itself is still open — it just no longer holds the release.
-4. ~~Auto-update wanted at all, given the predecessor's updater was deliberately disabled there?~~ **Answered 2026-08-14: no updater in v1.** Offstream checks GitHub for a newer release tag and links to it; it does not download, verify or apply anything. The full item — signed manifest, background download, signature verification, apply on restart — is the largest piece of Phase 8 and its whole value rests on signatures Offstream does not yet have (question 3), so building it now would mean building the verification step against nothing to verify. A link is honest about that; a silent self-update over an unauthenticated channel would be worse than none.
+4. ~~Auto-update wanted at all, given the predecessor's updater was deliberately disabled there?~~ **Answered 2026-08-14: no self-update in v1, and no in-app version check either.** The installer points Windows at the releases page and the release notes announce new builds; the app itself makes no update-related network call. The full item — signed manifest, background download, signature verification, apply on restart — is the largest piece of Phase 8 and its whole value rests on signatures Offstream does not yet have (question 3), so building it now would mean building the verification step against nothing to verify. A link is honest about that; a silent self-update over an unauthenticated channel would be worse than none.
 5. Keep French and add more languages, or English-only for v1?
 6. ~~Is a Windows 10 floor acceptable, or must Windows 11 features stay optional?~~ **Answered 2026-08-11: Windows 11 only.** Windows 10 left support in October 2025. Consequences: Phase 0's downlevel gap is closed rather than deferred; Windows 11 features need no optional path; and the TFM may be raised to `net10.0-windows10.0.22621.0`, which unlocks the WinRT projections SMTC track detection needs (§5.3, Phase 7) — see the note there before Phase 7 starts.
 7. Should FLAC/AAC ship in v1, or wait until parity is proven in the field?
