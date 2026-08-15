@@ -233,6 +233,12 @@ phase plan these entries follow.
 - **Every identifier inherited from the predecessor.** No namespace, type, file, project,
   resource key, setting or path carries the old naming, and a test fails the build if one
   reappears.
+- **The Phase 0 spike project** (`spike/Offstream.Spike`). It was scratch scaffolding for proving
+  the risky parts of the retarget — WASAPI loopback, `IAudioPolicyConfig` routing, session mute —
+  before there was anywhere else to put them, and everything it proved has lived in
+  `Offstream.Core` with tests of its own since Phase 2. What remained was a hand-run console
+  harness nothing built on, carried in the solution and the layout docs as though it were part of
+  the app. `docs/decisions/0001-phase-0-retarget-spike.md` keeps the findings.
 
 ### Added
 
