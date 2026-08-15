@@ -158,7 +158,7 @@ Left column: what to read in the reference tree at `../spy-spotify`. Right colum
 | `MapperID3` (TagLib#) | `Core/Metadata/CoverArtWriter.cs` — **replaced but for Ogg/Opus cover art**; ffmpeg writes tags, see §5.2 |
 | `frmEspionSpotify.*` (1,200 lines + designer) | **Dropped entirely** — `App/Views/*` + `App/ViewModels/*` |
 | `Properties/Settings.*`, `App.config` | **Dropped entirely** — `Core/Settings/*` over JSON (§6) |
-| `EspionSpotify.Updater` | `Offstream.Updater` — rewritten (§10, Phase 8) |
+| `EspionSpotify.Updater` | **Nothing** — question 4 (2026-08-14) dropped self-update from v1; the release page is how a new version is found |
 | `EspionSpotify.Tests` (293 tests) | `tests/Offstream.Core.Tests` — **assertions kept**, namespaces and fixtures renamed; the safety net for the whole port |
 | `EspionSpotify.FakeSpotify` | `tools/Offstream.FakeSpotify` — retargeted |
 
@@ -239,7 +239,7 @@ MP3 128/160/256/320 · WAV · Opus · **FLAC (new)** · **AAC (new)** · filenam
 Last.fm provider · Spotify Web API provider · None provider · cover art · counter as track number · extra title → subtitle · re-tag already-recorded tracks.
 
 ### Shell / UX
-Tabs (**Record / Settings / Advanced**, and **Logs** from 2026-08-14) · console log pane · minimise to tray · en/fr localisation · VB-CABLE **detection** (installer invocation pending open question 9) · Spotify API credentials dialog · FAQ links · **auto-update (new)** · **local-only crash diagnostics (new, never auto-sent)** · analytics stays removed.
+Tabs (**Record / Settings / Advanced**, and **Logs** from 2026-08-14) · console log pane · minimise to tray · en/fr localisation · VB-CABLE **detection** (detection is the whole of it — question 9, 2026-08-14) · Spotify API credentials dialog · FAQ links · **third-party notices (new)** · **local-only crash diagnostics (new, never auto-sent)** · analytics stays removed.
 
 > The tab *structure* carries over because it works. The **tab labels do not** — the predecessor's "Spy" tab is Offstream's **Record** tab, and its "spy options" are **detection options**. §0 applies to user-visible strings as much as to code.
 >
@@ -431,7 +431,7 @@ These mean the final count will not land on exactly 293. The number that matters
 ### Phase 4 — Dependency modernisation (4–5 days) — ✅ **complete**
 - ✅ SpotifyAPI.Web 7.4.2 with PKCE + loopback redirect; EmbedIO dropped.
 - ✅ `HttpClient`/`IHttpClientFactory` (the Spotify OAuth client routes through it); DI container wiring; options pattern (`SpotifyAuthOptions`).
-- ✅ `System.Text.Json` — landed in Phase 5, where the app first writes JSON of its own (settings). ⬜ `System.IO.Compression` — still no use for it before the Phase 8 updater.
+- ✅ `System.Text.Json` — landed in Phase 5, where the app first writes JSON of its own (settings). ⬜ `System.IO.Compression` — no in-app use for it at all now that question 4 dropped the updater; the release zip is compressed by the build, not by the app.
 
 **Exit:** contract tests pass; manual Spotify auth verified against a real app registration. **Met.**
 **Contract tests: 42 new tests (517 total), all offline.** **Manual verification: done**, via `tools/Offstream.SpotifyAuthProbe` against a real Spotify Developer Dashboard app registration — sign-in, a real `GetCurrentlyPlaying` call (returned an actual playing track), and a token refresh all succeeded on the first run, no code changes needed.
@@ -759,7 +759,7 @@ error paths and the scope list.
 >
 > The predecessor ships the whole package in `EspionSpotify/Drivers/` — both setup executables, the control panel, and the raw `.inf`/`.sys`/`.cat` payload — copies it next to the executable at build time, and launches VB's own setup elevated (`Verb = "runas"`) from a link in its UI. Shelling out to the unmodified vendor setup plausibly falls under "copy and diffuse AS IS"; folding those files into a WiX/Inno sequence in Phase 8 clearly does not. The predecessor also displays neither required attribution.
 >
-> **Until open question 9 is answered, build detection only.** Detection is unencumbered: enumerate endpoints and match the device name, exactly as the predecessor's `ExistsInAudioEndPointDevices` does. If the cable is absent, link the user to vb-audio.com rather than bundling an installer. Whichever option is chosen, the attribution line ships with it.
+> **Detection only, settled by open question 9 on 2026-08-14 — not a placeholder.** Detection is unencumbered: enumerate endpoints and match the device name, exactly as the predecessor's `ExistsInAudioEndPointDevices` does. When the cable is absent the user is linked to vb-audio.com; no vendor binary is ever redistributed, and no installer step ever invokes one. The attribution line ships either way, and does.
 
 **Phase 7 findings (2026-08-13):**
 
@@ -780,7 +780,7 @@ error paths and the scope list.
 - **Endpoint callbacks arrive on a system thread from inside the audio stack**, so the watcher raises an event and returns — blocking one is a documented way to wedge the endpoint enumerator for the whole process. `OnDefaultDeviceChanged` is filtered to render + multimedia, because Windows raises it per role and listening to all three turns one headphone swap into three identical notifications.
 - **The two points above were true of the watcher and false of the app, until 2026-08-14.** Every part of the detection was built and tested, and `IAudioCaptureSource.Stopped` — the event carrying the loss out of the capture — had no subscriber anywhere, so none of it reached `RecordingSession`. Losing an endpoint mid-recording ended exactly as it did before the watcher existed: silently, with the session still believing it was recording. `RecordingSession` now subscribes, finishes the track in flight, and raises `Ended` so the controller releases the session and the page stops offering to stop it; the same `Ended` closes the identical gap on the recording-timer path, which had been stopping sessions the controller went on holding. **A detector with no consumer is worth nothing and looks finished** — the acceptance criteria asked whether the loss was detected, which it always was.
 - **A handler that ends a capture cannot run on the notification thread.** `IMMNotificationClient` forbids blocking there, waiting on a synchronisation object, and releasing the last reference to an audio object; ending a capture does all three, against the endpoint whose disappearance caused the notification. The watcher's original note said only "raise an event and return", which is what it did — the blocking was in the handler, which did not exist yet. Notifications are now handed to a pool thread, so a change can arrive after the capture is disposed and both the capture and the watcher guard for that.
-- **VB-CABLE is detection only, and that is a licence decision rather than an unfinished one.** The package is donationware whose readme forbids integrating it into another installation procedure without the author's agreement. The predecessor ships the vendor's setup executables in its own tree, launches them elevated, and displays neither the origin nor the donationware notice the licence asks for. Offstream carries no vendor binaries: it matches the driver's product name among the render endpoints, as the reference does, and points the user at vb-audio.com when it is absent. **Open question 9 must be answered before any other form ships.**
+- **VB-CABLE is detection only, and that is a licence decision rather than an unfinished one.** The package is donationware whose readme forbids integrating it into another installation procedure without the author's agreement. The predecessor ships the vendor's setup executables in its own tree, launches them elevated, and displays neither the origin nor the donationware notice the licence asks for. Offstream carries no vendor binaries: it matches the driver's product name among the render endpoints, as the reference does, and points the user at vb-audio.com when it is absent. **Open question 9 answered 2026-08-14: this is the shipping form, and no other one is coming.**
 
 - **The clean-VM pass is dropped from this phase (decided 2026-08-13).** It was written to catch the downlevel differences between Windows 10 and 11 — which OS versions the interop, the SMTC session manager and the endpoint notifications behave differently on. Windows 11 only (decided 2026-08-11) removes the question the pass existed to answer, and the development machine is the supported OS. Phase 8's clean-VM install → record → update → uninstall run stays: that one is about the installer leaving a machine clean, which is a different question and still open.
 - **"Keep the one on disk" was doing the opposite of what it says, for every template that names an album.** The check ran the instant the track changed, before the metadata lookup had returned anything — so `{artist}\({year}) {album}\{track:00} {title}` rendered as `Artist\Title.mp3`, a path nothing is ever written to. It found nothing, every time, and the recording proceeded to a destination the rename then replaced without a word. The authoritative check moved into `TrackRecorder`, after enrichment and before the encode, where the destination is finally knowable; the early check stays as a shortcut for the simple templates it can still answer, and the rename has a last gate for two encodes of the same track racing. This is the failure mode to watch for elsewhere: a decision taken against a track that has not been enriched yet is a decision taken against different data than the one that writes the file.
@@ -826,18 +826,22 @@ error paths and the scope list.
 
 **Still to do in this phase:** nothing.
 
-**Exit:** track detection survives Spotify minimised to tray; VB-CABLE presence is detected and its absence degrades to a documented link, with no vendor binaries in the repo pending question 9.
+**Exit:** track detection survives Spotify minimised to tray; VB-CABLE presence is detected and its absence degrades to a documented link, with no vendor binaries in the repo — which question 9 made permanent on 2026-08-14 rather than provisional.
 
 ### Phase 8 — Packaging and release (4–5 days)
-- WiX v4 (or Inno Setup) per-user installer; app itself requires no admin.
-- **Code signing** — start certificate procurement in Phase 0; unsigned binaries trip SmartScreen and undercut "professional".
-- Bundled ffmpeg with licence and source offer.
-- **Do not chain the VB-CABLE installer into the installer sequence** — that is the specific act its licence forbids without the author's agreement (Phase 7 note). If question 9 lands on bundling, ship the vendor package unmodified alongside the app and let the user launch it, mirroring how the predecessor does it.
-- Third-party notices page: ffmpeg (LGPL + source offer), the predecessor's MIT notice, and VB-CABLE attribution if it ships at all.
-- Auto-update: signed manifest, background download, signature verification, apply on restart.
-- Tag-driven GitHub Actions release pipeline.
 
-**Exit:** clean-VM install → record → update → uninstall, no leftovers; third-party notices complete and accurate for whatever actually shipped.
+> **Four decisions taken 2026-08-14 fix this phase's shape** (open questions 3, 4 and 9, plus the installer technology the original text left as a choice). They are recorded in §13; the list below is what they leave.
+
+- **Version from the tag, not from a file anyone edits.** `Directory.Build.props` has no `<Version>` today, and a tag-driven pipeline needs one that cannot drift from the tag that produced the build. Everything else in this phase depends on it.
+- **Inno Setup per-user installer**, into `%LOCALAPPDATA%`, no admin prompt at any point — which matches an app that needs no admin to run. WiX/MSI was the alternative and buys policy-based enterprise deployment that nothing here asks for.
+- **Bundled ffmpeg with its licence and a source offer.** An LGPL build (question 2, DR-0001), dropped into the `ffmpeg` subfolder `FFmpegLocator` already looks in. The source offer is a real obligation, not a line in `NOTICE`: the release has to carry or link source matching **the exact build shipped**, so the build's version and origin get pinned somewhere the release can point at.
+- **No VB-CABLE payload, ever** (question 9 → detect only). The installer grows no driver step. The specific act its licence forbids is integrating the package into another installation procedure without the author's agreement, and the point of the answer is that Offstream does not go near that line.
+- **Third-party notices reachable from inside the app**, not only as a file in the repo: ffmpeg (LGPL + source offer), TagLibSharp (LGPL-2.1-only), the predecessor's MIT notice, and the VB-CABLE origin and donationware attribution. `NOTICE` is the source of truth and ships with the build.
+- **A signing step that is inert until a certificate exists** (question 3). It signs the executable and the installer when one is configured and skips silently when none is, so acquiring a certificate later is configuration rather than a pipeline change.
+- **No update mechanism of any kind in v1** (question 4). Not an updater, and not an in-app version check either: the installer registers the releases page with Windows (`AppUpdatesURL`) and that page is where a new version is announced. An in-app check is a later version's problem, and adding one now would be a network call, a settings toggle and a pair of resource strings spent on something the release notes already say.
+- **Tag-driven GitHub Actions release pipeline** — `v*` tag → publish → package → attach installer and portable zip to a GitHub release.
+
+**Exit:** clean-VM install → record → uninstall, no leftovers; third-party notices complete and accurate for whatever actually shipped. *(The original exit criterion said install → record → **update** → uninstall. Question 4 removed the update leg rather than reinterpreting it: there is nothing in the app to exercise. What replaces it is the installer's own upgrade path — installing a newer build over an older one and finding one entry in Apps & Features, not two — which is what a stable `AppId` buys and the only update behaviour v1 has.)*
 
 ### Phase 9 — Hardening (5+ days, ongoing)
 - 12-hour soak; memory and handle profiling.
@@ -865,7 +869,7 @@ Deliberate, and this is the complete list — anything else goes to a backlog.
 7. **Structured rotating logs** — replaces console text stuffed into a settings string.
 8. **Device hot-plug handling.**
 9. **Self-contained publish** — no .NET Framework 4.6.1 dependency (out of support since April 2022).
-10. **Signed installer and auto-update.**
+10. **A real installer**, with signing wired and waiting on a certificate, and no self-update at all (questions 3 and 4, both settled 2026-08-14).
 11. **Testable UI** — ViewModels under test; the predecessor's form has zero coverage.
 12. **A settings layer with no inherited vocabulary** — grouped JSON schema, clean slate, no importer (§6).
 
@@ -887,7 +891,9 @@ Explicitly **not** changing: the three-tab structure, the console-log metaphor, 
 | Trimming/AOT breaking COM | High | Low | Explicitly disabled; documented in §2.2 |
 | Code-signing cost and lead time | Medium | High | Begin procurement during Phase 0 |
 | ffmpeg licence obligations | Medium | Low | LGPL-only build; ship licence + source offer |
-| **VB-CABLE redistribution terms** | Medium | Medium | Detect-only by default (open question 9); never chain its setup into the installer; ship attribution if it ships at all |
+| ~~**VB-CABLE redistribution terms**~~ | — | — | **Closed** — detect only, decided 2026-08-14 (question 9). No vendor binary is redistributed and no installer step invokes one, so there is nothing left to be exposed by. Attribution ships in `NOTICE` and on the Settings page |
+| Unsigned installer trips SmartScreen | High | Medium | Accepted for v1 (question 3): no certificate yet, signing step wired and inert. The release notes say so rather than letting users discover it |
+| ffmpeg LGPL source offer goes stale | Medium | Medium | Pin the exact bundled build's version and origin in the release, so the offer names something that still exists |
 
 ---
 
@@ -895,15 +901,12 @@ Explicitly **not** changing: the three-tab structure, the console-log metaphor, 
 
 1. ~~.NET 10 confirmed as current LTS, and WPF-UI's support for it?~~ **Answered (DR-0001).** .NET 10 is LTS to 14 Nov 2028; WPF-UI 4.3.0 ships a `net10.0-windows7.0` target and compiles clean with CommunityToolkit.Mvvm 8.4.2.
 2. ~~Bundle ffmpeg (recommended) or resolve at runtime?~~ **Answered (DR-0001).** Bundle an LGPL-only build with a runtime override; every required encoder (`libmp3lame`, `libopus`, `aac`, native `flac`) is present in a stock build, so no GPL component is needed.
-3. Signing certificate: EV (immediate SmartScreen reputation, hardware token) or OV (cheaper, reputation accrues)?
-4. Auto-update wanted at all, given the predecessor's updater was deliberately disabled there?
+3. ~~Signing certificate: EV (immediate SmartScreen reputation, hardware token) or OV (cheaper, reputation accrues)?~~ **Deferred 2026-08-14: ship unsigned, with the signing step already in place.** There is no certificate yet and buying one is procurement rather than engineering, so the release pipeline carries a signing step that is a no-op while no certificate is configured and signs everything the moment one is. What this costs is stated plainly rather than hidden: SmartScreen warns on first run of an unsigned installer, and every user has to click through it. The EV/OV choice itself is still open — it just no longer holds the release.
+4. ~~Auto-update wanted at all, given the predecessor's updater was deliberately disabled there?~~ **Answered 2026-08-14: no self-update in v1, and no in-app version check either.** The installer points Windows at the releases page and the release notes announce new builds; the app itself makes no update-related network call. The full item — signed manifest, background download, signature verification, apply on restart — is the largest piece of Phase 8 and its whole value rests on signatures Offstream does not yet have (question 3), so building it now would mean building the verification step against nothing to verify. A link is honest about that; a silent self-update over an unauthenticated channel would be worse than none.
 5. Keep French and add more languages, or English-only for v1?
 6. ~~Is a Windows 10 floor acceptable, or must Windows 11 features stay optional?~~ **Answered 2026-08-11: Windows 11 only.** Windows 10 left support in October 2025. Consequences: Phase 0's downlevel gap is closed rather than deferred; Windows 11 features need no optional path; and the TFM may be raised to `net10.0-windows10.0.22621.0`, which unlocks the WinRT projections SMTC track detection needs (§5.3, Phase 7) — see the note there before Phase 7 starts.
 7. Should FLAC/AAC ship in v1, or wait until parity is proven in the field?
 8. Does the clean-slate settings decision (§6) need a one-page "moving from the predecessor" note in the docs, listing which preferences to re-enter?
-9. **How does Offstream handle VB-CABLE?** Its licence permits redistributing the package *as is* but forbids integrating it into another installation procedure without the author's agreement, and asks for origin and donationware attribution (Phase 7). Three options:
-   - **(a) Detect only** — link users to vb-audio.com. Zero licence exposure, one extra manual step. **Recommended for v1**, and the assumption Phase 7 builds against.
-   - **(b) Ship the vendor package unmodified** next to the app and launch its setup elevated, as the predecessor does — with the attribution the predecessor omits. Plausibly permitted; adds ~3 MB of unsigned third-party kernel-mode driver payload to the release.
-   - **(c) Ask VB-Audio for written agreement** to bundle properly. Cleanest if granted; unknown lead time, so it cannot gate a release.
+9. ~~**How does Offstream handle VB-CABLE?**~~ **Answered 2026-08-14: (a) detect only.** No vendor binaries enter the repo, in this release or a later one — the user installs VB-CABLE themselves from vb-audio.com and Offstream reports whether it is there. This is what Phase 7 already built, so nothing changes in the app; what it settles is that the installer never grows a driver step, and that the ~3 MB of unsigned third-party kernel-mode payload option (b) would have added never enters the release. The origin and donationware attribution the licence asks for ships regardless, and already does — in `NOTICE` and beside the device picker on the Settings page. The rejected alternatives were **(b) ship the vendor package unmodified** and launch its setup elevated, as the predecessor does, and **(c) ask VB-Audio for written agreement** to bundle properly.
 
-   This needs deciding before Phase 7 finishes, not at Phase 8, because it determines whether any vendor binaries enter the repo at all. Note the shipping question is separate from the *runtime* one: whether recording quality without a virtual cable is good enough to make it optional at all is a Phase 0 measurement.
+   Note the shipping question was always separate from the *runtime* one: whether recording quality without a virtual cable is good enough to make it optional at all is a Phase 0 measurement.
