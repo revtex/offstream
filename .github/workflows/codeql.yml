@@ -1,0 +1,53 @@
+name: CodeQL
+
+# Code scanning, run three ways: on pushes to main, on every pull request, and weekly so a newly
+# published query finds old code without waiting for someone to touch it.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Mondays, 07:00 UTC. Off the hour by a few minutes because GitHub drops scheduled runs that
+    # all pile onto :00.
+    - cron: '7 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze ${{ matrix.language }}
+    runs-on: ubuntu-latest
+
+    # Ubuntu, deliberately, even though the app is Windows-only: `build-mode: none` extracts C#
+    # from source without compiling it, so the analysis needs neither WPF, nor the Windows SDK, nor
+    # a WASAPI-capable machine. Building it here would be the one step that could not work.
+    permissions:
+      security-events: write
+      packages: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: csharp
+            build-mode: none
+          - language: actions
+            build-mode: none
+          - language: python
+            build-mode: none
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}
