@@ -148,6 +148,14 @@ phase plan these entries follow.
 
 ### Changed
 
+- **`LICENSE` is now unbroken MIT text, and the attribution moved to `NOTICE`.** The predecessor's
+  copyright notice sat mid-licence, between the header and the permission grant, which is enough to
+  stop GitHub's detector matching the file — so a repository under a perfectly ordinary MIT licence
+  advertised itself as "Other", which invites exactly the doubt a licence file exists to remove.
+  Both copyright lines are still in `LICENSE`, as the licence requires; `NOTICE` carries the prose
+  about what was ported, and now also lists every third-party component with its licence —
+  including that **TagLibSharp is LGPL-2.1-only**, which is a packaging constraint for phase 8 and
+  was written down nowhere.
 - **The README now explains the app before it explains the build.** It opened on a phase list and
   a retarget spike, so someone arriving at the repository could read half of it without learning
   what Offstream does, that it splits a listening session into one tagged file per song, or what

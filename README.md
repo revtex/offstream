@@ -499,9 +499,13 @@ docs/    modernization plan, decision records, screenshots
 
 ## Licence
 
-MIT. Portions of the logic derive from the predecessor, which is MIT-licensed; its copyright notices
-are retained in `LICENSE` alongside Offstream's. Attribution is a licence obligation and lives there
+MIT. Portions of the logic derive from the predecessor, which is MIT-licensed; its copyright notice
+is retained in `LICENSE` alongside Offstream's. Attribution is a licence obligation and lives there
 — it is not a reason to keep the predecessor's identifiers in the source.
+
+[`NOTICE`](NOTICE) records what was ported and lists every third-party component with its licence,
+including the one that is not MIT: **TagLibSharp is LGPL-2.1-only**, which constrains how it may be
+packaged.
 
 Metadata and cover art from the Spotify Web API are Spotify's, and are attributed on the Settings
 page beside the provider that requires it.
