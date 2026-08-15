@@ -497,6 +497,36 @@ docs/    modernization plan, decision records, screenshots
 
 </details>
 
+<details>
+<summary><b>Releasing</b></summary>
+
+**The tag is the version.** Nothing in the repo records a released version number, so the two cannot
+disagree about what shipped. Pushing a `v*` tag builds, tests, publishes, signs, packages and creates
+the GitHub release:
+
+```powershell
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+A tag that is not `vMAJOR.MINOR.PATCH` — optionally with a prerelease suffix, `v1.2.3-rc.1` — is
+rejected before anything is built, since a tag is not meaningfully editable once anyone has fetched
+it. A prerelease suffix also marks the GitHub release as a prerelease, so it does not become what
+"latest" resolves to.
+
+To exercise the pipeline without spending a version number, run the **Release** workflow manually
+from the Actions tab: it builds and uploads the same artefacts and creates no release.
+
+`VersionPrefix` in `Directory.Build.props` only decides what an *unreleased* build calls itself
+(`0.1.0-dev`). Nudge it after a release so dev builds sort after it; nothing breaks if you forget.
+
+**Builds are not code-signed yet.** `build/windows/sign.ps1` is wired into the pipeline and does
+nothing while no certificate is configured — it says so and exits 0. Setting the
+`OFFSTREAM_SIGNING_PFX_BASE64` and `OFFSTREAM_SIGNING_PASSWORD` repository secrets is all that is
+needed to turn it on. Until then, SmartScreen warns on first run and the release notes say so.
+
+</details>
+
 ## Licence
 
 MIT. Portions of the logic derive from the predecessor, which is MIT-licensed; its copyright notice

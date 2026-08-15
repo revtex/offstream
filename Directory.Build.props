@@ -39,6 +39,34 @@
   </PropertyGroup>
 
   <!--
+    Version and product identity.
+
+    The git tag is the source of truth for a released version, not this file. The release
+    workflow reads `v1.2.3` off the tag and passes `-p:Version=1.2.3`, which overrides
+    VersionPrefix/VersionSuffix below - so there is no number here to remember to bump in
+    lockstep with a tag, and no way for the two to disagree about what shipped.
+
+    What is left here is the version an *unreleased* build reports. It says `-dev` on
+    purpose: a local or CI build is not a release, and a build that claims to be 0.1.0 when
+    it is one commit of work past it is the kind of thing that gets reported as a bug in a
+    version that never existed. VersionSuffix is dropped the moment Version is supplied,
+    which is what makes a tagged build the only one without it.
+
+    VersionPrefix does still want a nudge when a release goes out, so `-dev` builds sort
+    after the last release rather than before it. Nothing breaks if it is forgotten -
+    the shipped number is still the tag's.
+  -->
+  <PropertyGroup>
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <VersionSuffix Condition="'$(Version)' == ''">dev</VersionSuffix>
+
+    <Product>Offstream</Product>
+    <Company>Offstream contributors</Company>
+    <Copyright>Copyright (c) 2026 Offstream contributors</Copyright>
+    <Authors>Offstream contributors</Authors>
+  </PropertyGroup>
+
+  <!--
     Load-bearing, not preferences. The audio-routing interop uses built-in COM interop,
     which NativeAOT does not support, and WPF trims poorly. See CLAUDE.md.
   -->

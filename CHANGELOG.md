@@ -15,6 +15,25 @@ phase plan these entries follow.
 
 ### Added
 
+- **A release pipeline, with the git tag as the only place a version number lives.** Pushing `v1.2.3`
+  builds, tests, publishes, signs and attaches a self-contained `win-x64` zip and its SHA-256 to a
+  GitHub release; the changelog becomes the release notes. Nothing in the repository records a
+  released version, so a build cannot claim a number the tag disagrees with — a file that has to be
+  bumped in lockstep with a tag is a file that eventually is not. A malformed tag is rejected before
+  anything is built, because a tag stops being editable the moment anyone fetches it, and a
+  prerelease suffix (`v1.2.3-rc.1`) marks the GitHub release as one so it does not become what
+  "latest" resolves to. Unreleased builds call themselves `0.1.0-dev` rather than borrowing the last
+  release's number, which is what turns "which build is this?" into a question with an answer. The
+  same workflow runs from the Actions tab to exercise the pipeline without spending a version.
+- **Signing, wired and waiting.** `build/windows/sign.ps1` Authenticode-signs whatever it is given,
+  and when no certificate is configured it says so and exits 0 rather than failing the build.
+  Offstream has no certificate yet, so **every artefact is currently unsigned and Windows SmartScreen
+  will warn on first run** — the release notes say this outright instead of letting users find out,
+  and ship a SHA-256 as the only integrity check available in the meantime. Building the step now
+  means acquiring a certificate later is two repository secrets rather than a pipeline change, and it
+  gets reviewed while nothing depends on it. Timestamping is on by default: without it every
+  signature stops verifying the day the certificate expires, including on copies installed years
+  earlier.
 - **A security policy, and the reporting channel it points at.** `SECURITY.md` says where to send a
   vulnerability and what the app actually handles that is worth attention — track metadata being
   untrusted input that reaches ffmpeg arguments and file paths, the PKCE sign-in, DPAPI token
