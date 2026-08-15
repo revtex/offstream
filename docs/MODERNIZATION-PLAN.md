@@ -146,7 +146,7 @@ Left column: what to read in the reference tree at `../spy-spotify`. Right colum
 
 | Read from reference tree | Becomes, in Offstream |
 | --- | --- |
-| `EspionSpotify/Router/*` (IAudioPolicyConfig, both OS variants) | `Core/Interop/Routing/*` — **behaviour kept, marshalling rewritten**. The .NET Framework WinRT marshalling does not exist on .NET 10; see DR-0001 and `spike/Offstream.Spike/Routing/` for the proven replacement |
+| `EspionSpotify/Router/*` (IAudioPolicyConfig, both OS variants) | `Core/Interop/Routing/*` — **behaviour kept, marshalling rewritten**. The .NET Framework WinRT marshalling does not exist on .NET 10; see DR-0001 and `Core/Interop/Routing/` for the proven replacement |
 | `EspionSpotify/AudioSessions/*` (capture, throttler, circular buffer, MM devices) | `Core/Audio/*` — retargeted to NAudio 2.x |
 | `Native/NativeMethods.cs` | Deleted; CsWin32-generated P/Invoke in `Core/Interop/` |
 | `Native/ProcessManager.cs`, `FileManager.cs` | `Core/Interop/ProcessControl.cs`, `Core/Naming/OutputPaths.cs` |
@@ -318,6 +318,8 @@ Prove the risky parts survive the move before restructuring anything.
 - ✅ ffmpeg: bundle an LGPL-only build with runtime override.
 
 **Exit:** `Offstream.Spike accept --seconds 30` green — 8/8 checks on Win11 26200, unelevated. Decision record: **DR-0001**.
+
+> **The spike project was deleted on 2026-08-14** (`spike/Offstream.Spike`), after phases 0–7. It had been scratch scaffolding from the start, and everything it proved now lives in `Offstream.Core` with tests of its own; what it retained afterwards was a hand-run acceptance harness for the one thing a build agent cannot exercise — routing against a real audio endpoint. That is now a manual check with no code in the tree, so a routing change is verified by running the app on a machine with two render endpoints. DR-0001 records the original findings and stands; its references to the spike are historical.
 
 > **Windows 11 only** (decided 2026-08-11, open question 6). Windows 10 support is dropped, which closes what had been Phase 0's one unmet criterion — the unverified downlevel routing path. Windows 10 reached end of support in October 2025, so this also removes the need to test on an unsupported OS.
 

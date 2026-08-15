@@ -5,9 +5,6 @@
     nothing to declare. Pinning a platform here only works if Directory.Build.props pins the
     same one in every project - and doing that broke Visual Studio, so neither is pinned.
   -->
-  <Folder Name="/spike/">
-    <Project Path="spike/Offstream.Spike/Offstream.Spike.csproj" />
-  </Folder>
   <Folder Name="/src/">
     <Project Path="src/Offstream.App/Offstream.App.csproj" />
     <Project Path="src/Offstream.Core/Offstream.Core.csproj" />

@@ -213,7 +213,7 @@ original assumptions and records what replaced it; then
 dotnet run --project src/Offstream.App
 ```
 
-- **Phase 0** — the retarget spike: 8/8 checks green on Windows 11 build 26200, unelevated. Endpoint
+- **Phase 0** — the retarget proof: 8/8 checks green on Windows 11 build 26200, unelevated. Endpoint
   enumeration, `IAudioPolicyConfig` binding, routing a process to an endpoint and back, session mute,
   and 30 s of WASAPI loopback capture verified non-silent.
 - **Phase 1** — six projects, CI, analyzers as errors, Serilog, and a WPF-UI Fluent shell that
@@ -488,7 +488,6 @@ dotnet test --filter "Category!=Desktop"           # what CI runs
 <summary><b>Layout</b></summary>
 
 ```
-spike/   Offstream.Spike — the Phase 0 retarget spike, still on disk and due for removal
 src/     Offstream.Core (no UI refs) and Offstream.App (WPF)
 tests/   Offstream.Core.Tests (xUnit), Offstream.UI.Tests (ViewModels + FlaUI)
 tools/   Offstream.FakeSpotify (window-title harness)
