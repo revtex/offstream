@@ -419,10 +419,48 @@ public sealed class RecordingSession : IAsyncDisposable
             TimeSpan.FromSeconds(e.TrackTimeSeconds));
     }
 
-    private void OnPlayStateChanged(object? sender, PlayStateChangedEventArgs e) =>
+    /// <summary>
+    /// Playback started or stopped. Starting is also a chance to record what is already on.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A track is only admitted while it is playing</b> — <see cref="Track.IsNormalPlaying"/>
+    /// is half of <see cref="RecordingPolicy.IsTypeAllowed"/> — and the admission check used to
+    /// run in <see cref="OnTrackChanged"/> alone. <see cref="Track.Equals"/> ignores the play
+    /// state, so a song that goes from paused to playing is not a new track and raised nothing
+    /// but this event. Pressing record while Spotify was paused and then pressing play therefore
+    /// left the session waiting for a track change that had already happened: the meter moved,
+    /// the counter ran, and nothing was ever written until the user stopped and started again.
+    /// The predecessor never met this because it blocked on Spotify producing audio before it
+    /// began watching at all; Offstream starts listening immediately, and pays for it here.
+    /// </para>
+    /// <para>
+    /// Only when nothing is being recorded. A pause mid-song leaves the recorder alone — what
+    /// Spotify stops sending is silence, and the trim handles it — so a resume with a recorder
+    /// still running is the ordinary case and must not start a second one.
+    /// </para>
+    /// </remarks>
+    private void OnPlayStateChanged(object? sender, PlayStateChangedEventArgs e)
+    {
         Report(
             e.Playing ? RecordingStage.Recording : RecordingStage.WaitingForTrack,
             message: e.Playing ? null : "Playback paused.");
+
+        if (!e.Playing || CurrentTrack is not null) return;
+
+        // Not when the recording timer has already elapsed: the session is winding down, and the
+        // next thing it should do is stop rather than take on another track.
+        if (_stopAfterCurrentTrack) return;
+
+        // Only for the track already known. A single poll can see both a new song and a change of
+        // play state — starting from a stopped Spotify does exactly that — and the track change
+        // is raised straight after this, with the stop-the-outgoing-recorder handling that this
+        // path deliberately lacks. Admitting the same track from both would start a recorder only
+        // for the other to tear it down a moment later and discard the fragment as too short.
+        // The poller has not yet stored this observation, so its current track is the previous
+        // one; equality ignores the play state, which is precisely the comparison wanted here.
+        if (e.Track.Equals(_poller.CurrentTrack)) Consider(e.Track);
+    }
 
     /// <summary>
     /// The centre of the session: one track ends, the next begins.
@@ -449,8 +487,20 @@ public sealed class RecordingSession : IAsyncDisposable
             return;
         }
 
-        var track = e.NewTrack;
+        Consider(e.NewTrack);
+    }
 
+    /// <summary>
+    /// Records <paramref name="track"/> if the settings allow it, and says why when they do not.
+    /// </summary>
+    /// <remarks>
+    /// Shared by the two moments a track can become recordable: it changed, or it started
+    /// playing. Everything specific to a track ending — stopping the outgoing recorder, honouring
+    /// a recording timer that elapsed — stays with <see cref="OnTrackChanged"/>, because neither
+    /// is true of a song resuming.
+    /// </remarks>
+    private void Consider(Track track)
+    {
         if (!_policy.IsTypeAllowed(track))
         {
             Report(RecordingStage.WaitingForTrack, track, message: DescribeSkipped(track));

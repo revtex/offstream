@@ -124,7 +124,7 @@ public sealed class SpotifyPoller : IAsyncDisposable
                 if (_playing) ResumeClock();
                 else PauseClock();
 
-                PlayStateChanged?.Invoke(this, new PlayStateChangedEventArgs(newest.Playing));
+                PlayStateChanged?.Invoke(this, new PlayStateChangedEventArgs(newest.Playing, newest));
             }
 
             var isSameTrack = newest.Equals(previous);

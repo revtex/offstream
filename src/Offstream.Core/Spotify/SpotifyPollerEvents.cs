@@ -12,9 +12,18 @@ public sealed class TrackChangedEventArgs(Track? oldTrack, Track newTrack) : Eve
 }
 
 /// <summary>Playback started or stopped.</summary>
-public sealed class PlayStateChangedEventArgs(bool playing) : EventArgs
+/// <param name="playing">Whether Spotify is playing now.</param>
+/// <param name="track">
+/// What it is playing, as this observation saw it. Carried on the event because
+/// <see cref="SpotifyPoller.CurrentTrack"/> is not updated until the poll finishes — a handler
+/// reading it here would get the previous observation, whose play state is the one that just
+/// stopped being true.
+/// </param>
+public sealed class PlayStateChangedEventArgs(bool playing, Track track) : EventArgs
 {
     public bool Playing { get; } = playing;
+
+    public Track Track { get; } = track;
 }
 
 /// <summary>The elapsed position within the current track changed.</summary>

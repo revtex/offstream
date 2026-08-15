@@ -274,6 +274,19 @@ phase plan these entries follow.
 
 ### Fixed
 
+- **Pressing record with Spotify paused, then pressing play, recorded nothing.** The level meter
+  moved, the counter ran and the page named the song, but no file was ever written until the user
+  pressed stop and start again. Being played is half of what makes a track recordable, and that
+  check ran only when the track changed — while two observations of the same song count as the
+  same track whether or not it is playing, by design, so that a pause mid-song does not read as a
+  new one. A song that started playing therefore raised nothing the session was listening for: it
+  had already passed the track over once as not recordable, and went on waiting for a change that
+  had happened. The predecessor never met this because it waited for Spotify to produce audio
+  before it began watching at all; Offstream starts listening the moment record is pressed, which
+  is worth keeping. The check now also runs when playback starts, for the track already showing
+  and only when nothing is being recorded — a pause mid-song still leaves the recorder alone, and
+  starting with music already playing still produces exactly one recording rather than one that is
+  immediately torn down and discarded as too short.
 - **Every track after the first showed nothing but the artist and title.** The album, cover art
   and destination arrived a second into each song and were gone a moment later, on every track
   except the first one of a session — while the files themselves were tagged correctly, so the
