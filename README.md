@@ -11,10 +11,11 @@ It is a Windows 11 desktop app. It never asks for your Spotify password, and you
 your machine — the only thing that ever leaves it is a "who sings this?" lookup, and only if you
 turn one on.
 
-![The Offstream Record page: a Start recording button, transport with elapsed time, a stereo level meter, the track currently being recorded, and the list of files saved this session](docs/images/record.png)
+![The Offstream Record page mid-recording: a REC transport reading MP3 320K 48K and 18 seconds elapsed, a live stereo level meter, and the track being captured with its cover art, album, year and the file it is being written to](docs/images/record.png)
 
-*The Record page, idle. Once you press Start the meter moves with the audio, the middle card names
-the song being recorded, and every finished file drops into the list below it.*
+*Eighteen seconds into a song. The meter moves with the audio, the cover art and album have already
+been looked up, and the Save path shows exactly which file this will become. Each finished track
+drops into the list below as it is completed.*
 
 ## What it does
 
@@ -130,8 +131,10 @@ The **Advanced** page is where the details live.
 ![The Offstream Advanced page: filename template with a live preview, detection options, tag options and app options](docs/images/advanced.png)
 
 **File names** are a template with a live preview, so you can see exactly what the next file will be
-called before you record anything. Use `\` to make folders — `{artist}\{album} ({year})\{title}`
-gives you a tidy library tree instead of one flat pile.
+called before you record anything. Use `\` to make folders — `{artist}\({year}) {album}\{track:00}
+{title}` gives you a tidy library tree instead of one flat pile, and is the template producing the
+Save path in the first screenshot. The `:00` pads a number to two digits, so track 2 files as `02`
+and sorts where you expect it to.
 
 | Token | Is replaced with |
 | --- | --- |
