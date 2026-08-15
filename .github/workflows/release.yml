@@ -205,7 +205,31 @@ jobs:
           "$hash  $(Split-Path $zip -Leaf)" | Out-File "$zip.sha256" -Encoding ascii
 
           "zip=$zip" | Out-File $env:GITHUB_OUTPUT -Append
+          "staging=$staging" | Out-File $env:GITHUB_OUTPUT -Append
           Write-Host "$hash  $(Split-Path $zip -Leaf)"
+
+      # From the same staged folder the zip was made from, so the two downloads cannot hold
+      # different software under one version number. Inno Setup 6 is on the runner image.
+      - name: Build the installer
+        id: installer
+        shell: pwsh
+        env:
+          OFFSTREAM_SIGNING_PFX_BASE64: ${{ secrets.OFFSTREAM_SIGNING_PFX_BASE64 }}
+          OFFSTREAM_SIGNING_PASSWORD: ${{ secrets.OFFSTREAM_SIGNING_PASSWORD }}
+          OFFSTREAM_SIGNING_TIMESTAMP_URL: ${{ vars.OFFSTREAM_SIGNING_TIMESTAMP_URL }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          ./build/windows/build-installer.ps1 `
+            -Version '${{ steps.version.outputs.version }}' `
+            -SourceDir '${{ steps.package.outputs.staging }}' | Out-Null
+
+          $installer = "artifacts/Offstream-${{ steps.version.outputs.version }}-setup.exe"
+          $hash = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $(Split-Path $installer -Leaf)" | Out-File "$installer.sha256" -Encoding ascii
+
+          "path=$installer" | Out-File $env:GITHUB_OUTPUT -Append
+          Write-Host "$hash  $(Split-Path $installer -Leaf)"
 
       # Distributing LGPL binaries means distributing the source they were built from.
       # Attaching it beats a written offer: an offer has to outlive whatever was going to
@@ -232,6 +256,7 @@ jobs:
           name: offstream-${{ steps.version.outputs.version }}-win-x64
           path: |
             artifacts/*.zip
+            artifacts/*setup.exe
             artifacts/*.sha256
 
       - name: Upload symbols
@@ -263,8 +288,12 @@ jobs:
           $body = $section.Groups['body'].Value.Trim()
 
           @(
+            "**Install it** with ``Offstream-$version-setup.exe`` — a per-user install that never asks"
+            'for administrator rights — or take the zip and run it from wherever you unpack it.'
+            'Both hold the same build.'
+            ''
             '> **This build is not code-signed.** Windows SmartScreen will warn the first time you'
-            '> run it: choose **More info** and then **Run anyway**. Verify the download against the'
+            '> run it: choose **More info** and then **Run anyway**. Verify the download against its'
             '> SHA-256 below before you do.'
             ''
             '> **VB-CABLE is not included.** Offstream detects it and tells you if it is missing;'
@@ -276,6 +305,7 @@ jobs:
             'travels in the `ffmpeg` folder beside it.'
             ''
             '```'
+            (Get-Content "${{ steps.installer.outputs.path }}.sha256" -Raw).Trim()
             (Get-Content "${{ steps.package.outputs.zip }}.sha256" -Raw).Trim()
             '```'
             ''
@@ -291,6 +321,8 @@ jobs:
           if ('${{ steps.version.outputs.prerelease }}' -eq 'true') { $arguments += '--prerelease' }
 
           & gh @arguments `
+            '${{ steps.installer.outputs.path }}' `
+            "${{ steps.installer.outputs.path }}.sha256" `
             '${{ steps.package.outputs.zip }}' `
             "${{ steps.package.outputs.zip }}.sha256" `
             '${{ steps.ffmpeg-source.outputs.path }}'

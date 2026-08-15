@@ -34,9 +34,10 @@ drops into the list below as it is completed.*
 
 Three things worth knowing up front, so nothing is a surprise:
 
-**There's no installer yet.** Offstream is still in development, so there is no download — you build
-it from source — a few downloads and one build, with every step below. Packaging is the next piece
-of work.
+**There's no release yet.** Offstream is still in development, so there is nothing to download — you
+build it from source, which is a few downloads and one build, with every step below. The installer
+and the release pipeline are built and waiting on a version tag; check
+[Releases](https://github.com/revtex/offstream/releases) before assuming this is still true.
 
 **It records your PC's sound, not Spotify specifically.** By default Offstream captures whatever
 your speakers are playing, so a Windows notification chime or a YouTube tab in the background lands
@@ -533,6 +534,14 @@ from the Actions tab: it builds and uploads the same artefacts and creates no re
 
 `VersionPrefix` in `Directory.Build.props` only decides what an *unreleased* build calls itself
 (`0.1.0-dev`). Nudge it after a release so dev builds sort after it; nothing breaks if you forget.
+
+**The installer is per-user and never asks for administrator rights** — `build/windows/offstream.iss`,
+compiled by `build-installer.ps1` from the same staged folder the portable zip is made from, so the
+two downloads cannot hold different software under one version number. It installs into
+`%LOCALAPPDATA%\Programs\Offstream`, refuses to run on anything below Windows 11, and asks on
+uninstall whether to remove settings and logs as well. Recordings are never in its scope. CI compiles
+the script on every pull request, because a script that is only compiled at tag time is one that
+breaks at tag time.
 
 **ffmpeg is bundled, and pinned.** `build/windows/ffmpeg.json` names the exact LGPL build, its
 SHA-256 and the commit it came from; `fetch-ffmpeg.ps1` refuses anything that does not match. The

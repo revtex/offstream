@@ -132,6 +132,25 @@ jobs:
           -p:PublishSingleFile=true
           -p:PublishTrimmed=false
 
+      # The installer script is only otherwise compiled when a tag is pushed, which is the
+      # worst place to discover it does not compile. This runs against the publish output
+      # that already exists a few steps up, with a stand-in for the 146 MB ffmpeg download
+      # the real pipeline fetches - what is being checked is that offstream.iss is valid and
+      # packages the layout it is given, not that ffmpeg is in it.
+      - name: The installer still compiles
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $staging = 'artifacts/installer-check'
+          $publish = "src/Offstream.App/bin/Release/$((Select-Xml -Path Directory.Build.props -XPath '//TargetFramework').Node.InnerText)/win-x64/publish"
+
+          New-Item -ItemType Directory -Path "$staging/ffmpeg" -Force | Out-Null
+          Copy-Item "$publish/*" $staging -Recurse -Force
+          Copy-Item LICENSE, NOTICE $staging
+          'not ffmpeg' | Out-File "$staging/ffmpeg/ffmpeg.exe"
+
+          ./build/windows/build-installer.ps1 -Version 0.0.0 -SourceDir $staging | Out-Null
+
       - name: Assert trimming and AOT stayed off
         shell: pwsh
         run: |

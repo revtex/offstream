@@ -29,6 +29,21 @@ phase plan these entries follow.
   tag — and a tag with no matching section fails in seconds rather than at the end of the pipeline.
   Falling back to `[Unreleased]` would have worked exactly once, and every release after that would
   republish the previous one's entries with no fix short of amending a release people had read.
+- **A per-user installer that never asks for administrator rights.** Offstream needs no elevation to
+  run — routing, session mute and loopback capture were all verified unelevated — so the thing that
+  installs it asks for none either. An elevation prompt is a decision the user has to make about
+  software they have not run yet. It installs into `%LOCALAPPDATA%\Programs\Offstream`, refuses
+  anything below Windows 11 with a sentence during setup rather than a crash on first run, notices a
+  running copy through the app's own single-instance mutex instead of failing halfway through
+  replacing a locked file, and is offered in English and French to match the app.
+  It is built from **the same staged folder the portable zip is made from**, so the two downloads
+  cannot hold different software under one version number, and the installer script is compiled on
+  every pull request — one that is only compiled when a tag is pushed is one that breaks when a tag
+  is pushed.
+  **Uninstalling asks about settings and logs rather than guessing.** Deleting them silently loses a
+  Last.fm API key and a Spotify sign-in; keeping them silently is wrong for someone uninstalling
+  because they are done. Recordings are never in scope: they live outside the install folder and no
+  uninstaller should reach them.
 - **ffmpeg travels with the app.** Releases carry an unmodified LGPL-3.0 build of ffmpeg in an
   `ffmpeg` folder beside the executable, which is where the locator already looked, so a download
   records audio without the user installing anything first. A copy on `PATH`, or one named on the
