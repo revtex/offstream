@@ -15,6 +15,19 @@ phase plan these entries follow.
 
 ### Added
 
+- **The licences are readable from inside the app, not just present as files in the folder.**
+  "Licence and notices" on the Advanced page's Application section opens Offstream's own MIT
+  licence, the predecessor's copyright notice it carries, the bundled LGPL ffmpeg and its source
+  offer, TagLib#, and VB-CABLE's origin and donationware terms — with the running build's version
+  and commit at the top, so a bug report can name the build it came from. The text is embedded in
+  the executable rather than read from beside it: the MIT and LGPL notices are obliged to travel
+  with the software, and a loose file does not survive a zip unpacked selectively or a copy of just
+  the `.exe`. A test asserts the window still shows what `LICENSE` and `NOTICE` actually say, so the
+  two cannot drift.
+- **Credit for the track details, beside the provider that supplies them.** Choosing Spotify or
+  Last.fm now says whose data is being written into the recordings — an attribution Spotify's
+  Developer Terms require and that the app had never carried anywhere. It is empty when no provider
+  is selected, because crediting a service the app is not calling would be a false statement.
 - **A release pipeline, with the git tag as the only place a version number lives.** Pushing `v1.2.3`
   builds, tests, publishes, signs and attaches a self-contained `win-x64` zip and its SHA-256 to a
   GitHub release; the changelog becomes the release notes. Nothing in the repository records a

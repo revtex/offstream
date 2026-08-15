@@ -346,6 +346,57 @@ public sealed class SettingsViewModelTests
     }
 
     /// <summary>
+    /// Both providers that supply content are credited, and neither credit outlives the
+    /// selection that earned it.
+    /// </summary>
+    /// <remarks>
+    /// Spotify's Developer Terms require attribution for content taken from the Web API, and
+    /// nothing else in the app carries it — so this assertion is the only thing standing between
+    /// a refactor of the provider block and a licence breach that compiles.
+    /// </remarks>
+    [Theory]
+    [InlineData(MetadataProvider.LastFm, true)]
+    [InlineData(MetadataProvider.Spotify, true)]
+    [InlineData(MetadataProvider.None, false)]
+    public void ProviderAttribution_CreditsWhoeverSuppliesTheContent(
+        MetadataProvider provider,
+        bool expected)
+    {
+        var viewModel = SettingsFakes.Settings(SettingsFakes.Document(new MockFileSystem()));
+
+        viewModel.Provider = provider;
+
+        Assert.Equal(expected, viewModel.HasProviderAttribution);
+        Assert.Equal(expected, viewModel.ProviderAttribution.Length > 0);
+
+        if (expected)
+        {
+            // Credit by name. An attribution that does not say who it credits is not one.
+            var who = provider == MetadataProvider.Spotify ? "Spotify" : "Last.fm";
+            Assert.Contains(who, viewModel.ProviderAttribution, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    /// The attribution is a OneWay binding, so it only leaves the screen if the change is
+    /// announced — and showing Last.fm's credit while Spotify is selected is the failure that
+    /// matters here.
+    /// </summary>
+    [Fact]
+    public void ProviderAttribution_ChangesAreAnnounced()
+    {
+        var viewModel = SettingsFakes.Settings(SettingsFakes.Document(new MockFileSystem()));
+
+        var raised = new List<string?>();
+        viewModel.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+        viewModel.Provider = MetadataProvider.Spotify;
+
+        Assert.Contains(nameof(SettingsViewModel.ProviderAttribution), raised, StringComparer.Ordinal);
+        Assert.Contains(nameof(SettingsViewModel.HasProviderAttribution), raised, StringComparer.Ordinal);
+    }
+
+    /// <summary>
     /// The Client ID becomes required the moment the provider changes, without the provider
     /// knowing about the field — which is why every property is revalidated before a save.
     /// </summary>

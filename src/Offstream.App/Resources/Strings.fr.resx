@@ -457,4 +457,19 @@
   <data name="NavLogs" xml:space="preserve">
     <value>Journaux</value>
   </data>
+  <data name="SettingsAttributionSpotify" xml:space="preserve">
+    <value>Les détails des pistes et les pochettes sont fournis par Spotify. Spotify est une marque de Spotify AB.</value>
+  </data>
+  <data name="SettingsAttributionLastFm" xml:space="preserve">
+    <value>Les détails des pistes et les pochettes sont fournis par Last.fm.</value>
+  </data>
+  <data name="AdvancedNoticesButton" xml:space="preserve">
+    <value>Licence et mentions</value>
+  </data>
+  <data name="NoticesTitle" xml:space="preserve">
+    <value>Licence et mentions de tiers</value>
+  </data>
+  <data name="NoticesClose" xml:space="preserve">
+    <value>Fermer</value>
+  </data>
 </root>

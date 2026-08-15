@@ -593,4 +593,24 @@
     <value>Logs</value>
     <comment>Fourth tab in the shell, after Advanced.</comment>
   </data>
+  <data name="SettingsAttributionSpotify" xml:space="preserve">
+    <value>Track details and cover art are provided by Spotify. Spotify is a trademark of Spotify AB.</value>
+    <comment>Attribution shown under the metadata provider picker when Spotify is selected. Required by Spotify's Developer Terms; do not drop it or move it away from the provider it credits.</comment>
+  </data>
+  <data name="SettingsAttributionLastFm" xml:space="preserve">
+    <value>Track details and cover art are provided by Last.fm.</value>
+    <comment>Attribution shown under the metadata provider picker when Last.fm is selected.</comment>
+  </data>
+  <data name="AdvancedNoticesButton" xml:space="preserve">
+    <value>Licence and notices</value>
+    <comment>Button that opens the licence and third-party notices window.</comment>
+  </data>
+  <data name="NoticesTitle" xml:space="preserve">
+    <value>Licence and third-party notices</value>
+    <comment>Title of the window showing LICENSE and NOTICE, both embedded in the executable.</comment>
+  </data>
+  <data name="NoticesClose" xml:space="preserve">
+    <value>Close</value>
+    <comment>Button that dismisses the licence and notices window.</comment>
+  </data>
 </root>

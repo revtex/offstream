@@ -222,6 +222,19 @@
                         <TextBlock AutomationProperties.AutomationId="SettingsProviderSummary"
                                    Style="{StaticResource OffstreamHintStyle}"
                                    Text="{Binding ProviderSummary, Mode=OneWay}" />
+
+                        <!--
+                            Credit for the track details, next to the control that decides where
+                            they come from. Spotify's Developer Terms require it and Last.fm asks
+                            for it; both are satisfied here rather than in the notices window,
+                            because this is the one place the line is self-explanatory.
+                        -->
+                        <TextBlock Margin="0,6,0,0"
+                                   AutomationProperties.AutomationId="SettingsProviderAttribution"
+                                   Style="{StaticResource OffstreamHintStyle}"
+                                   Text="{Binding ProviderAttribution, Mode=OneWay}"
+                                   TextWrapping="Wrap"
+                                   Visibility="{Binding HasProviderAttribution, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}" />
                     </StackPanel>
 
                     <!--
