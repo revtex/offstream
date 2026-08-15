@@ -1,0 +1,40 @@
+Offstream
+Copyright (c) 2026 Offstream contributors
+
+Offstream is distributed under the MIT License. LICENSE holds the full text and governs
+this software; this file records where parts of it came from and what else it depends on.
+
+
+Derived work
+------------
+
+Portions of this software derive from Spytify (https://github.com/jwallet/spy-spotify),
+Copyright (c) 2018 Spytify by jwallet, distributed under the MIT License. Its copyright
+notice is carried in LICENSE alongside Offstream's, as that licence requires.
+
+What derives from it is behaviour, not naming: Spotify title parsing, ad and idle-state
+detection, audio buffering and silence-trim semantics, filename templating, and path
+assembly were ported and re-namespaced. No inherited identifier appears in this
+repository, and a test fails the build if one reappears.
+
+
+Third-party components
+----------------------
+
+  NAudio                        MIT
+  SpotifyAPI.Web                MIT
+  WPF-UI                        MIT
+  CommunityToolkit.Mvvm         MIT
+  H.NotifyIcon.Wpf              MIT
+  System.IO.Abstractions        MIT
+  Microsoft.Windows.CsWin32     MIT
+  Microsoft.Extensions.*        MIT
+  System.Security.Cryptography.ProtectedData   MIT
+  Serilog, and its Console and File sinks      Apache-2.0
+  TagLibSharp                   LGPL-2.1-only
+
+ffmpeg is invoked as an external process and never linked into Offstream. Offstream
+resolves an LGPL build, or the one on the user's PATH; no GPL build is bundled.
+
+VB-CABLE is not bundled. It is donationware from VB-Audio Software, installed by the user
+from vb-audio.com; Offstream only detects whether it is present.
