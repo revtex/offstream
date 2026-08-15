@@ -34,10 +34,11 @@ drops into the list below as it is completed.*
 
 Three things worth knowing up front, so nothing is a surprise:
 
-**There's no release yet.** Offstream is still in development, so there is nothing to download — you
-build it from source, which is a few downloads and one build, with every step below. The installer
-and the release pipeline are built and waiting on a version tag; check
-[Releases](https://github.com/revtex/offstream/releases) before assuming this is still true.
+**Download it from [Releases](https://github.com/revtex/offstream/releases).** The installer is
+per-user and never asks for administrator rights; the zip is the same build if you would rather not
+install anything. **Neither is code-signed**, so Windows SmartScreen warns the first time you run
+it — choose **More info**, then **Run anyway**, after checking the download against the SHA-256 in
+the release notes. Building from source is the other option, and every step is below.
 
 **It records your PC's sound, not Spotify specifically.** By default Offstream captures whatever
 your speakers are playing, so a Windows notification chime or a YouTube tab in the background lands
@@ -46,10 +47,11 @@ in the recording too. Either keep the machine quiet while it records, or install
 settings, and record that instead — then only Spotify is captured. Offstream tells you on the
 Settings page whether VB-CABLE is installed.
 
-**You need ffmpeg — for now.** It's the free tool Offstream uses to turn the captured audio into
-MP3s. One command installs it; see [Getting Offstream running](#getting-offstream-running).
-Releases bundle their own copy, so this is only true while building from source. If you have one
-installed anyway, or point Offstream at a particular build on the Settings page, yours wins.
+**You need ffmpeg only if you build from source.** It's the free tool Offstream uses to turn the
+captured audio into MP3s, and releases bundle their own copy in an `ffmpeg` folder beside the
+executable. One command installs it otherwise; see
+[Getting Offstream running](#getting-offstream-running). If you have one installed anyway, or point
+Offstream at a particular build on the Settings page, yours wins over the bundled one.
 
 ## Getting Offstream running
 
