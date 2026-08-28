@@ -74,6 +74,7 @@ public sealed class TrackRecorder : IDisposable
     private readonly OutputPaths _paths;
     private readonly Track _track;
     private readonly Task<TrackEnrichment>? _enrichment;
+    private readonly CancellationTokenSource? _enrichmentCancellation;
 
     private readonly CancellationTokenSource _stopping = new();
     private readonly TaskCompletionSource _bufferDrained =
@@ -81,6 +82,7 @@ public sealed class TrackRecorder : IDisposable
 
     private long _bytesWritten;
     private bool _primed;
+    private bool _disposed;
 
     /// <param name="buffer">The shared capture buffer this recording drains.</param>
     /// <param name="settings">The session's settings.</param>
@@ -93,13 +95,18 @@ public sealed class TrackRecorder : IDisposable
     /// just before the encode request is built — the last moment at which album, track number and
     /// cover art can still reach the file.
     /// </param>
+    /// <param name="enrichmentCancellation">
+    /// The lookup's own cancellation, handed over with it. Cancelled by this recorder the moment
+    /// the recording is thrown away — see <see cref="AbandonEnrichment"/> — and disposed with it.
+    /// </param>
     public TrackRecorder(
         AudioCaptureBuffer buffer,
         RecordingSettings settings,
         Track track,
         OutputPaths paths,
         IFileSystem fileSystem,
-        Task<TrackEnrichment>? enrichment = null)
+        Task<TrackEnrichment>? enrichment = null,
+        CancellationTokenSource? enrichmentCancellation = null)
     {
         ArgumentNullException.ThrowIfNull(buffer);
         ArgumentNullException.ThrowIfNull(settings);
@@ -113,6 +120,7 @@ public sealed class TrackRecorder : IDisposable
         _paths = paths;
         _fileSystem = fileSystem;
         _enrichment = enrichment;
+        _enrichmentCancellation = enrichmentCancellation;
     }
 
     /// <summary>The track this recorder is capturing.</summary>
@@ -224,6 +232,7 @@ public sealed class TrackRecorder : IDisposable
 
         if (cancellationToken.IsCancellationRequested)
         {
+            AbandonEnrichment();
             _paths.DeleteFile(tempWavePath);
             return new TrackRecording(RecordingOutcome.Cancelled, _track, Elapsed);
         }
@@ -231,8 +240,90 @@ public sealed class TrackRecorder : IDisposable
         return await FinaliseAsync(tempWavePath);
     }
 
-    /// <summary>Releases the stop signal. Recording itself ends with <see cref="Stop"/>.</summary>
-    public void Dispose() => _stopping.Dispose();
+    /// <summary>
+    /// Releases the stop signal and the lookup's cancellation. Recording itself ends with
+    /// <see cref="Stop"/>.
+    /// </summary>
+    /// <remarks>
+    /// <b>The lookup is cancelled before its source is disposed, always.</b> Disposing a
+    /// <see cref="CancellationTokenSource"/> that has not been cancelled throws
+    /// <see cref="ObjectDisposedException"/> out of the next <c>Register</c> on its token — which
+    /// is inside whatever HTTP call the lookup is making — while disposing one that has been
+    /// cancelled is the ordinary pattern. Every path that reaches a recording worth keeping has
+    /// already joined the lookup by the time this runs, so this only ever bites a recording that
+    /// is being abandoned.
+    /// </remarks>
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        _stopping.Dispose();
+
+        if (_enrichmentCancellation is null) return;
+
+        CancelEnrichment();
+        _enrichmentCancellation.Dispose();
+    }
+
+    /// <summary>
+    /// Stops the metadata lookup for a recording that is not going to exist, and tidies up
+    /// anything it fetched before it noticed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A discarded recording's lookup used to run to its own conclusion.</b> Nothing joined
+    /// it — <see cref="FinaliseAsync"/> returns on the too-short and silent branches before
+    /// <see cref="AwaitEnrichmentAsync"/>, deliberately, so a fragment never waits on a
+    /// provider — and nothing stopped it either. A track resumed a fraction of a second before it
+    /// ended therefore spent the next several seconds asking Spotify about a song that had
+    /// already finished, spending calls against a rate limit shared with the recording that
+    /// replaced it, and announcing "had no metadata" for a file that was never written. Worse in
+    /// the case where the answer carries no track at all: that lookup can run the no-track budget
+    /// out and stand this session's advertisement handling down, on the evidence of a track that
+    /// had already ended.
+    /// </para>
+    /// <para>
+    /// <b>Cover art is deleted rather than left.</b> The fetch may well have finished before the
+    /// cancellation reached it, and its temp file is referenced by nothing once this recording is
+    /// gone — only the already-recorded branch used to delete one, so every discarded recording
+    /// that had enriched in time leaked an image into the temp directory.
+    /// </para>
+    /// </remarks>
+    private void AbandonEnrichment()
+    {
+        CancelEnrichment();
+
+        if (_enrichment is null) return;
+
+        _ = _enrichment.ContinueWith(
+            completed => TryDelete(completed.Result.CoverArtPath),
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnRanToCompletion | TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+    }
+
+    /// <summary>
+    /// Ends the lookup, whether or not this recorder has already been disposed.
+    /// </summary>
+    /// <remarks>
+    /// The two callers can arrive in either order: a session torn down while a recording is still
+    /// finalising disposes this recorder from one thread while <see cref="FinaliseAsync"/> is
+    /// deciding on the other. Cancelling a source that is already cancelled is a no-op, but
+    /// cancelling a disposed one throws — and that exception would come out of the recording task
+    /// as a failure the user is told about, on a recording that was merely being tidied away.
+    /// </remarks>
+    private void CancelEnrichment()
+    {
+        try
+        {
+            _enrichmentCancellation?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Disposal got there first, and it cancels on the way past. Nothing left to do.
+        }
+    }
 
     private async Task CaptureAsync(WaveFileWriter writer, byte[] chunk, CancellationToken stopping)
     {
@@ -288,12 +379,14 @@ public sealed class TrackRecorder : IDisposable
         {
             // Not a failure of ours: Spotify is playing to an endpoint this session is not
             // capturing, which the shell reports as such rather than as an error.
+            AbandonEnrichment();
             _paths.DeleteFile(tempWavePath);
             return new TrackRecording(RecordingOutcome.Silent, _track, duration);
         }
 
         if (duration.TotalSeconds < _settings.MinimumRecordedLengthSeconds)
         {
+            AbandonEnrichment();
             _paths.DeleteFile(tempWavePath);
             return new TrackRecording(RecordingOutcome.TooShort, _track, duration);
         }

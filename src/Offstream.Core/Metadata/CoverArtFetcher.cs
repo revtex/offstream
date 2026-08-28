@@ -81,7 +81,20 @@ public sealed class CoverArtFetcher : ICoverArtFetcher
             }
 
             var path = TempFileFor(uri);
-            await _fileSystem.File.WriteAllBytesAsync(path, image, cancellationToken);
+
+            try
+            {
+                await _fileSystem.File.WriteAllBytesAsync(path, image, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                // The path is about to be lost with the exception, so nothing downstream can ever
+                // delete what was written of it. Cancellation reaches here whenever the recording
+                // this art belongs to is discarded mid-fetch, which is common enough at a track
+                // boundary to be worth not leaving half an image in the temp directory each time.
+                TryDelete(path);
+                throw;
+            }
 
             return path;
         }
@@ -96,6 +109,19 @@ public sealed class CoverArtFetcher : ICoverArtFetcher
         {
             Log.Warning("Cover art at {Url} did not arrive in time.", uri);
             return null;
+        }
+    }
+
+    /// <summary>Removes a file this fetch had started writing, if it got that far.</summary>
+    private void TryDelete(string path)
+    {
+        try
+        {
+            if (_fileSystem.File.Exists(path)) _fileSystem.File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // A stray temp file is not worth failing a cancellation over.
         }
     }
 

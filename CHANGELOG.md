@@ -12,6 +12,24 @@ phase plan these entries follow.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A recording that is thrown away no longer keeps looking its track up.** Resume Spotify on a
+  song a fraction of a second before it ends — or start a new one from a stopped player, where the
+  media session reports the previous track for a few hundred milliseconds — and Offstream starts a
+  recording it discards a moment later for being under the minimum length. The metadata lookup for
+  that fragment carried on regardless, because nothing joins a lookup for a recording that will
+  never exist and nothing used to stop one either: it spent several seconds asking Spotify about a
+  song that had already finished, against a rate limit shared with the recording that replaced it,
+  and then announced "had no metadata" for a file that was never written — which reads as the track
+  matching having failed when it was working exactly as intended. It is now cancelled the moment
+  the recording is discarded, and again when the session stops.
+- **Cover art fetched for a discarded recording is deleted rather than left in the temp
+  directory.** The lookup usually finishes before a short recording is decided, so the image was
+  already on disk with nothing left to reference it; only the "kept the file already on disk"
+  branch ever cleaned one up. A half-written image from a fetch cancelled mid-download is removed
+  too, since the path it would be found by is lost with the cancellation.
+
 ## [0.1.0] - 2026-08-15
 
 The first release. Everything below is the whole of Offstream rather than a change to it:

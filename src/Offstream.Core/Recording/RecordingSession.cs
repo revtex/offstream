@@ -549,17 +549,33 @@ public sealed class RecordingSession : IAsyncDisposable
     /// and the track plays for minutes, so overlapping them makes it free; doing it after the
     /// recording would add that second to every track before its file appears.
     /// </para>
+    /// <para>
+    /// <b>And it is the recorder's to cancel.</b> The lookup outlives the track it belongs to on
+    /// purpose — a finished recording is tagged after the song has ended — so it cannot be tied to
+    /// the track boundary. What it must not outlive is the recording itself: a fragment that is
+    /// discarded has nothing left to tag, and its lookup is stopped by
+    /// <see cref="TrackRecorder"/> at the moment that is decided. The source is linked to the
+    /// session's own token so a teardown still ends it, and handed over with the task.
+    /// </para>
     /// </remarks>
     private void StartRecorder(Track detected, OutputPaths paths)
     {
         if (_buffer is null) return;
 
         var track = new Track(detected);
-        var enrichment = _enricher?.EnrichAsync(track, _stopping.Token);
+
+        var enrichmentCancellation = _enricher is null
+            ? null
+            : CancellationTokenSource.CreateLinkedTokenSource(_stopping.Token);
+
+        var enrichment = enrichmentCancellation is null
+            ? null
+            : _enricher!.EnrichAsync(track, enrichmentCancellation.Token);
 
         AnnounceWhenEnriched(track, paths, enrichment);
 
-        var recorder = new TrackRecorder(_buffer, _settings, track, paths, _fileSystem, enrichment);
+        var recorder = new TrackRecorder(
+            _buffer, _settings, track, paths, _fileSystem, enrichment, enrichmentCancellation);
 
         // Now, on the poll loop, not when the recording task gets scheduled: everything captured
         // after this instant belongs to the new track.

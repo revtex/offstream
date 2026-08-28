@@ -115,14 +115,30 @@ public sealed class RecordingSessionTests
         /// <summary>Which tracks were looked up, in order.</summary>
         public List<string?> Tracks { get; } = [];
 
+        /// <summary>Whether the lookup hangs, as a real one still chasing a provider would.</summary>
+        public bool NeverAnswers { get; set; }
+
+        /// <summary>The token the session gave the most recent lookup.</summary>
+        public CancellationToken Token { get; private set; }
+
         public Task<TrackEnrichment> EnrichAsync(Track track, CancellationToken cancellationToken = default)
         {
             Calls++;
             Tracks.Add(track.Title);
+            Token = cancellationToken;
 
             Apply?.Invoke(track);
 
-            return Task.FromResult(new TrackEnrichment(Updated: true, CoverArtPath));
+            return NeverAnswers
+                ? NeverAsync(cancellationToken)
+                : Task.FromResult(new TrackEnrichment(Updated: true, CoverArtPath));
+        }
+
+        private static async Task<TrackEnrichment> NeverAsync(CancellationToken cancellationToken)
+        {
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+
+            return TrackEnrichment.None;
         }
     }
 
@@ -557,6 +573,39 @@ public sealed class RecordingSessionTests
 
         Assert.Empty(harness.Encoder.Requests);
         Assert.Empty(harness.Saved);
+    }
+
+    /// <summary>
+    /// The lookup belongs to the recording rather than to the session, and it ends with it.
+    /// A discarded fragment has nothing left to tag, so the lookup it started is stopped instead
+    /// of being left to spend the next several seconds asking about a track that has already
+    /// ended — and the track that replaced it keeps a lookup of its own, which is what makes this
+    /// a per-recording cancellation rather than the session's.
+    /// </summary>
+    [Fact]
+    public async Task Session_DiscardingAShortRecording_CancelsOnlyThatTracksLookup()
+    {
+        var enricher = new FakeEnricher { NeverAnswers = true };
+
+        await using var harness = new Harness(s => s.MinimumRecordedLengthSeconds = 30, enricher: enricher);
+
+        harness.Session.Start();
+
+        await RecordTrackAsync(harness, Harness.Playing("Artist", "Title"), bytes: 300);
+
+        var discarded = enricher.Token;
+
+        harness.Play(Harness.Playing("Artist", "Next"));
+
+        await WaitFor(
+            () => harness.Recorded.Any(r => r.Outcome == RecordingOutcome.TooShort),
+            "the short recording to be discarded");
+
+        await WaitFor(
+            () => discarded.IsCancellationRequested,
+            "the discarded recording's lookup to be cancelled");
+
+        Assert.False(enricher.Token.IsCancellationRequested);
     }
 
     /// <summary>

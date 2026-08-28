@@ -55,7 +55,7 @@ public sealed class TrackRecorderTests
             Track? track = null,
             ExistingFilePolicy policy = ExistingFilePolicy.Overwrite,
             string? template = null,
-            Func<Track, Task<TrackEnrichment>>? enrich = null)
+            Func<Track, CancellationToken, Task<TrackEnrichment>>? enrich = null)
         {
             FileSystem = new MockFileSystem();
             FileSystem.Directory.CreateDirectory(MusicRoot);
@@ -68,7 +68,17 @@ public sealed class TrackRecorderTests
             Track = track ?? SampleTrack();
 
             Paths = new OutputPaths(Settings, Track, FileSystem, new DateTime(2026, 8, 12, 10, 0, 0, DateTimeKind.Utc));
-            Recorder = new TrackRecorder(Buffer, Settings, Track, Paths, FileSystem, enrich?.Invoke(Track));
+            // Created before the lookup so the lookup can observe it, exactly as the session does.
+            EnrichmentCancellation = enrich is null ? null : new CancellationTokenSource();
+
+            Recorder = new TrackRecorder(
+                Buffer,
+                Settings,
+                Track,
+                Paths,
+                FileSystem,
+                enrich?.Invoke(Track, EnrichmentCancellation!.Token),
+                EnrichmentCancellation);
         }
 
         public MockFileSystem FileSystem { get; }
@@ -82,6 +92,9 @@ public sealed class TrackRecorderTests
         public OutputPaths Paths { get; }
 
         public TrackRecorder Recorder { get; }
+
+        /// <summary>The lookup's cancellation, as the session hands it to the recorder.</summary>
+        public CancellationTokenSource? EnrichmentCancellation { get; }
 
         public void Dispose() => Recorder.Dispose();
 
@@ -181,7 +194,7 @@ public sealed class TrackRecorderTests
         using var harness = new Harness(
             policy: ExistingFilePolicy.Skip,
             template: Template,
-            enrich: track =>
+            enrich: (track, _) =>
             {
                 track.Album = "Album";
                 track.Year = 1983;
@@ -211,7 +224,7 @@ public sealed class TrackRecorderTests
         using var harness = new Harness(
             policy: ExistingFilePolicy.Skip,
             template: @"{artist}\({year}) {album}\{track:00} {title}",
-            enrich: track =>
+            enrich: (track, _) =>
             {
                 track.Album = "Album";
                 track.Year = 1983;
@@ -275,6 +288,78 @@ public sealed class TrackRecorderTests
         Assert.Null(recording.Encode);
         Assert.Equal(TimeSpan.Zero, recording.Duration);
         Assert.DoesNotContain(harness.FileSystem.AllFiles, f => f.EndsWith(".tmp", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A recording that is thrown away has nothing left to tag, so its lookup is stopped rather
+    /// than left to finish. It used to run on for seconds against a track that had already ended
+    /// — spending calls on a rate limit shared with the recording that replaced it, and reporting
+    /// a missing tag on a file that was never written.
+    /// </summary>
+    [Theory]
+    [InlineData(30, 500)]  // Discarded as too short.
+    [InlineData(2, 0)]     // Discarded as silent.
+    public async Task Record_Discarded_StopsTheMetadataLookup(int minimumSeconds, int bytes)
+    {
+        using var harness = new Harness(
+            minimumSeconds: minimumSeconds,
+            enrich: async (_, token) =>
+            {
+                // A lookup still chasing a provider when the recording is decided.
+                await Task.Delay(Timeout.Infinite, token);
+                return TrackEnrichment.None;
+            });
+
+        await harness.RecordAsync(bytes);
+
+        Assert.True(harness.EnrichmentCancellation!.IsCancellationRequested);
+    }
+
+    /// <summary>
+    /// The lookup often finishes before the recording is decided, and its cover art is a temp
+    /// file that nothing else will ever reference once the recording is gone. Only the
+    /// already-recorded branch used to delete one, so every discarded recording that had enriched
+    /// in time left an image behind.
+    /// </summary>
+    [Fact]
+    public async Task Record_ShorterThanTheMinimum_DeletesCoverArtTheLookupAlreadyFetched()
+    {
+        const string CoverArt = @"C:\art\cover.jpg";
+
+        using var harness = new Harness(
+            minimumSeconds: 30,
+            enrich: (_, _) => Task.FromResult(new TrackEnrichment(Updated: true, CoverArt)));
+
+        harness.FileSystem.Directory.CreateDirectory(@"C:\art");
+        harness.FileSystem.File.WriteAllBytes(CoverArt, [1, 2, 3]);
+
+        var recording = await harness.RecordAsync(bytes: 500);
+
+        Assert.Equal(RecordingOutcome.TooShort, recording.Outcome);
+        Assert.False(harness.FileSystem.File.Exists(CoverArt));
+    }
+
+    /// <summary>
+    /// The other half of the rule: a recording that is kept still needs its art, and its lookup
+    /// must not be cancelled on the way to the encode request.
+    /// </summary>
+    [Fact]
+    public async Task Record_Captured_KeepsTheCoverArtAndTheLookup()
+    {
+        const string CoverArt = @"C:\art\cover.jpg";
+
+        using var harness = new Harness(
+            enrich: (_, _) => Task.FromResult(new TrackEnrichment(Updated: true, CoverArt)));
+
+        harness.FileSystem.Directory.CreateDirectory(@"C:\art");
+        harness.FileSystem.File.WriteAllBytes(CoverArt, [1, 2, 3]);
+
+        var recording = await harness.RecordAsync(bytes: 500);
+
+        Assert.Equal(RecordingOutcome.Captured, recording.Outcome);
+        Assert.Equal(CoverArt, recording.Encode!.CoverArtPath);
+        Assert.True(harness.FileSystem.File.Exists(CoverArt));
+        Assert.False(harness.EnrichmentCancellation!.IsCancellationRequested);
     }
 
     /// <summary>
