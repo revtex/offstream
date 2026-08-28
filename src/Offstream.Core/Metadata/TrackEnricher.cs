@@ -125,7 +125,10 @@ public sealed class TrackEnricher : ITrackEnricher
         }
         catch (OperationCanceledException)
         {
-            // The session is stopping. Not worth a line of its own.
+            // The caller gave up on this lookup: the session is stopping, or the recording it
+            // belongs to has been discarded and there is nothing left to tag. Neither is worth a
+            // line of its own — and the second must not print "had no metadata", which would
+            // report a missing tag on a file that was never written.
             return TrackEnrichment.None;
         }
 #pragma warning disable CA1031 // A provider fault must not reach the recording; that is this class's job.
