@@ -18,7 +18,7 @@
     .\build.ps1 -Test                    # build, then run the suite (desktop tests excluded)
     .\build.ps1 -Test -IncludeDesktop    # also run the FlaUI tests, needs a real session
     .\build.ps1 -Test -Filter FileNameTemplate
-    .\build.ps1 -Clean -Test             # rebuild from scratch, then test
+    .\build.ps1 -Clean -Test             # delete every bin\ and obj\, rebuild, then test
     .\build.ps1 -VerifyFormat            # what CI enforces
     .\build.ps1 -Publish                 # self-contained win-x64 publish
     .\build.ps1 -Publish -BundleFfmpeg   # ...with the ffmpeg a release ships (108 MB)
@@ -84,10 +84,37 @@ if ($Test -and -not $hasFfmpeg) {
 
 # --- Clean ------------------------------------------------------------------
 
+# `dotnet clean` only removes what the *current* configuration and target framework would
+# have produced, so anything orphaned survives it: output stranded by a retarget (the
+# pre-Win11 `net10.0-windows` folders sat there for weeks), and the `obj\scratch*` trees a
+# build with a redirected BaseOutputPath leaves behind. Both are git-ignored, so they never
+# show up in `git status` and accumulate unnoticed - 645 MB of them, once. Deleting bin\ and
+# obj\ outright is the only clean that catches them, and it ignores -Configuration because
+# the whole point is to take the configurations you are *not* building too.
 if ($Clean) {
-    Step "Cleaning ($Configuration)..."
-    & dotnet clean $sln -c $Configuration --nologo -v minimal
-    Assert-ExitCode 'Clean'
+    Step 'Cleaning (every configuration and target framework)...'
+
+    $stale = @(
+        Get-ChildItem -Path $PSScriptRoot -Recurse -Filter '*.csproj' -File |
+            Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' } |
+            ForEach-Object { (Join-Path $_.DirectoryName 'bin'), (Join-Path $_.DirectoryName 'obj') } |
+            Where-Object { Test-Path $_ }
+    )
+
+    $freed = 0
+    foreach ($dir in $stale) {
+        $freed += (Get-ChildItem $dir -Recurse -File -ErrorAction SilentlyContinue |
+            Measure-Object -Property Length -Sum).Sum
+        try {
+            Remove-Item $dir -Recurse -Force -ErrorAction Stop
+        }
+        catch {
+            # Much the likeliest cause, and the message Windows gives for it is unhelpful.
+            throw "Could not delete $dir - $($_.Exception.Message)`nIf Offstream is running it holds its own binaries open; quit it (the tray icon too) and re-run."
+        }
+    }
+
+    Write-Host ("  removed {0} folder(s), {1:N0} MB" -f $stale.Count, ($freed / 1MB)) -ForegroundColor DarkGray
 }
 
 # --- Format -----------------------------------------------------------------

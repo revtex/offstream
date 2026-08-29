@@ -51,6 +51,17 @@ phase plan these entries follow.
   said the same thing every time whether or not anyone needed it. Hovering the row shows it
   instead. The text is unchanged and still translated, and each control carries it as accessible
   help text as well, because a tooltip is the one thing on the page a screen reader cannot see.
+- **`build.ps1 -Clean` deletes `bin\` and `obj\` outright, because `dotnet clean` could never
+  reach what was actually stale.** It only removes what the configuration and target framework you
+  name would have produced, so everything orphaned survived every clean anyone ran: 485 MB of
+  `net10.0-windows` output stranded when the app retargeted to Windows 11, and 183 MB of
+  `obj\scratch*` trees left by builds that had redirected their output path to dodge a file lock.
+  All of it is git-ignored, so none of it ever appeared in `git status` — the repository quietly
+  carried two thirds of a gigabyte that no build would ever look at again. `-Clean` now removes
+  both folders beside every project and reports what it freed, and ignores `-Configuration`,
+  since the point is to take the configurations you are *not* building too. Deleting a folder the
+  running app holds open now says so and names the app, rather than passing on Windows' own
+  account of a file it cannot open.
 
 ### Removed
 
