@@ -97,11 +97,8 @@ public sealed record OffstreamSettings(
         MediaFormat = Output.Format,
         BitrateKbps = Output.BitrateKbps,
         ExistingFilePolicy = Output.ExistingFilePolicy,
-        SkipAlreadyRecordedTracks = Output.SkipAlreadyRecordedTracks,
         MinimumRecordedLengthSeconds = Recording.MinimumLengthSeconds,
-        MuteAdsEnabled = Recording.MuteAds,
-        RecordEverythingEnabled = Recording.RecordEverything,
-        RecordAdsEnabled = Recording.RecordAds,
+        RecordSelection = Recording.RecordSelection,
         RecordingTimer = Recording.Timer,
         InternalOrderNumber = Output.CurrentFileCounter,
         OrderNumberInMediaTagEnabled = Metadata.WriteCounterToTrackNumber,
@@ -133,10 +130,11 @@ public sealed record OffstreamSettings(
 /// The running counter behind the <c>{count}</c> template token, persisted so numbering
 /// continues across restarts rather than overwriting yesterday's files.
 /// </param>
-/// <param name="SkipAlreadyRecordedTracks">
-/// Tell Spotify to move to the next track when the one playing is already in the library.
-/// Off by default: it reaches out and changes what the user is listening to, which is not
-/// something to start doing unasked.
+/// <param name="ExistingFilePolicy">
+/// What to do about a recording already on disk — including whether to ask Spotify to move on,
+/// which used to be a separate <c>skipAlreadyRecordedTracks</c> key beside it. The default keeps
+/// the file and says nothing to Spotify: reaching out to change what the user is listening to is
+/// not something to start doing unasked.
 /// </param>
 public sealed record OutputSettings(
     [property: JsonPropertyName("path")] string? Path = null,
@@ -144,23 +142,16 @@ public sealed record OutputSettings(
     [property: JsonPropertyName("format")] MediaFormat Format = MediaFormat.Mp3,
     [property: JsonPropertyName("bitrateKbps")] int BitrateKbps = 320,
     [property: JsonPropertyName("existingFilePolicy")] ExistingFilePolicy ExistingFilePolicy = ExistingFilePolicy.Skip,
-    [property: JsonPropertyName("currentFileCounter")] int CurrentFileCounter = 1,
-    [property: JsonPropertyName("skipAlreadyRecordedTracks")] bool SkipAlreadyRecordedTracks = false);
+    [property: JsonPropertyName("currentFileCounter")] int CurrentFileCounter = 1);
 
 /// <summary>What gets recorded, and for how long.</summary>
 /// <param name="MinimumLengthSeconds">Recordings shorter than this are discarded.</param>
-/// <param name="MuteAds">Mute Spotify's advertisements instead of recording them.</param>
-/// <param name="RecordEverything">
-/// Record anything that plays, including titles with no "artist - title" shape.
-/// </param>
-/// <param name="RecordAds">Include advertisements when <paramref name="RecordEverything"/> is on.</param>
+/// <param name="RecordSelection">How much of what Spotify plays is worth saving.</param>
 /// <param name="Timer">Stop after this long, as six digits <c>hhmmss</c>; "000000" disables it.</param>
 /// <param name="AudioEndpointDeviceId">Render endpoint to capture, or null for the system default.</param>
 public sealed record RecordingOptions(
     [property: JsonPropertyName("minimumLengthSeconds")] int MinimumLengthSeconds = 30,
-    [property: JsonPropertyName("muteAds")] bool MuteAds = true,
-    [property: JsonPropertyName("recordEverything")] bool RecordEverything = false,
-    [property: JsonPropertyName("recordAds")] bool RecordAds = false,
+    [property: JsonPropertyName("recordSelection")] RecordSelection RecordSelection = RecordSelection.KnownTracksOnly,
     [property: JsonPropertyName("timer")] string? Timer = null,
     [property: JsonPropertyName("audioEndpointDeviceId")] string? AudioEndpointDeviceId = null);
 

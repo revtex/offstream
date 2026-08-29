@@ -28,7 +28,7 @@ public sealed class AdvancedViewModelTests
                 Template: FileNameTemplate.Grouped,
                 ExistingFilePolicy: ExistingFilePolicy.Overwrite,
                 CurrentFileCounter: 7),
-            Recording = new RecordingOptions(MuteAds: false, RecordEverything: true, RecordAds: true),
+            Recording = new RecordingOptions(RecordSelection: RecordSelection.Everything),
             Metadata = new MetadataSettings(WriteCounterToTrackNumber: true),
             App = new AppSettings(MinimizeToTray: false, Language: "fr"),
         };
@@ -38,9 +38,7 @@ public sealed class AdvancedViewModelTests
         Assert.Equal(FileNameTemplate.Grouped, viewModel.Template);
         Assert.Equal("7", viewModel.FileCounter);
         Assert.Equal(ExistingFilePolicy.Overwrite, viewModel.ExistingFilePolicy);
-        Assert.False(viewModel.MuteAds);
-        Assert.True(viewModel.RecordEverything);
-        Assert.True(viewModel.RecordAds);
+        Assert.Equal(RecordSelection.Everything, viewModel.RecordSelection);
         Assert.True(viewModel.WriteCounterToTrackNumber);
         Assert.False(viewModel.MinimizeToTray);
         Assert.Equal("fr", viewModel.SelectedLanguage?.Value);
@@ -171,16 +169,67 @@ public sealed class AdvancedViewModelTests
         Assert.True(viewModel.HasErrors);
     }
 
+    /// <summary>
+    /// A preset is a string literal in a table, so nothing but this stops a typo'd token from
+    /// shipping: it costs a click to discover and the click writes the broken template into the
+    /// box the user was happy with.
+    /// </summary>
     [Fact]
-    public void ResetTemplate_AndUseGroupedTemplate_OfferTheTwoLayoutsPeopleWant()
+    public void Presets_AllOfferATemplateTheRendererAccepts()
     {
         var viewModel = Build();
 
-        viewModel.UseGroupedTemplateCommand.Execute(null);
-        Assert.Equal(FileNameTemplate.Grouped, viewModel.Template);
+        Assert.NotEmpty(viewModel.Presets);
 
-        viewModel.ResetTemplateCommand.Execute(null);
-        Assert.Equal(FileNameTemplate.Default, viewModel.Template);
+        foreach (var preset in viewModel.Presets)
+        {
+            Assert.Null(FileNameTemplate.Validate(preset.Template));
+            Assert.NotEqual(Strings.AdvancedPreviewUnavailable, preset.Example);
+        }
+    }
+
+    /// <summary>
+    /// Each button carries its own preset as the command parameter, and every one of them is
+    /// wired through the same command — so a parameter bound wrongly points every button at
+    /// whichever preset it did reach.
+    /// </summary>
+    [Fact]
+    public void UsePreset_WritesThatPresetIntoTheTemplate()
+    {
+        var viewModel = Build();
+
+        foreach (var preset in viewModel.Presets)
+        {
+            viewModel.UsePresetCommand.Execute(preset);
+
+            Assert.Equal(preset.Template, viewModel.Template);
+        }
+    }
+
+    /// <summary>
+    /// The example is the whole reason a preset is picked, and it is the one part of the button
+    /// that has to agree with what the recorder would actually write.
+    /// </summary>
+    [Fact]
+    public void Presets_ExplainThemselvesWithTheNamesTheyWouldProduce()
+    {
+        var viewModel = Build();
+
+        var byYear = viewModel.Presets.Single(
+            preset => preset.Template == @"{artist}\({year}) {album}\{track:00} {title}");
+
+        Assert.Contains(@"Artist name\(2026) Album name\04 Track title.mp3", byYear.Example, StringComparison.Ordinal);
+    }
+
+    /// <summary>Named per layout, so re-ordering the row cannot re-point a test at another one.</summary>
+    [Fact]
+    public void Presets_CarryDistinctAutomationIds()
+    {
+        var viewModel = Build();
+
+        Assert.Equal(
+            viewModel.Presets.Count,
+            viewModel.Presets.Select(preset => preset.AutomationId).Distinct(StringComparer.Ordinal).Count());
     }
 
     /// <summary>Every token the renderer knows is described, so the reference cannot fall behind it.</summary>
@@ -262,74 +311,70 @@ public sealed class AdvancedViewModelTests
     }
 
     /// <summary>
-    /// With track detection on, an advert has no artist and is never written as a file — so the
-    /// advertisement toggle only means anything while everything is being recorded.
+    /// The offered choices are exactly the three the policy can act on, widest last. Three
+    /// switches used to encode the same three outcomes across four combinations, one of which
+    /// was indistinguishable from another — so a list of three is also the proof there is no
+    /// fourth state to reach.
     /// </summary>
     [Fact]
-    public void CanRecordAds_FollowsRecordEverything()
+    public void Selections_OfferEveryRecordSelectionOnce()
     {
         var viewModel = Build();
 
-        Assert.False(viewModel.CanRecordAds);
-
-        viewModel.RecordEverything = true;
-
-        Assert.True(viewModel.CanRecordAds);
+        Assert.Equal(
+            Enum.GetValues<RecordSelection>(),
+            viewModel.Selections.Select(selection => selection.Value));
     }
 
     [Fact]
-    public void DetectionOptions_ReachTheFile()
+    public void RecordingOptions_ReachTheFile()
     {
         var fileSystem = new MockFileSystem();
         var viewModel = Build(fileSystem: fileSystem);
 
-        viewModel.MuteAds = false;
-        viewModel.RecordEverything = true;
-        viewModel.RecordAds = true;
+        viewModel.RecordSelection = RecordSelection.EverythingExceptAds;
         viewModel.ExistingFilePolicy = ExistingFilePolicy.Duplicate;
         viewModel.WriteCounterToTrackNumber = true;
 
         var saved = SettingsFakes.Reload(fileSystem);
 
-        Assert.False(saved.Recording.MuteAds);
-        Assert.True(saved.Recording.RecordEverything);
-        Assert.True(saved.Recording.RecordAds);
+        Assert.Equal(RecordSelection.EverythingExceptAds, saved.Recording.RecordSelection);
         Assert.Equal(ExistingFilePolicy.Duplicate, saved.Output.ExistingFilePolicy);
         Assert.True(saved.Metadata.WriteCounterToTrackNumber);
     }
 
     /// <summary>
-    /// Overwrite and Duplicate both write the file again, so there is nothing for a skip to move
-    /// past. The toggle greys out rather than disappearing — a setting that vanishes looks like
-    /// one that never existed.
+    /// The list is the whole setting, so a member missing from it is a policy no one can pick —
+    /// and one present twice is the greyed-out duplicate state this list replaced.
     /// </summary>
     [Fact]
-    public void CanSkipAlreadyRecorded_FollowsTheExistingFilePolicy()
+    public void Policies_OfferEveryExistingFilePolicyOnce()
     {
         var viewModel = Build();
 
-        Assert.True(viewModel.CanSkipAlreadyRecorded);
-
-        viewModel.ExistingFilePolicy = ExistingFilePolicy.Overwrite;
-
-        Assert.False(viewModel.CanSkipAlreadyRecorded);
-
-        viewModel.ExistingFilePolicy = ExistingFilePolicy.Skip;
-
-        Assert.True(viewModel.CanSkipAlreadyRecorded);
+        Assert.Equal(
+            Enum.GetValues<ExistingFilePolicy>(),
+            viewModel.Policies.Select(policy => policy.Value));
     }
 
+    /// <summary>
+    /// The half of the old skip switch that had to survive being folded into the policy: asking
+    /// Spotify to move on is the one option here that reaches out and changes what is playing,
+    /// so it is worth proving it still persists rather than assuming the fold carried it.
+    /// </summary>
     [Fact]
-    public void SkipAlreadyRecordedTracks_ReachesTheFile()
+    public void MovingOn_ReachesTheFile()
     {
         var fileSystem = new MockFileSystem();
         var viewModel = Build(fileSystem: fileSystem);
 
-        Assert.False(viewModel.SkipAlreadyRecordedTracks);
+        Assert.Equal(ExistingFilePolicy.Skip, viewModel.ExistingFilePolicy);
 
-        viewModel.SkipAlreadyRecordedTracks = true;
+        viewModel.ExistingFilePolicy = ExistingFilePolicy.SkipAndMoveOn;
 
-        Assert.True(SettingsFakes.Reload(fileSystem).Output.SkipAlreadyRecordedTracks);
+        Assert.Equal(
+            ExistingFilePolicy.SkipAndMoveOn,
+            SettingsFakes.Reload(fileSystem).Output.ExistingFilePolicy);
     }
 
     [Fact]

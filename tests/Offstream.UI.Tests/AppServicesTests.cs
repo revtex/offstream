@@ -26,6 +26,15 @@ namespace Offstream.UI.Tests;
 /// that needed it — the shell resolves all three in its own constructor — which is a better
 /// failure than a blank tab but still one worth catching on a push instead of on a launch.
 /// </para>
+/// <para>
+/// Confirmed the hard way on 2026-08-29, by a test that measured a page's height. It worked, and
+/// it took nine tests in this assembly down with it: <c>StaticResource</c> resolves at load time,
+/// so the resource dictionaries have to be in place before the page's constructor runs, which
+/// needs an <see cref="System.Windows.Application"/> — a process-wide singleton bound to the
+/// thread that made it. When that thread ends, everything after it marshals onto a dead
+/// dispatcher. Resolving a view here needs an assembly-scoped STA fixture that owns the
+/// application for the run, not a thread per test.
+/// </para>
 /// </remarks>
 public sealed class AppServicesTests
 {

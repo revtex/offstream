@@ -253,11 +253,26 @@
   <data name="AdvancedTemplateTokens" xml:space="preserve">
     <value>Jetons</value>
   </data>
+  <data name="AdvancedTemplatePresetsLabel" xml:space="preserve">
+    <value>Modèles</value>
+  </data>
+  <data name="AdvancedTemplatePresetExample" xml:space="preserve">
+    <value>Nomme les fichiers ainsi : {0}</value>
+  </data>
   <data name="AdvancedTemplateDefault" xml:space="preserve">
     <value>Artiste et titre</value>
   </data>
   <data name="AdvancedTemplateGrouped" xml:space="preserve">
     <value>Un dossier par album</value>
+  </data>
+  <data name="AdvancedTemplateNumbered" xml:space="preserve">
+    <value>Pistes numérotées</value>
+  </data>
+  <data name="AdvancedTemplateByYear" xml:space="preserve">
+    <value>Albums par année</value>
+  </data>
+  <data name="AdvancedTemplateByDay" xml:space="preserve">
+    <value>Un dossier par jour</value>
   </data>
   <data name="AdvancedPreviewLabel" xml:space="preserve">
     <value>Prochain fichier</value>
@@ -319,32 +334,35 @@
   <data name="AdvancedExistingSkip" xml:space="preserve">
     <value>Garder celui sur le disque</value>
   </data>
+  <data name="AdvancedExistingSkipAndMoveOn" xml:space="preserve">
+    <value>Le garder et passer au morceau suivant</value>
+  </data>
   <data name="AdvancedExistingOverwrite" xml:space="preserve">
     <value>Le remplacer</value>
   </data>
   <data name="AdvancedExistingDuplicate" xml:space="preserve">
     <value>Enregistrer le nouveau à côté</value>
   </data>
-  <data name="AdvancedSkipAlreadyRecorded" xml:space="preserve">
-    <value>Demander aussi à Spotify de passer au suivant</value>
+  <data name="AdvancedExistingHint" xml:space="preserve">
+    <value>Passer au morceau suivant change ce que vous écoutez : cette option n'est active que si vous la choisissez.</value>
   </data>
-  <data name="AdvancedSkipAlreadyRecordedHint" xml:space="preserve">
-    <value>Uniquement lorsque le réglage ci-dessus conserve le fichier sur le disque.</value>
+  <data name="AdvancedRecordingSection" xml:space="preserve">
+    <value>Enregistrement</value>
   </data>
-  <data name="AdvancedDetectionSection" xml:space="preserve">
-    <value>Détection</value>
+  <data name="AdvancedSelectionLabel" xml:space="preserve">
+    <value>Enregistrer</value>
   </data>
-  <data name="AdvancedMuteAds" xml:space="preserve">
-    <value>Couper le son des publicités</value>
+  <data name="AdvancedSelectionHint" xml:space="preserve">
+    <value>Offstream conserve ce que Spotify annonce comme un artiste et un titre. Élargissez ce réglage pour garder les podcasts et tout ce qui n'a pas d'artiste.</value>
   </data>
-  <data name="AdvancedRecordEverything" xml:space="preserve">
-    <value>Enregistrer tout ce que joue Spotify</value>
+  <data name="AdvancedSelectionKnownTracksOnly" xml:space="preserve">
+    <value>Morceaux reconnus uniquement</value>
   </data>
-  <data name="AdvancedRecordEverythingHint" xml:space="preserve">
-    <value>Y compris les podcasts et tout ce qui n'a pas d'artiste.</value>
+  <data name="AdvancedSelectionEverythingExceptAds" xml:space="preserve">
+    <value>Tout sauf les publicités</value>
   </data>
-  <data name="AdvancedRecordAds" xml:space="preserve">
-    <value>Inclure les publicités</value>
+  <data name="AdvancedSelectionEverything" xml:space="preserve">
+    <value>Tout, publicités comprises</value>
   </data>
   <data name="AdvancedTimerEnabled" xml:space="preserve">
     <value>Arrêter l'enregistrement après</value>

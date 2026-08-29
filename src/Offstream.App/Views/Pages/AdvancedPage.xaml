@@ -61,14 +61,6 @@
             <Setter Property="ToolTip" Value="{Binding RelativeSource={RelativeSource Self}, Path=Text}" />
         </Style>
 
-        <Style x:Key="SwitchRowHint"
-               BasedOn="{StaticResource OffstreamHintStyle}"
-               TargetType="TextBlock">
-            <Setter Property="TextWrapping" Value="NoWrap" />
-            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-            <Setter Property="ToolTip" Value="{Binding RelativeSource={RelativeSource Self}, Path=Text}" />
-        </Style>
-
         <Style x:Key="Switch"
                BasedOn="{StaticResource {x:Type ui:ToggleSwitch}}"
                TargetType="ui:ToggleSwitch">
@@ -125,202 +117,153 @@
             <StackPanel>
                 <ContentControl Content="{x:Static res:Strings.AdvancedNamingSection}" Style="{StaticResource OffstreamGroupHeaderStyle}" />
 
-                <Grid>
-                    <!--
-                        The right-hand column is Auto, not a second star, and that is load-bearing
-                        now that something sits beside the existing-file dropdown. The counter
-                        field there is hidden for every template that does not use {count} — but a
-                        star column reserves its half of the card whether the thing in it is
-                        visible or not, so the left column had 450 units to fit a dropdown, a
-                        switch and its label into, and the label was cut off mid-word. Auto gives a
-                        collapsed field no width at all and a visible one exactly what it asks for.
-                    -->
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="28" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
+                <!--
+                    One column. The card used to carry a second, Auto-width one holding the
+                    existing-file dropdown and the switch beside it — but what to do about a file
+                    that is already there is a recording rule, not a naming one, and both have
+                    moved to the card that governs recording. What is left is a template, what it
+                    renders to, and the counter that template may use, all of which want the line.
+                -->
+                <StackPanel Style="{StaticResource Field}">
+                    <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedTemplateLabel}" />
+
+                    <DockPanel>
+                        <!--
+                            The token reference is a flyout off this button rather than an
+                            expander in the flow. Ten rows of reference text pushed everything
+                            below it off the page the moment it opened, which on a page that
+                            promises not to scroll is not an option — and a reference is
+                            something you consult while typing, so it belongs over the layout
+                            rather than inside it.
+                        -->
+                        <ToggleButton x:Name="TokenReferenceButton"
+                                      Margin="8,0,0,0"
+                                      AutomationProperties.AutomationId="AdvancedTemplateTokens"
+                                      AutomationProperties.Name="{x:Static res:Strings.AdvancedTemplateTokens}"
+                                      DockPanel.Dock="Right"
+                                      IsChecked="{Binding IsTokenReferenceOpen, Mode=TwoWay}"
+                                      ToolTip="{x:Static res:Strings.AdvancedTemplateTokens}">
+                            <ui:SymbolIcon Symbol="QuestionCircle24" />
+                        </ToggleButton>
+
+                        <!--
+                            The one field on either page that commits per keystroke: the
+                            preview under it is the whole point, and a preview that waits for
+                            focus loss is a preview of the previous template.
+                        -->
+                        <ui:TextBox x:Name="TemplateBox"
+                                    AutomationProperties.AutomationId="AdvancedTemplate"
+                                    AutomationProperties.Name="{x:Static res:Strings.AdvancedTemplateLabel}"
+                                    FontFamily="{StaticResource OffstreamMonoFontFamily}"
+                                    Text="{Binding Template, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" />
+                    </DockPanel>
+
+                    <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=TemplateBox, Path=(Validation.Errors)/ErrorContent}" />
 
                     <!--
-                        The template, its preview and the two shortcuts run the width of the card
-                        in that order, because that is the order they are used in: type a template,
-                        read what it produces, take a shortcut if it is not what you wanted. The
-                        preview used to sit in a column beside the box, which halved the width of
-                        both — and a path is the one thing on this page that genuinely needs the
-                        whole line, since it is read for its tail as much as its head.
-                    -->
-                    <StackPanel Grid.Row="0"
-                                Grid.Column="0"
-                                Grid.ColumnSpan="3"
-                                Style="{StaticResource Field}">
-                        <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedTemplateLabel}" />
+                        Rendered by the recorder's own naming code, so what is shown here is
+                        the path that would be written, length budgeting and all.
 
+                        In a recessed well rather than as loose text: it is the one thing in
+                        this card that is output rather than input, and until it had a surface
+                        of its own it read as a caption under the box instead of as the answer
+                        the box produces.
+
+                        One line, with its label inside it. The page has to fit the window's
+                        minimum height without scrolling, and a label on its own line above a
+                        two-line well was enough on its own to push the bottom card off the
+                        end. A rendered path is one line in every realistic case, and the
+                        ellipsis and tooltip carry the ones that are not.
+                    -->
+                    <Border Margin="0,6,0,0"
+                            Padding="10,5"
+                            Background="{StaticResource OffstreamWellBrush}"
+                            BorderBrush="{StaticResource OffstreamSurfaceBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6">
                         <DockPanel>
-                            <!--
-                                The token reference is a flyout off this button rather than an
-                                expander in the flow. Ten rows of reference text pushed everything
-                                below it off the page the moment it opened, which on a page that
-                                promises not to scroll is not an option — and a reference is
-                                something you consult while typing, so it belongs over the layout
-                                rather than inside it.
-                            -->
-                            <ToggleButton x:Name="TokenReferenceButton"
-                                          Margin="8,0,0,0"
-                                          AutomationProperties.AutomationId="AdvancedTemplateTokens"
-                                          AutomationProperties.Name="{x:Static res:Strings.AdvancedTemplateTokens}"
-                                          DockPanel.Dock="Right"
-                                          IsChecked="{Binding IsTokenReferenceOpen, Mode=TwoWay}"
-                                          ToolTip="{x:Static res:Strings.AdvancedTemplateTokens}">
-                                <ui:SymbolIcon Symbol="QuestionCircle24" />
-                            </ToggleButton>
+                            <TextBlock Margin="0,0,10,0"
+                                       VerticalAlignment="Center"
+                                       DockPanel.Dock="Left"
+                                       Foreground="{StaticResource OffstreamIdleBrush}"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Text="{x:Static res:Strings.AdvancedPreviewLabel}" />
 
-                            <!--
-                                The one field on either page that commits per keystroke: the
-                                preview under it is the whole point, and a preview that waits for
-                                focus loss is a preview of the previous template.
-                            -->
-                            <ui:TextBox x:Name="TemplateBox"
-                                        AutomationProperties.AutomationId="AdvancedTemplate"
-                                        AutomationProperties.Name="{x:Static res:Strings.AdvancedTemplateLabel}"
-                                        FontFamily="{StaticResource OffstreamMonoFontFamily}"
-                                        Text="{Binding Template, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" />
+                            <TextBlock VerticalAlignment="Center"
+                                       AutomationProperties.AutomationId="AdvancedTemplatePreview"
+                                       FontFamily="{StaticResource OffstreamMonoFontFamily}"
+                                       FontSize="{StaticResource OffstreamMonoFontSize}"
+                                       Text="{Binding TemplatePreview, Mode=OneWay}"
+                                       TextTrimming="CharacterEllipsis"
+                                       TextWrapping="NoWrap"
+                                       ToolTip="{Binding TemplatePreview, Mode=OneWay}" />
                         </DockPanel>
-
-                        <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=TemplateBox, Path=(Validation.Errors)/ErrorContent}" />
-
-                        <!--
-                            Rendered by the recorder's own naming code, so what is shown here is
-                            the path that would be written, length budgeting and all.
-
-                            In a recessed well rather than as loose text: it is the one thing in
-                            this card that is output rather than input, and until it had a surface
-                            of its own it read as a caption under the box instead of as the answer
-                            the box produces.
-
-                            One line, with its label inside it. The page has to fit the window's
-                            minimum height without scrolling, and a label on its own line above a
-                            two-line well was enough on its own to push the bottom card off the
-                            end. A rendered path is one line in every realistic case, and the
-                            ellipsis and tooltip carry the ones that are not.
-                        -->
-                        <Border Margin="0,6,0,0"
-                                Padding="10,5"
-                                Background="{StaticResource OffstreamWellBrush}"
-                                BorderBrush="{StaticResource OffstreamSurfaceBorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="6">
-                            <DockPanel>
-                                <TextBlock Margin="0,0,10,0"
-                                           VerticalAlignment="Center"
-                                           DockPanel.Dock="Left"
-                                           Foreground="{StaticResource OffstreamIdleBrush}"
-                                           Style="{StaticResource CaptionTextBlockStyle}"
-                                           Text="{x:Static res:Strings.AdvancedPreviewLabel}" />
-
-                                <TextBlock VerticalAlignment="Center"
-                                           AutomationProperties.AutomationId="AdvancedTemplatePreview"
-                                           FontFamily="{StaticResource OffstreamMonoFontFamily}"
-                                           FontSize="{StaticResource OffstreamMonoFontSize}"
-                                           Text="{Binding TemplatePreview, Mode=OneWay}"
-                                           TextTrimming="CharacterEllipsis"
-                                           TextWrapping="NoWrap"
-                                           ToolTip="{Binding TemplatePreview, Mode=OneWay}" />
-                            </DockPanel>
-                        </Border>
-
-                        <StackPanel Margin="0,8,0,0" Orientation="Horizontal">
-                            <ui:Button AutomationProperties.AutomationId="AdvancedTemplateDefaultButton"
-                                       Command="{Binding ResetTemplateCommand}"
-                                       Content="{x:Static res:Strings.AdvancedTemplateDefault}" />
-                            <ui:Button Margin="8,0,0,0"
-                                       AutomationProperties.AutomationId="AdvancedTemplateGroupedButton"
-                                       Command="{Binding UseGroupedTemplateCommand}"
-                                       Content="{x:Static res:Strings.AdvancedTemplateGrouped}" />
-                        </StackPanel>
-                    </StackPanel>
-
-                    <StackPanel Grid.Row="1" Grid.Column="0" Style="{StaticResource Field}">
-                        <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedExistingLabel}" />
-
-                        <!--
-                            The switch sits beside the dropdown rather than under it, for two
-                            reasons. It qualifies that one choice — it only does anything while
-                            the policy is the one that keeps the file on disk — so it belongs on
-                            the same line rather than reading as the next setting down. And this
-                            card has no vertical room to give: the page has to fit the window's
-                            minimum height without scrolling, and a second row here pushed the
-                            bottom of the one below off the end of the window.
-
-                            Disabled rather than hidden under the other two policies, as with the
-                            advertisements switch — a setting that vanishes looks like one that
-                            never existed.
-                        -->
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-
-                            <ComboBox Grid.Column="0"
-                                      Width="240"
-                                      AutomationProperties.AutomationId="AdvancedExistingFilePolicy"
-                                      AutomationProperties.Name="{x:Static res:Strings.AdvancedExistingLabel}"
-                                      DisplayMemberPath="Name"
-                                      ItemsSource="{Binding Policies, Mode=OneTime}"
-                                      SelectedValue="{Binding ExistingFilePolicy, Mode=TwoWay}"
-                                      SelectedValuePath="Value" />
-
-                            <StackPanel Grid.Column="1"
-                                        Margin="16,0,0,0"
-                                        VerticalAlignment="Center"
-                                        IsEnabled="{Binding CanSkipAlreadyRecorded, Mode=OneWay}"
-                                        Orientation="Horizontal">
-                                <ui:ToggleSwitch VerticalAlignment="Center"
-                                                 AutomationProperties.AutomationId="AdvancedSkipAlreadyRecorded"
-                                                 AutomationProperties.Name="{x:Static res:Strings.AdvancedSkipAlreadyRecorded}"
-                                                 IsChecked="{Binding SkipAlreadyRecordedTracks, Mode=TwoWay}" />
-
-                                <!--
-                                    Ellipsised with a tooltip, like every other switch label: the
-                                    room left beside a dropdown is whatever the window has spare,
-                                    and wrapping here would put the second row back.
-                                -->
-                                <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
-                                    <TextBlock Style="{StaticResource SwitchRowLabel}" Text="{x:Static res:Strings.AdvancedSkipAlreadyRecorded}" />
-                                    <TextBlock Style="{StaticResource SwitchRowHint}" Text="{x:Static res:Strings.AdvancedSkipAlreadyRecordedHint}" />
-                                </StackPanel>
-                            </StackPanel>
-                        </Grid>
-                    </StackPanel>
+                    </Border>
 
                     <!--
-                        Only shown when the template actually uses {count}. A "next number" field
-                        beside a template that never numbers anything is a setting with no effect.
+                        A caption, because two unlabelled buttons under a text box read as
+                        actions on what is in it — "reset", "apply" — rather than as layouts to
+                        start from. It docks left instead of sitting on a line of its own: this
+                        card is at the top of a page that has to fit the window's minimum height,
+                        and a row spent on one word is a row the bottom card loses.
 
-                        Its width is pinned because the column above is Auto: the validation
-                        message wraps, and a wrapping TextBlock asks an Auto column for its whole
-                        unwrapped length, which would take back the room the switch beside the
-                        dropdown needs.
+                        A WrapPanel, not a horizontal StackPanel, because five buttons at the
+                        window's narrowest are close to the card's width and a StackPanel would
+                        clip the last one silently rather than move it down.
+
+                        Each button's tooltip is the path its layout produces, rendered by the
+                        recorder's own naming code — a preset is only ever picked for its
+                        outcome, and the label has room for a name but not for a path. The same
+                        sentence is the button's HelpText: unlike the settings elsewhere on this
+                        page, what a screen reader needs here is not a description of the control
+                        but the example itself.
                     -->
-                    <StackPanel Grid.Row="1"
-                                Grid.Column="2"
-                                Width="260"
-                                Style="{StaticResource Field}"
-                                Visibility="{Binding UsesCounter, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
-                        <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedCounterLabel}" />
-                        <ui:TextBox x:Name="CounterBox"
-                                    Width="150"
-                                    HorizontalAlignment="Left"
-                                    AutomationProperties.AutomationId="AdvancedFileCounter"
-                                    AutomationProperties.Name="{x:Static res:Strings.AdvancedCounterLabel}"
-                                    Text="{Binding FileCounter, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
-                        <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=CounterBox, Path=(Validation.Errors)/ErrorContent}" />
-                    </StackPanel>
-                </Grid>
+                    <DockPanel Margin="0,8,0,0">
+                        <TextBlock Margin="0,0,10,0"
+                                   VerticalAlignment="Center"
+                                   DockPanel.Dock="Left"
+                                   Foreground="{StaticResource OffstreamIdleBrush}"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Text="{x:Static res:Strings.AdvancedTemplatePresetsLabel}" />
+
+                        <ItemsControl AutomationProperties.AutomationId="AdvancedTemplatePresets" ItemsSource="{Binding Presets, Mode=OneWay}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:TemplatePreset}">
+                                    <ui:Button Margin="0,0,8,4"
+                                               AutomationProperties.AutomationId="{Binding AutomationId, Mode=OneTime}"
+                                               AutomationProperties.HelpText="{Binding Example, Mode=OneTime}"
+                                               AutomationProperties.Name="{Binding Name, Mode=OneTime}"
+                                               Command="{Binding DataContext.UsePresetCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                               CommandParameter="{Binding Mode=OneTime}"
+                                               Content="{Binding Name, Mode=OneTime}"
+                                               ToolTip="{Binding Example, Mode=OneTime}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </DockPanel>
+                </StackPanel>
+
+                <!--
+                    Only shown when the template actually uses {count}. A "next number" field
+                    beside a template that never numbers anything is a setting with no effect,
+                    and the row it costs is a row the page does not have to spare.
+                -->
+                <StackPanel Style="{StaticResource Field}" Visibility="{Binding UsesCounter, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                    <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedCounterLabel}" />
+                    <ui:TextBox x:Name="CounterBox"
+                                Width="150"
+                                HorizontalAlignment="Left"
+                                AutomationProperties.AutomationId="AdvancedFileCounter"
+                                AutomationProperties.Name="{x:Static res:Strings.AdvancedCounterLabel}"
+                                Text="{Binding FileCounter, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
+                    <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=CounterBox, Path=(Validation.Errors)/ErrorContent}" />
+                </StackPanel>
 
                 <!--
                     StaysOpen false so a click anywhere else dismisses it, which writes false
@@ -362,90 +305,70 @@
                     Padding="20,16,20,4"
                     Style="{StaticResource OffstreamCardStyle}">
                 <StackPanel>
-                    <ContentControl Content="{x:Static res:Strings.AdvancedDetectionSection}" Style="{StaticResource OffstreamGroupHeaderStyle}" />
+                    <ContentControl Content="{x:Static res:Strings.AdvancedRecordingSection}" Style="{StaticResource OffstreamGroupHeaderStyle}" />
 
                     <!--
-                        Every switch in the section shares one grid, which is what puts them in a
-                        column. Separate rows would each size to their own label and scatter.
+                        One list where there were three switches.
+
+                        "Only recognisable tracks", "record everything" and "include ads" were
+                        three booleans over three outcomes, and one of their four combinations was
+                        indistinguishable from another — so two of the switches did nothing unless
+                        a third allowed it, and the card had to grey controls out to explain a
+                        hierarchy that was never visible in the first place. One question with one
+                        answer is a list, and a list needs no explaining, no indentation and no
+                        disabled states. It is also two rows shorter, which this page needs.
+                    -->
+                    <StackPanel Style="{StaticResource Field}" ToolTip="{x:Static res:Strings.AdvancedSelectionHint}">
+                        <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedSelectionLabel}" />
+                        <ComboBox AutomationProperties.AutomationId="AdvancedRecordSelection"
+                                  AutomationProperties.HelpText="{x:Static res:Strings.AdvancedSelectionHint}"
+                                  AutomationProperties.Name="{x:Static res:Strings.AdvancedSelectionLabel}"
+                                  DisplayMemberPath="Name"
+                                  ItemsSource="{Binding Selections, Mode=OneTime}"
+                                  SelectedValue="{Binding RecordSelection, Mode=TwoWay}"
+                                  SelectedValuePath="Value" />
+                    </StackPanel>
+
+                    <!--
+                        Moved here from the file-names card, where it never belonged: what to do
+                        about a file that already exists is a rule about recording, not about what
+                        recordings are called.
+
+                        "Also tell Spotify to move on" used to be a switch beside this dropdown,
+                        greyed out under two of the three policies because both of those write the
+                        file again and leave it nothing to move past. So the switch was really a
+                        second half of this answer, and it is now the fourth line of it — which
+                        also gives the row its full width back, where the switch's label clipped.
+                    -->
+                    <StackPanel Style="{StaticResource Field}" ToolTip="{x:Static res:Strings.AdvancedExistingHint}">
+                        <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedExistingLabel}" />
+                        <ComboBox AutomationProperties.AutomationId="AdvancedExistingFilePolicy"
+                                  AutomationProperties.HelpText="{x:Static res:Strings.AdvancedExistingHint}"
+                                  AutomationProperties.Name="{x:Static res:Strings.AdvancedExistingLabel}"
+                                  DisplayMemberPath="Name"
+                                  ItemsSource="{Binding Policies, Mode=OneTime}"
+                                  SelectedValue="{Binding ExistingFilePolicy, Mode=TwoWay}"
+                                  SelectedValuePath="Value" />
+                    </StackPanel>
+
+                    <!--
+                        The timer keeps the switch-row shape the rest of the page uses: name on
+                        the left, answer on the right, and the duration in front of the switch so
+                        the switch stays in the column every other switch is in. The value is part
+                        of the setting's name — stop recording after *this long* — and the switch
+                        is still the answer, in the place answers live.
                     -->
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <!--  The label, taking whatever the switch column does not.  -->
                             <ColumnDefinition Width="*" />
-
-                            <!--
-                                Auto, so the column's right edge is the grid's right edge and a
-                                switch aligned right inside it lands on the card's margin. Every
-                                row in the section shares the column, so they line up whatever
-                                their labels do.
-                            -->
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
 
-                        <StackPanel Grid.Row="0" Grid.Column="0" Style="{StaticResource SwitchLabel}">
-                            <TextBlock Style="{StaticResource SwitchRowLabel}" Text="{x:Static res:Strings.AdvancedMuteAds}" />
-                        </StackPanel>
-
-                        <ui:ToggleSwitch Grid.Row="0"
-                                         Grid.Column="1"
-                                         AutomationProperties.AutomationId="AdvancedMuteAds"
-                                         AutomationProperties.Name="{x:Static res:Strings.AdvancedMuteAds}"
-                                         IsChecked="{Binding MuteAds, Mode=TwoWay}"
-                                         Style="{StaticResource Switch}" />
-
-                        <StackPanel Grid.Row="1" Grid.Column="0" Style="{StaticResource SwitchLabel}">
-                            <TextBlock Style="{StaticResource SwitchRowLabel}" Text="{x:Static res:Strings.AdvancedRecordEverything}" />
-                            <TextBlock Style="{StaticResource SwitchRowHint}" Text="{x:Static res:Strings.AdvancedRecordEverythingHint}" />
-                        </StackPanel>
-
-                        <ui:ToggleSwitch Grid.Row="1"
-                                         Grid.Column="1"
-                                         AutomationProperties.AutomationId="AdvancedRecordEverything"
-                                         AutomationProperties.Name="{x:Static res:Strings.AdvancedRecordEverything}"
-                                         IsChecked="{Binding RecordEverything, Mode=TwoWay}"
-                                         Style="{StaticResource Switch}" />
-
-                        <!--
-                            Disabled rather than hidden while track detection is on: an
-                            advertisement has no artist and is never written as a file, and seeing
-                            the switch greyed out under the one that governs it is the explanation.
-                        -->
-                        <StackPanel Grid.Row="2"
-                                    Grid.Column="0"
-                                    IsEnabled="{Binding CanRecordAds, Mode=OneWay}"
-                                    Style="{StaticResource SwitchLabel}">
-                            <TextBlock Style="{StaticResource SwitchRowLabel}" Text="{x:Static res:Strings.AdvancedRecordAds}" />
-                        </StackPanel>
-
-                        <ui:ToggleSwitch Grid.Row="2"
-                                         Grid.Column="1"
-                                         AutomationProperties.AutomationId="AdvancedRecordAds"
-                                         AutomationProperties.Name="{x:Static res:Strings.AdvancedRecordAds}"
-                                         IsChecked="{Binding RecordAds, Mode=TwoWay}"
-                                         IsEnabled="{Binding CanRecordAds, Mode=OneWay}"
-                                         Style="{StaticResource Switch}" />
-
-                        <StackPanel Grid.Row="3" Grid.Column="0" Style="{StaticResource SwitchLabel}">
+                        <StackPanel Grid.Column="0" Style="{StaticResource SwitchLabel}">
                             <TextBlock Style="{StaticResource SwitchRowLabel}" Text="{x:Static res:Strings.AdvancedTimerEnabled}" />
                         </StackPanel>
 
-                        <!--
-                            The duration sits before the switch, not after it, so the switch stays
-                            in the line every other switch in the card is in. Putting the field
-                            first also matches the reading order the row already has: the value is
-                            part of the setting's name — stop recording after *this long* — and the
-                            switch is still the answer, in the place answers live.
-                        -->
-                        <StackPanel Grid.Row="3"
-                                    Grid.Column="1"
-                                    HorizontalAlignment="Right"
-                                    Orientation="Horizontal">
+                        <StackPanel Grid.Column="1" HorizontalAlignment="Right" Orientation="Horizontal">
                             <ui:TextBox x:Name="TimerBox"
                                         Width="120"
                                         Margin="0,0,12,12"
@@ -481,16 +404,19 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <StackPanel Grid.Column="0" Style="{StaticResource SwitchLabel}">
+                        <StackPanel Grid.Column="0"
+                                    Style="{StaticResource SwitchLabel}"
+                                    ToolTip="{x:Static res:Strings.AdvancedWriteCounterHint}">
                             <TextBlock Style="{StaticResource SwitchRowLabel}" Text="{x:Static res:Strings.AdvancedWriteCounter}" />
-                            <TextBlock Style="{StaticResource SwitchRowHint}" Text="{x:Static res:Strings.AdvancedWriteCounterHint}" />
                         </StackPanel>
 
                         <ui:ToggleSwitch Grid.Column="1"
                                          AutomationProperties.AutomationId="AdvancedWriteCounter"
+                                         AutomationProperties.HelpText="{x:Static res:Strings.AdvancedWriteCounterHint}"
                                          AutomationProperties.Name="{x:Static res:Strings.AdvancedWriteCounter}"
                                          IsChecked="{Binding WriteCounterToTrackNumber, Mode=TwoWay}"
-                                         Style="{StaticResource Switch}" />
+                                         Style="{StaticResource Switch}"
+                                         ToolTip="{x:Static res:Strings.AdvancedWriteCounterHint}" />
                     </Grid>
                 </StackPanel>
             </Border>
@@ -567,19 +493,22 @@
                         <StackPanel Style="{StaticResource Field}">
                             <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedLanguageLabel}" />
                             <ComboBox AutomationProperties.AutomationId="AdvancedLanguage"
+                                      AutomationProperties.HelpText="{x:Static res:Strings.AdvancedLanguageRestart}"
                                       AutomationProperties.Name="{x:Static res:Strings.AdvancedLanguageLabel}"
                                       DisplayMemberPath="Name"
                                       ItemsSource="{Binding Languages, Mode=OneTime}"
-                                      SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}" />
-                            <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.AdvancedLanguageRestart}" />
+                                      SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}"
+                                      ToolTip="{x:Static res:Strings.AdvancedLanguageRestart}" />
                         </StackPanel>
 
                         <StackPanel Style="{StaticResource Field}">
                             <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedFfmpegLabel}" />
                             <ui:TextBox x:Name="FfmpegBox"
                                         AutomationProperties.AutomationId="AdvancedFfmpegPath"
+                                        AutomationProperties.HelpText="{x:Static res:Strings.AdvancedFfmpegHint}"
                                         AutomationProperties.Name="{x:Static res:Strings.AdvancedFfmpegLabel}"
-                                        Text="{Binding FfmpegPath, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}" />
+                                        Text="{Binding FfmpegPath, Mode=TwoWay, ValidatesOnNotifyDataErrors=True}"
+                                        ToolTip="{x:Static res:Strings.AdvancedFfmpegHint}" />
                             <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=FfmpegBox, Path=(Validation.Errors)/ErrorContent}" />
 
                             <!--  Which ffmpeg an empty box resolves to, since that is the usual case.  -->
@@ -588,7 +517,6 @@
                                        TextTrimming="CharacterEllipsis"
                                        TextWrapping="NoWrap"
                                        ToolTip="{Binding FfmpegStatus, Mode=OneWay}" />
-                            <TextBlock Style="{StaticResource OffstreamHintStyle}" Text="{x:Static res:Strings.AdvancedFfmpegHint}" />
                         </StackPanel>
                     </StackPanel>
                 </StackPanel>

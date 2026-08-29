@@ -29,9 +29,7 @@ public sealed class SettingsMappingTests
         Recording = new RecordingOptions
         {
             MinimumLengthSeconds = 45,
-            MuteAds = false,
-            RecordEverything = true,
-            RecordAds = true,
+            RecordSelection = RecordSelection.Everything,
             Timer = "020000",
         },
         Metadata = new MetadataSettings { WriteCounterToTrackNumber = true },
@@ -47,13 +45,32 @@ public sealed class SettingsMappingTests
         Assert.Equal(MediaFormat.Opus, runtime.MediaFormat);
         Assert.Equal(160, runtime.BitrateKbps);
         Assert.Equal(ExistingFilePolicy.Duplicate, runtime.ExistingFilePolicy);
+        Assert.False(runtime.HasSkipPastRecordedEnabled);
+        Assert.False(runtime.KeepsTheExistingFile);
         Assert.Equal(45, runtime.MinimumRecordedLengthSeconds);
-        Assert.False(runtime.MuteAdsEnabled);
-        Assert.True(runtime.RecordEverythingEnabled);
-        Assert.True(runtime.RecordAdsEnabled);
+        Assert.Equal(RecordSelection.Everything, runtime.RecordSelection);
         Assert.Equal("020000", runtime.RecordingTimer);
         Assert.Equal(7, runtime.InternalOrderNumber);
         Assert.True(runtime.OrderNumberInMediaTagEnabled);
+    }
+
+    /// <summary>
+    /// The one policy the fold had to carry across: <c>output.skipAlreadyRecordedTracks</c> was a
+    /// separate key, and losing it here would leave a user who asked Offstream to move on with a
+    /// setting that reads back correctly on the page and does nothing at all.
+    /// </summary>
+    [Fact]
+    public void ToRecordingSettings_CarriesTheMoveOnPolicyAsBothOfTheAnswersItGives()
+    {
+        var settings = Configured() with
+        {
+            Output = Configured().Output with { ExistingFilePolicy = ExistingFilePolicy.SkipAndMoveOn },
+        };
+
+        var runtime = settings.ToRecordingSettings();
+
+        Assert.True(runtime.HasSkipPastRecordedEnabled);
+        Assert.True(runtime.KeepsTheExistingFile);
     }
 
     [Fact]

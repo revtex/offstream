@@ -150,9 +150,15 @@ and sorts where you expect it to.
 
 The rest of the page, briefly:
 
-- **If a file already exists** — skip it, overwrite it, or keep both.
-- **Mute advertisements** — on by default; adverts are silenced and never saved.
-- **Record everything Spotify plays** — include podcasts and anything else without an artist.
+- **Name recordings** — the filename template, with a live preview of the next file. Five presets
+  sit under it — artist and title, a folder per album, numbered tracks, albums by year, a folder
+  per day — and each one's tooltip shows the names it would produce before you pick it.
+- **Record** — how much of what Spotify plays is worth keeping. *Recognisable tracks only* is the
+  default: Offstream saves what Spotify reports as an artist and a title and discards the rest.
+  Widen it to *everything except advertisements* to keep podcasts too, or to *everything,
+  advertisements included* if you want the lot.
+- **When that file already exists** — keep the one on disk, keep it and have Spotify skip to the
+  next track, replace it, or save the new one alongside it.
 - **Stop recording after** — a timer, for recording overnight or for exactly an hour.
 - **Number the tracks** — writes the counter into the track-number tag, so players sort recordings
   in the order they were made.

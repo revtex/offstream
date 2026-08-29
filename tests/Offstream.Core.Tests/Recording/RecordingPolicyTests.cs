@@ -19,9 +19,7 @@ public sealed class RecordingPolicyTests
     private readonly RecordingSettings _settings = new()
     {
         OutputTemplate = FileNameTemplateDefault,
-        MuteAdsEnabled = false,
-        RecordEverythingEnabled = false,
-        RecordAdsEnabled = false,
+        RecordSelection = RecordSelection.KnownTracksOnly,
     };
 
     private const string FileNameTemplateDefault = "{artist} - {title}";
@@ -42,7 +40,7 @@ public sealed class RecordingPolicyTests
     [InlineData(SpotifyWindowTitles.SpotifyPremium)]
     public void IsRecordUnknownActive_FalsyWhenSpotifyInactive(string title)
     {
-        _settings.RecordEverythingEnabled = true;
+        _settings.RecordSelection = RecordSelection.EverythingExceptAds;
 
         Assert.False(Policy.IsRecordUnknownActive(UnknownPlaying(title)));
     }
@@ -50,7 +48,7 @@ public sealed class RecordingPolicyTests
     [Fact]
     public void IsRecordUnknownActive_FalsyWhenSpotifyAdPlaying()
     {
-        _settings.RecordEverythingEnabled = true;
+        _settings.RecordSelection = RecordSelection.EverythingExceptAds;
         var ad = new Track { Artist = SpotifyWindowTitles.Advertisement, Ad = true, Playing = true };
 
         Assert.False(Policy.IsRecordUnknownActive(ad));
@@ -59,7 +57,7 @@ public sealed class RecordingPolicyTests
     [Fact]
     public void IsRecordUnknownActive_FalsyWhenDisabledAndAnyTitlePlaying()
     {
-        _settings.RecordEverythingEnabled = false;
+        _settings.RecordSelection = RecordSelection.KnownTracksOnly;
 
         Assert.False(Policy.IsRecordUnknownActive(UnknownPlaying("Podcast Episode 12")));
     }
@@ -67,7 +65,7 @@ public sealed class RecordingPolicyTests
     [Fact]
     public void IsRecordUnknownActive_TruthyWhenAnyTitlePlaying()
     {
-        _settings.RecordEverythingEnabled = true;
+        _settings.RecordSelection = RecordSelection.EverythingExceptAds;
 
         Assert.True(Policy.IsRecordUnknownActive(UnknownPlaying("Podcast Episode 12")));
     }
@@ -75,8 +73,7 @@ public sealed class RecordingPolicyTests
     [Fact]
     public void IsRecordUnknownActive_TruthyWhenAnyTitlePlayingAsAd()
     {
-        _settings.RecordEverythingEnabled = true;
-        _settings.RecordAdsEnabled = true;
+        _settings.RecordSelection = RecordSelection.Everything;
         var ad = new Track { Artist = SpotifyWindowTitles.Advertisement, Ad = true, Playing = true };
 
         Assert.True(Policy.IsRecordUnknownActive(ad));
@@ -85,35 +82,61 @@ public sealed class RecordingPolicyTests
     [Fact]
     public void IsRecordUnknownActive_FalsyWhenNormalTrackIsPlaying()
     {
-        _settings.RecordEverythingEnabled = true;
+        _settings.RecordSelection = RecordSelection.EverythingExceptAds;
 
         Assert.False(Policy.IsRecordUnknownActive(NormalPlaying()));
     }
 
     /// <summary>
-    /// Muting ads and recording them are mutually exclusive: recording a muted stream writes
-    /// a file of silence.
+    /// The strictest selection discards an advertisement, which the three booleans this
+    /// replaced could only express by one of them vetoing the other two.
     /// </summary>
     [Fact]
-    public void IsRecordUnknownActive_FalsyWhenAdsAreMuted()
+    public void IsRecordUnknownActive_FalsyForAnAdWhenOnlyKnownTracksWanted()
     {
-        _settings.RecordEverythingEnabled = true;
-        _settings.RecordAdsEnabled = true;
-        _settings.MuteAdsEnabled = true;
+        _settings.RecordSelection = RecordSelection.KnownTracksOnly;
 
         var ad = new Track { Artist = SpotifyWindowTitles.Advertisement, Ad = true, Playing = true };
 
         Assert.False(Policy.IsRecordUnknownActive(ad));
     }
 
+    /// <summary>
+    /// And a podcast, not only an advertisement. The setting is named for the whole of what it
+    /// does, which is the half its predecessor ("mute advertisements") never admitted to.
+    /// </summary>
+    [Fact]
+    public void IsRecordUnknownActive_FalsyForAnyUnknownWhenOnlyKnownTracksWanted()
+    {
+        _settings.RecordSelection = RecordSelection.KnownTracksOnly;
+
+        Assert.False(Policy.IsRecordUnknownActive(UnknownPlaying("Podcast Episode 12")));
+    }
+
+    /// <summary>
+    /// The widest selection takes an advertisement as well, which is the one thing the middle
+    /// value holds back.
+    /// </summary>
+    [Fact]
+    public void IsRecordUnknownActive_TruthyForAnAdOnlyAtTheWidestSelection()
+    {
+        var ad = new Track { Artist = SpotifyWindowTitles.Advertisement, Ad = true, Playing = true };
+
+        _settings.RecordSelection = RecordSelection.EverythingExceptAds;
+        Assert.False(Policy.IsRecordUnknownActive(ad));
+
+        _settings.RecordSelection = RecordSelection.Everything;
+        Assert.True(Policy.IsRecordUnknownActive(ad));
+    }
+
     // ---- IsTypeAllowed -----------------------------------------------------
 
     [Theory]
-    [InlineData(false, false, true)]
-    [InlineData(true, false, true)]
-    [InlineData(false, true, false)]
-    [InlineData(true, true, false)]
-    public void IsTypeAllowed_ReturnsExpectedResults(bool recordEverything, bool isIdleSpotify, bool expected)
+    [InlineData(RecordSelection.KnownTracksOnly, false, true)]
+    [InlineData(RecordSelection.EverythingExceptAds, false, true)]
+    [InlineData(RecordSelection.KnownTracksOnly, true, false)]
+    [InlineData(RecordSelection.EverythingExceptAds, true, false)]
+    public void IsTypeAllowed_ReturnsExpectedResults(RecordSelection selection, bool isIdleSpotify, bool expected)
     {
         var track = NormalPlaying();
 
@@ -124,7 +147,7 @@ public sealed class RecordingPolicyTests
             track.Title = null;
         }
 
-        _settings.RecordEverythingEnabled = recordEverything;
+        _settings.RecordSelection = selection;
 
         Assert.Equal(expected, Policy.IsTypeAllowed(track));
     }

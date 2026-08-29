@@ -171,7 +171,7 @@ public sealed class RecordingSession : IAsyncDisposable
     /// <param name="progress">Where stage changes are reported.</param>
     /// <param name="timeProvider">Injected for the recording timer and for dated folder names.</param>
     /// <param name="playback">
-    /// Drives Spotify's transport, for <see cref="RecordingSettings.SkipAlreadyRecordedTracks"/>.
+    /// Drives Spotify's transport, for <see cref="RecordingSettings.HasSkipPastRecordedEnabled"/>.
     /// Null means the session can only decline to record a track it already has — which is what it
     /// did before this existed, and what it still does when the setting is off.
     /// </param>
@@ -584,7 +584,7 @@ public sealed class RecordingSession : IAsyncDisposable
         // A shortcut, not the decision: it can only see what the title or media session gave us,
         // so a template using {album}, {year} or {track} renders somewhere else entirely until
         // enrichment lands. TrackRecorder asks again once it has — see TrackRecorder.AlreadyOnDisk.
-        if (_settings.ExistingFilePolicy == ExistingFilePolicy.Skip && AlreadyRecorded(paths, track))
+        if (_settings.KeepsTheExistingFile && AlreadyRecorded(paths, track))
         {
             Report(
                 RecordingStage.WaitingForTrack,
@@ -1026,7 +1026,7 @@ public sealed class RecordingSession : IAsyncDisposable
             // for one recording that is the end of it — but encodes queue, so two recordings of
             // the same track can both pass that check and reach here, where RenameFile would
             // replace the destination without a word.
-            if (replacing && _settings.ExistingFilePolicy == ExistingFilePolicy.Skip)
+            if (replacing && _settings.KeepsTheExistingFile)
             {
                 TryDelete(e.Outcome.OutputPath);
                 paths.DeleteFile(recording.Encode!.InputPath);
