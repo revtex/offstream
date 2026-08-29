@@ -407,7 +407,11 @@
   </data>
   <data name="AdvancedExistingSkip" xml:space="preserve">
     <value>Keep the one on disk</value>
-    <comment>Existing-file policy: do not record over it.</comment>
+    <comment>Existing-file policy: do not record over it, and say nothing to Spotify.</comment>
+  </data>
+  <data name="AdvancedExistingSkipAndMoveOn" xml:space="preserve">
+    <value>Keep it, and skip to the next track</value>
+    <comment>Existing-file policy: keep the file and send Spotify a skip-next command. Was a separate switch beside this dropdown.</comment>
   </data>
   <data name="AdvancedExistingOverwrite" xml:space="preserve">
     <value>Replace it</value>
@@ -417,33 +421,33 @@
     <value>Save the new one alongside it</value>
     <comment>Existing-file policy: keep both, numbering the newcomer.</comment>
   </data>
-  <data name="AdvancedSkipAlreadyRecorded" xml:space="preserve">
-    <value>Also tell Spotify to move on</value>
-    <comment>Checkbox beside the existing-file policy: send a skip-next command when the track playing is already in the library.</comment>
+  <data name="AdvancedExistingHint" xml:space="preserve">
+    <value>Skipping to the next track changes what you are listening to, so it is off unless you pick it.</value>
+    <comment>Tooltip on the existing-file policy row. Flags the one option that reaches out and drives Spotify.</comment>
   </data>
-  <data name="AdvancedSkipAlreadyRecordedHint" xml:space="preserve">
-    <value>Only while the setting above keeps the file on disk.</value>
-    <comment>Explains why the skip checkbox is greyed out under the Overwrite and Duplicate policies.</comment>
+  <data name="AdvancedRecordingSection" xml:space="preserve">
+    <value>Recording</value>
+    <comment>Advanced page: heading over what gets recorded and what happens to the file. Was "Detection", which named only the first of the three settings under it. The predecessor called these "spy options"; plan §0 renames them.</comment>
   </data>
-  <data name="AdvancedDetectionSection" xml:space="preserve">
-    <value>Detection</value>
-    <comment>Advanced page: heading over what counts as a track worth recording. The predecessor called these "spy options"; plan §0 renames them.</comment>
+  <data name="AdvancedSelectionLabel" xml:space="preserve">
+    <value>Record</value>
+    <comment>Label over the dropdown choosing how much of what Spotify plays is saved.</comment>
   </data>
-  <data name="AdvancedMuteAds" xml:space="preserve">
-    <value>Mute advertisements</value>
-    <comment>Detection option: silence Spotify's adverts instead of hearing them.</comment>
+  <data name="AdvancedSelectionHint" xml:space="preserve">
+    <value>Offstream saves what Spotify reports as an artist and a title. Widen this to keep podcasts and anything else that has no artist.</value>
+    <comment>Tooltip on the record-selection dropdown.</comment>
   </data>
-  <data name="AdvancedRecordEverything" xml:space="preserve">
-    <value>Record everything Spotify plays</value>
-    <comment>Detection option: do not require an artist - title window title.</comment>
+  <data name="AdvancedSelectionKnownTracksOnly" xml:space="preserve">
+    <value>Recognisable tracks only</value>
+    <comment>Record-selection option, the default and the strictest: artist - title and nothing else.</comment>
   </data>
-  <data name="AdvancedRecordEverythingHint" xml:space="preserve">
-    <value>Includes podcasts and anything else without an artist.</value>
-    <comment>Explains the record-everything option.</comment>
+  <data name="AdvancedSelectionEverythingExceptAds" xml:space="preserve">
+    <value>Everything except advertisements</value>
+    <comment>Record-selection option: podcasts and untitled content too, but no adverts.</comment>
   </data>
-  <data name="AdvancedRecordAds" xml:space="preserve">
-    <value>Include advertisements</value>
-    <comment>Detection option, only meaningful while everything is being recorded.</comment>
+  <data name="AdvancedSelectionEverything" xml:space="preserve">
+    <value>Everything, advertisements included</value>
+    <comment>Record-selection option, the widest.</comment>
   </data>
   <data name="AdvancedTimerEnabled" xml:space="preserve">
     <value>Stop recording after</value>

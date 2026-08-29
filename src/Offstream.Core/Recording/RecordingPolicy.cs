@@ -24,17 +24,21 @@ public sealed class RecordingPolicy(RecordingSettings settings)
     /// Whether to record something that is not a recognisable "artist - title" track.
     /// </summary>
     /// <remarks>
-    /// Requires "record everything" and that ad muting is off — muting an ad and recording
-    /// it at the same time would write a file of silence. Ads themselves are only included
-    /// when explicitly enabled.
+    /// <see cref="RecordSelection.Everything"/> is unconditional rather than checking the
+    /// track: that arm stood for "record ads as well", and a setting that says record
+    /// everything cannot then ask what this particular thing is. Callers reach this through
+    /// <see cref="IsTypeAllowed"/>, where an ordinary track is already allowed on its own.
     /// </remarks>
     public bool IsRecordUnknownActive(Track track)
     {
         ArgumentNullException.ThrowIfNull(track);
 
-        return !settings.MuteAdsEnabled
-            && settings.RecordEverythingEnabled
-            && (track.IsUnknownPlaying || settings.RecordAdsEnabled);
+        return settings.RecordSelection switch
+        {
+            RecordSelection.Everything => true,
+            RecordSelection.EverythingExceptAds => track.IsUnknownPlaying,
+            _ => false,
+        };
     }
 
     /// <summary>Whether this track's type may be recorded at all.</summary>

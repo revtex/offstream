@@ -45,13 +45,14 @@ public sealed class SettingsSchemaDefaultsTests
     [Fact]
     public void OmittedBooleans_KeepTheirDefaultsIncludingTrueOnes()
     {
-        var settings = Deserialize("""{"schemaVersion": 1, "recording": {"recordAds": true}}""");
+        var settings = Deserialize("""{"schemaVersion": 1, "recording": {"minimumLengthSeconds": 45}}""");
 
-        // muteAds defaults to true — the case a zero-value default would silently flip.
-        Assert.True(settings.Recording.MuteAds);
-        Assert.True(settings.Recording.RecordAds);
-        Assert.Equal(30, settings.Recording.MinimumLengthSeconds);
+        Assert.Equal(45, settings.Recording.MinimumLengthSeconds);
         Assert.True(settings.App.MinimizeToTray);
+
+        // The strictest selection is both the default and the zero value, so this one would
+        // survive a zero-value default. minimizeToTray above is the case that would not.
+        Assert.Equal(RecordSelection.KnownTracksOnly, settings.Recording.RecordSelection);
     }
 
     [Fact]

@@ -93,4 +93,5 @@ Beyond that: ffmpeg argv golden tests, encode-integration tests asserted with ff
 - Nullable reference types enabled.
 - MVVM via CommunityToolkit.Mvvm source generators; no code-behind logic beyond wiring.
 - Inline validation (`INotifyDataErrorInfo`), not modal dialogs.
+- **A setting's description is a tooltip, not a line under its label** (decided 2026-08-29). The Advanced page has no `ScrollViewer` and the shell's `MinHeight` promises no setting is ever out of reach, so a line of prose per row is height the page does not have — it has been clipped off the bottom three times. Put the sentence in `ToolTip` on the whole row so hovering anywhere finds it, and in `AutomationProperties.HelpText` on the control, because a tooltip is invisible to a screen reader. The text still lives in `Strings.resx` + `.fr.resx` and is still translated. Labels stay inline.
 - User-facing strings live in `Offstream.App/Resources/Strings.resx` (+ `.fr.resx`) with an en/fr key-parity test. Resource **keys are re-keyed for Offstream**; do not carry the predecessor's key names across.

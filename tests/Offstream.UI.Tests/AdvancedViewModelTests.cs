@@ -28,7 +28,7 @@ public sealed class AdvancedViewModelTests
                 Template: FileNameTemplate.Grouped,
                 ExistingFilePolicy: ExistingFilePolicy.Overwrite,
                 CurrentFileCounter: 7),
-            Recording = new RecordingOptions(MuteAds: false, RecordEverything: true, RecordAds: true),
+            Recording = new RecordingOptions(RecordSelection: RecordSelection.Everything),
             Metadata = new MetadataSettings(WriteCounterToTrackNumber: true),
             App = new AppSettings(MinimizeToTray: false, Language: "fr"),
         };
@@ -38,9 +38,7 @@ public sealed class AdvancedViewModelTests
         Assert.Equal(FileNameTemplate.Grouped, viewModel.Template);
         Assert.Equal("7", viewModel.FileCounter);
         Assert.Equal(ExistingFilePolicy.Overwrite, viewModel.ExistingFilePolicy);
-        Assert.False(viewModel.MuteAds);
-        Assert.True(viewModel.RecordEverything);
-        Assert.True(viewModel.RecordAds);
+        Assert.Equal(RecordSelection.Everything, viewModel.RecordSelection);
         Assert.True(viewModel.WriteCounterToTrackNumber);
         Assert.False(viewModel.MinimizeToTray);
         Assert.Equal("fr", viewModel.SelectedLanguage?.Value);
@@ -262,74 +260,70 @@ public sealed class AdvancedViewModelTests
     }
 
     /// <summary>
-    /// With track detection on, an advert has no artist and is never written as a file — so the
-    /// advertisement toggle only means anything while everything is being recorded.
+    /// The offered choices are exactly the three the policy can act on, widest last. Three
+    /// switches used to encode the same three outcomes across four combinations, one of which
+    /// was indistinguishable from another — so a list of three is also the proof there is no
+    /// fourth state to reach.
     /// </summary>
     [Fact]
-    public void CanRecordAds_FollowsRecordEverything()
+    public void Selections_OfferEveryRecordSelectionOnce()
     {
         var viewModel = Build();
 
-        Assert.False(viewModel.CanRecordAds);
-
-        viewModel.RecordEverything = true;
-
-        Assert.True(viewModel.CanRecordAds);
+        Assert.Equal(
+            Enum.GetValues<RecordSelection>(),
+            viewModel.Selections.Select(selection => selection.Value));
     }
 
     [Fact]
-    public void DetectionOptions_ReachTheFile()
+    public void RecordingOptions_ReachTheFile()
     {
         var fileSystem = new MockFileSystem();
         var viewModel = Build(fileSystem: fileSystem);
 
-        viewModel.MuteAds = false;
-        viewModel.RecordEverything = true;
-        viewModel.RecordAds = true;
+        viewModel.RecordSelection = RecordSelection.EverythingExceptAds;
         viewModel.ExistingFilePolicy = ExistingFilePolicy.Duplicate;
         viewModel.WriteCounterToTrackNumber = true;
 
         var saved = SettingsFakes.Reload(fileSystem);
 
-        Assert.False(saved.Recording.MuteAds);
-        Assert.True(saved.Recording.RecordEverything);
-        Assert.True(saved.Recording.RecordAds);
+        Assert.Equal(RecordSelection.EverythingExceptAds, saved.Recording.RecordSelection);
         Assert.Equal(ExistingFilePolicy.Duplicate, saved.Output.ExistingFilePolicy);
         Assert.True(saved.Metadata.WriteCounterToTrackNumber);
     }
 
     /// <summary>
-    /// Overwrite and Duplicate both write the file again, so there is nothing for a skip to move
-    /// past. The toggle greys out rather than disappearing — a setting that vanishes looks like
-    /// one that never existed.
+    /// The list is the whole setting, so a member missing from it is a policy no one can pick —
+    /// and one present twice is the greyed-out duplicate state this list replaced.
     /// </summary>
     [Fact]
-    public void CanSkipAlreadyRecorded_FollowsTheExistingFilePolicy()
+    public void Policies_OfferEveryExistingFilePolicyOnce()
     {
         var viewModel = Build();
 
-        Assert.True(viewModel.CanSkipAlreadyRecorded);
-
-        viewModel.ExistingFilePolicy = ExistingFilePolicy.Overwrite;
-
-        Assert.False(viewModel.CanSkipAlreadyRecorded);
-
-        viewModel.ExistingFilePolicy = ExistingFilePolicy.Skip;
-
-        Assert.True(viewModel.CanSkipAlreadyRecorded);
+        Assert.Equal(
+            Enum.GetValues<ExistingFilePolicy>(),
+            viewModel.Policies.Select(policy => policy.Value));
     }
 
+    /// <summary>
+    /// The half of the old skip switch that had to survive being folded into the policy: asking
+    /// Spotify to move on is the one option here that reaches out and changes what is playing,
+    /// so it is worth proving it still persists rather than assuming the fold carried it.
+    /// </summary>
     [Fact]
-    public void SkipAlreadyRecordedTracks_ReachesTheFile()
+    public void MovingOn_ReachesTheFile()
     {
         var fileSystem = new MockFileSystem();
         var viewModel = Build(fileSystem: fileSystem);
 
-        Assert.False(viewModel.SkipAlreadyRecordedTracks);
+        Assert.Equal(ExistingFilePolicy.Skip, viewModel.ExistingFilePolicy);
 
-        viewModel.SkipAlreadyRecordedTracks = true;
+        viewModel.ExistingFilePolicy = ExistingFilePolicy.SkipAndMoveOn;
 
-        Assert.True(SettingsFakes.Reload(fileSystem).Output.SkipAlreadyRecordedTracks);
+        Assert.Equal(
+            ExistingFilePolicy.SkipAndMoveOn,
+            SettingsFakes.Reload(fileSystem).Output.ExistingFilePolicy);
     }
 
     [Fact]

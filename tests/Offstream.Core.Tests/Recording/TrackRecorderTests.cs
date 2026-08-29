@@ -185,14 +185,21 @@ public sealed class TrackRecorderTests
     /// after enrichment. Checking any earlier looks at a path nothing is ever written to, always
     /// finds nothing, and lets the recording overwrite the file the user asked to keep.
     /// </summary>
-    [Fact]
-    public async Task Record_WithAnEnrichedTemplate_KeepsTheFileAlreadyOnDisk()
+    /// <remarks>
+    /// Both keep-it policies, because they differ only in what they ask Spotify to do next and
+    /// this check reads the question negated — <c>!KeepsTheExistingFile</c>. A policy missing
+    /// from that answer does not fail loudly here; it quietly records over the file.
+    /// </remarks>
+    [Theory]
+    [InlineData(ExistingFilePolicy.Skip)]
+    [InlineData(ExistingFilePolicy.SkipAndMoveOn)]
+    public async Task Record_WithAnEnrichedTemplate_KeepsTheFileAlreadyOnDisk(ExistingFilePolicy policy)
     {
         const string Template = @"{artist}\({year}) {album}\{track:00} {title}";
         const string Existing = @"C:\music\Artist\(1983) Album\04 Title.mp3";
 
         using var harness = new Harness(
-            policy: ExistingFilePolicy.Skip,
+            policy: policy,
             template: Template,
             enrich: (track, _) =>
             {

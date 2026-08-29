@@ -64,11 +64,7 @@ public sealed partial class AdvancedViewModel : ObservableValidator
     private string _fileCounter = "1";
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanSkipAlreadyRecorded))]
     private ExistingFilePolicy _existingFilePolicy;
-
-    [ObservableProperty]
-    private bool _skipAlreadyRecordedTracks;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TemplatePreview))]
@@ -80,14 +76,7 @@ public sealed partial class AdvancedViewModel : ObservableValidator
     private string _timer = "01:00:00";
 
     [ObservableProperty]
-    private bool _muteAds;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanRecordAds))]
-    private bool _recordEverything;
-
-    [ObservableProperty]
-    private bool _recordAds;
+    private RecordSelection _recordSelection;
 
     [ObservableProperty]
     private bool _writeCounterToTrackNumber;
@@ -120,11 +109,23 @@ public sealed partial class AdvancedViewModel : ObservableValidator
         _document = document;
         _fileSystem = fileSystem;
 
+        // The two keep-it answers adjacent, so the choice between them reads as the detail it
+        // is — what to tell Spotify — rather than as a fourth unrelated policy.
         Policies =
         [
             new(ExistingFilePolicy.Skip, Strings.AdvancedExistingSkip),
+            new(ExistingFilePolicy.SkipAndMoveOn, Strings.AdvancedExistingSkipAndMoveOn),
             new(ExistingFilePolicy.Overwrite, Strings.AdvancedExistingOverwrite),
             new(ExistingFilePolicy.Duplicate, Strings.AdvancedExistingDuplicate),
+        ];
+
+        // Widest last. The list reads as one scale from strictest to loosest, so the effect of
+        // moving down it is the shape of the list rather than something to be read off it.
+        Selections =
+        [
+            new(RecordSelection.KnownTracksOnly, Strings.AdvancedSelectionKnownTracksOnly),
+            new(RecordSelection.EverythingExceptAds, Strings.AdvancedSelectionEverythingExceptAds),
+            new(RecordSelection.Everything, Strings.AdvancedSelectionEverything),
         ];
 
         // Language names are written in the language they name. "Français" translated into
@@ -146,29 +147,20 @@ public sealed partial class AdvancedViewModel : ObservableValidator
     /// <summary>What to do when the destination file already exists.</summary>
     public IReadOnlyList<ChoiceOption<ExistingFilePolicy>> Policies { get; }
 
-    /// <summary>
-    /// Whether skipping past a recorded track can do anything under the chosen policy.
-    /// </summary>
+    /// <summary>How much of what Spotify plays is worth saving.</summary>
     /// <remarks>
-    /// Overwrite and Duplicate both write the file again, so there is nothing to skip past. The
-    /// checkbox greys out rather than disappearing, so the setting is still findable — and the
-    /// core reads the two together anyway, since a hand-edited settings file can disagree.
+    /// One list where there were three switches. The switches encoded these same three
+    /// outcomes, but two of them did nothing unless the third allowed it, so the card had to
+    /// grey controls out to explain itself and still read as three contradictory answers to
+    /// one question. A question with one answer is a list.
     /// </remarks>
-    public bool CanSkipAlreadyRecorded => ExistingFilePolicy == ExistingFilePolicy.Skip;
+    public IReadOnlyList<ChoiceOption<RecordSelection>> Selections { get; }
 
     /// <summary>UI languages, plus following Windows.</summary>
     public IReadOnlyList<ChoiceOption<string?>> Languages { get; }
 
     /// <summary>The tokens a template may use, with what each renders to.</summary>
     public IReadOnlyList<TemplateToken> Tokens { get; }
-
-    /// <summary>Whether the advertisement toggle applies.</summary>
-    /// <remarks>
-    /// Advertisements are only recordable at all when everything is being recorded — with
-    /// track detection on, an advert has no artist and is never a file. The dependent control
-    /// is disabled rather than hidden, so the relationship between the two is visible.
-    /// </remarks>
-    public bool CanRecordAds => RecordEverything;
 
     /// <summary>Whether the template uses <c>{count}</c>, and so whether the counter matters.</summary>
     public bool UsesCounter => FileNameTemplate.UsesCounter(Template);
@@ -237,10 +229,7 @@ public sealed partial class AdvancedViewModel : ObservableValidator
             Template = settings.Output.Template;
             FileCounter = settings.Output.CurrentFileCounter.ToString(CultureInfo.CurrentCulture);
             ExistingFilePolicy = settings.Output.ExistingFilePolicy;
-            SkipAlreadyRecordedTracks = settings.Output.SkipAlreadyRecordedTracks;
-            MuteAds = settings.Recording.MuteAds;
-            RecordEverything = settings.Recording.RecordEverything;
-            RecordAds = settings.Recording.RecordAds;
+            RecordSelection = settings.Recording.RecordSelection;
             WriteCounterToTrackNumber = settings.Metadata.WriteCounterToTrackNumber;
             MinimizeToTray = settings.App.MinimizeToTray;
             FfmpegPath = settings.App.FfmpegPath ?? string.Empty;
@@ -333,17 +322,11 @@ public sealed partial class AdvancedViewModel : ObservableValidator
 
     partial void OnExistingFilePolicyChanged(ExistingFilePolicy value) => Persist();
 
-    partial void OnSkipAlreadyRecordedTracksChanged(bool value) => Persist();
-
     partial void OnIsTimerEnabledChanged(bool value) => Persist();
 
     partial void OnTimerChanged(string value) => Persist();
 
-    partial void OnMuteAdsChanged(bool value) => Persist();
-
-    partial void OnRecordEverythingChanged(bool value) => Persist();
-
-    partial void OnRecordAdsChanged(bool value) => Persist();
+    partial void OnRecordSelectionChanged(RecordSelection value) => Persist();
 
     partial void OnWriteCounterToTrackNumberChanged(bool value) => Persist();
 
@@ -372,14 +355,11 @@ public sealed partial class AdvancedViewModel : ObservableValidator
             {
                 Template = Template.Trim(),
                 ExistingFilePolicy = ExistingFilePolicy,
-                SkipAlreadyRecordedTracks = SkipAlreadyRecordedTracks,
                 CurrentFileCounter = int.Parse(FileCounter, CultureInfo.CurrentCulture),
             },
             Recording = settings.Recording with
             {
-                MuteAds = MuteAds,
-                RecordEverything = RecordEverything,
-                RecordAds = RecordAds,
+                RecordSelection = RecordSelection,
                 Timer = IsTimerEnabled ? ToStoredTimer(Timer) : null,
             },
             Metadata = settings.Metadata with { WriteCounterToTrackNumber = WriteCounterToTrackNumber },

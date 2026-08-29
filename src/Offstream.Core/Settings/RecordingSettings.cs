@@ -34,28 +34,26 @@ public sealed class RecordingSettings
     /// <summary>What to do when the output file already exists.</summary>
     public Recording.ExistingFilePolicy ExistingFilePolicy { get; set; }
 
-    /// <summary>
-    /// Tell Spotify to move on when the track playing is one already in the library.
-    /// </summary>
+    /// <summary>Whether the chosen policy leaves the recording already on disk alone.</summary>
     /// <remarks>
-    /// Only meaningful alongside <see cref="Recording.ExistingFilePolicy.Skip"/>: under the other
-    /// two policies the file gets written again, so there is nothing to skip past. The setting is
-    /// read together with the policy rather than merely hidden in the UI, because a hand-edited
-    /// <c>settings.json</c> can set this true under any policy.
+    /// The two keep-it policies differ only in what they ask Spotify to do next, which is no
+    /// business of the code deciding whether to write a file. Asking the question once, here,
+    /// is also what stops a fifth policy from having to be remembered at four call sites — and
+    /// one of those sites reads <c>!=</c>, where a forgotten member fails silently by recording
+    /// over a file the user asked to keep.
     /// </remarks>
-    public bool SkipAlreadyRecordedTracks { get; set; }
+    public bool KeepsTheExistingFile =>
+        ExistingFilePolicy is Recording.ExistingFilePolicy.Skip
+                           or Recording.ExistingFilePolicy.SkipAndMoveOn;
 
-    /// <summary>
-    /// Whether both halves of the skip-past-recorded setting are actually in force.
-    /// </summary>
+    /// <summary>Whether to ask Spotify to move on past a track already in the library.</summary>
     /// <remarks>
-    /// Named to be hard to confuse with <see cref="SkipAlreadyRecordedTracks"/>, which is the
-    /// stored half on its own: a pair differing by one letter is a pair that eventually gets
-    /// mistyped, and the mistake would silently send skip commands under a policy that records
-    /// the file again anyway.
+    /// One policy rather than a policy plus a switch, so this cannot be on under a policy that
+    /// records the file again anyway — a state a hand-edited <c>settings.json</c> could once
+    /// reach, and one the UI had to keep greying out to explain.
     /// </remarks>
     public bool HasSkipPastRecordedEnabled =>
-        SkipAlreadyRecordedTracks && ExistingFilePolicy == Recording.ExistingFilePolicy.Skip;
+        ExistingFilePolicy == Recording.ExistingFilePolicy.SkipAndMoveOn;
 
     /// <summary>Running counter used by the <c>{count}</c> token and the track-number tag.</summary>
     public int InternalOrderNumber { get; set; } = 1;
@@ -63,14 +61,8 @@ public sealed class RecordingSettings
     /// <summary>Write the counter into the track-number tag as well as the file name.</summary>
     public bool OrderNumberInMediaTagEnabled { get; set; }
 
-    /// <summary>Mute Spotify's advertisements instead of recording them.</summary>
-    public bool MuteAdsEnabled { get; set; }
-
-    /// <summary>Record anything that plays, including titles with no "artist - title" shape.</summary>
-    public bool RecordEverythingEnabled { get; set; }
-
-    /// <summary>Include advertisements when <see cref="RecordEverythingEnabled"/> is on.</summary>
-    public bool RecordAdsEnabled { get; set; }
+    /// <summary>How much of what Spotify plays is worth saving.</summary>
+    public Recording.RecordSelection RecordSelection { get; set; }
 
     /// <summary>Discard recordings shorter than this.</summary>
     public int MinimumRecordedLengthSeconds { get; set; } = 30;

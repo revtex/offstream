@@ -443,7 +443,7 @@ public sealed class TrackRecorder : IDisposable
     /// </remarks>
     private string? AlreadyOnDisk()
     {
-        if (_settings.ExistingFilePolicy != ExistingFilePolicy.Skip) return null;
+        if (!_settings.KeepsTheExistingFile) return null;
 
         try
         {

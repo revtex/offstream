@@ -57,9 +57,7 @@ public sealed class SettingsStoreTests
         Recording = new RecordingOptions
         {
             MinimumLengthSeconds = 15,
-            MuteAds = false,
-            RecordEverything = true,
-            RecordAds = true,
+            RecordSelection = RecordSelection.Everything,
             Timer = "013000",
             AudioEndpointDeviceId = "{0.0.0.00000000}.{device-id}",
         },

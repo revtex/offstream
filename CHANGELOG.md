@@ -12,6 +12,55 @@ phase plan these entries follow.
 
 ## [Unreleased]
 
+### Changed
+
+- **The three advertisement switches are one dropdown, because between them they only ever had
+  three answers.** "Mute advertisements", "Record everything Spotify plays" and "Include
+  advertisements" were three on/off settings over four combinations — two of which did exactly the
+  same thing, while two of the switches did nothing at all unless a third allowed it. The card had
+  to grey controls out to explain a hierarchy that was never visible in the first place, and it
+  still read as three contradictory answers to one question. It is now one question with one
+  answer: **Record — recognisable tracks only** (the default), **everything except
+  advertisements**, or **everything, advertisements included**. Nothing about which files get
+  recorded has changed; there is simply no longer a way to ask for a combination that means
+  something other than what it says.
+- **"Mute advertisements" never muted anything.** The code behind it had no callers, so the switch
+  shipped on by default and its one real effect was to silently veto "Record everything Spotify
+  plays" — turn that on and nothing happened, with nothing on the page to say why. The predecessor
+  never hit this because its form unchecked mute-ads the moment record-everything was checked;
+  Offstream had inherited the rule and not the interlock. The setting is stored as
+  `recording.recordSelection` now and the three keys it replaces are gone, so a settings file
+  hand-tuned around the old behaviour comes back at the default.
+- **The Advanced page's settings sit in the sections they belong to.** What to do about a file that
+  already exists — and whether to tell Spotify to move on from it — are rules about recording, not
+  about what recordings are called, and both had been living under **File names**. They have moved
+  into **Recording**, which is what the **Detection** card is now called: it had long since stopped
+  being only about detection.
+- **Telling Spotify to move on is a fourth answer to "when that file already exists", not a switch
+  beside it.** It was a separate on/off setting that did nothing under two of the three policies —
+  overwriting the file and saving a second copy both record the track again, leaving nothing to
+  move past — so it greyed itself out half the time and needed a sentence explaining why. Six
+  combinations, four outcomes: the same arithmetic as the advertisement switches above, and the
+  same fix. The choice is now **keep the one on disk**, **keep it and skip to the next track**,
+  **replace it**, or **save the new one alongside it**. Its `output.skipAlreadyRecordedTracks` key
+  is gone and its value lives in `output.existingFilePolicy`, so anyone who had asked Offstream to
+  move on will need to say so again. Giving the dropdown the row to itself also fixes the switch
+  label, which was clipped at "Also tell Spotify to mov".
+- **A setting's description is a tooltip now.** The sentence under a switch cost a line of height
+  on a page that has none to spare — the card at the bottom has been clipped three times — and it
+  said the same thing every time whether or not anyone needed it. Hovering the row shows it
+  instead. The text is unchanged and still translated, and each control carries it as accessible
+  help text as well, because a tooltip is the one thing on the page a screen reader cannot see.
+
+### Removed
+
+- **Muting advertisements is off the roadmap rather than unfinished.** It sat in the parity list as
+  something still owed, but there is no coherent behaviour to owe: the predecessor's version muted
+  *every other application* on the machine and left Spotify at full volume, to catch video adverts
+  playing through a separate audio session — so it never silenced the advert either. A recorder
+  reaching out to mute unrelated applications is a side effect nobody asked for, and with the
+  detection options now saying plainly that adverts are discarded, silencing them buys nothing.
+
 ### Added
 
 - **Offstream can tell Spotify to move on from a track it already has.** Keeping the file on disk
@@ -20,8 +69,10 @@ phase plan these entries follow.
   through the parts that already are. "Also tell Spotify to move on", beside the existing-file
   setting on the Advanced page, sends a skip through the Windows media transport controls — the
   same command as the keyboard's next-track key, so it needs no account, no scope and no Premium
-  subscription, and it reaches Spotify while it is minimised to the tray. Off by default, greyed
-  out under the two policies that record the file again, and asked exactly once per track, because
+  subscription, and it reaches Spotify while it is minimised to the tray. It is the second of the
+  four answers to **When that file already exists** on the Advanced page — *keep it, and skip to
+  the next track* — so it cannot be asked for under a policy that records the file again anyway.
+  Off unless chosen, and asked exactly once per track, because
   Spotify goes on reporting the outgoing song for a moment after it takes the command and a second
   skip would land on a song nobody had recorded. It is asked twice per track, though: once
   immediately, and again when the metadata lookup lands, since a template built on `{album}`,

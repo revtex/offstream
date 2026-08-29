@@ -230,7 +230,7 @@ Two rules the schema must honour:
 The acceptance checklist. Everything the app does today.
 
 ### Recording
-WASAPI loopback capture · device selection · device volume · per-track splitting · minimum recorded length · recording timer (hhmmss) · silence trim start/end · mute ads · record everything (podcast) · record ads · skip/overwrite/duplicate existing · force Spotify to skip recorded track · listen to playback on default device · prevent sleep while recording.
+WASAPI loopback capture · device selection · device volume · per-track splitting · minimum recorded length · recording timer (hhmmss) · silence trim start/end · ~~mute ads~~ (**dropped 2026-08-28** — see below) · record everything (podcast) · record ads · skip/overwrite/duplicate existing · force Spotify to skip recorded track · listen to playback on default device · prevent sleep while recording.
 
 ### Output
 MP3 128/160/256/320 · WAV · Opus · **FLAC (new)** · **AAC (new)** · filename template with tokens and folder support · counter with padding · output path · 260-char budgeting (**plus long-path support, new**).
@@ -243,6 +243,24 @@ Tabs (**Record / Settings / Advanced**, and **Logs** from 2026-08-14) · console
 
 > The tab *structure* carries over because it works. The **tab labels do not** — the predecessor's "Spy" tab is Offstream's **Record** tab, and its "spy options" are **detection options**. §0 applies to user-visible strings as much as to code.
 >
+
+### Finding: "mute ads" is dropped, not deferred (2026-08-28)
+
+The setting shipped as **Mute advertisements**, on by default, and never muted anything: `AudioSessions.SetMute` had no callers. Its only effect was one `!` in `RecordingPolicy.IsRecordUnknownActive`, where it silently vetoed "record everything" — so the option could be turned on and would do nothing, with no indication why. The predecessor guarded against exactly that by unchecking mute-ads whenever record-everything was checked (`frmEspionSpotify.cs:732`); Offstream ported the policy expression and not the interlock.
+
+Restoring it was considered and rejected. There is no single behaviour to restore: the predecessor's mute-ads muted **every other application** and held Spotify at full volume (`MainAudioSession.cs:185-195`), to catch video adverts playing through a separate audio session. It never silenced the advert itself, so its own label was wrong too. Reimplementing that would reach outside Spotify to mute unrelated applications — a side effect no one asked a recorder for.
+
+So the three switches collapse into one choice, `recording.recordSelection`, with the three values they could actually express between them: `KnownTracksOnly` (the default), `EverythingExceptAds`, `Everything`. Of the four combinations the booleans allowed, two were behaviourally identical — which is the arithmetic behind the confusion, and the reason relabelling them was not enough. Session mute stays proven (§ Phase 0) and `AudioSessions.SetMute` stays in Core; nothing in the product depends on it.
+
+The same reduction then applied a second time, on the user's prompt, to the existing-file policy. `output.skipAlreadyRecordedTracks` was a boolean beside a three-valued dropdown that did nothing under two of its three values — six combinations, four outcomes — so it is now a fourth policy, `ExistingFilePolicy.SkipAndMoveOn`. Two notes for anyone extending that enum. `Skip` keeps its name and its zero value because the member names are what `settings.json` stores and `JsonStringEnumConverter` throws on a value it does not recognise, which `SettingsStore.Load` turns into a hard "fix or delete the file"; a rename would fail every existing install to gain a tidier identifier. And the four call sites that asked `== Skip` — one of them negated, in `TrackRecorder.AlreadyOnDisk` — now ask `RecordingSettings.KeepsTheExistingFile` instead: a policy forgotten at a comparison like that does not fail the build or a test, it silently records over a file the user asked to keep.
+
+### Finding: the Advanced page cannot be measured by a test (2026-08-29)
+
+The bottom of that page has now been clipped three times, each caught by a screenshot rather than by the build, because nothing above it scrolls and nothing in the build knows how tall it is. A measuring test was attempted: construct `AdvancedPage` on an STA thread with the three dictionaries `App.xaml` merges, `Measure` at the shell's content width, assert `DesiredSize.Height`. It measures correctly, and the numbers are worth keeping even though the test is not: at the shell's content width of 976, the Advanced page needs **495** units against the Settings page's **536**. Those were measured on 2026-08-29 and are carried forward, not re-taken — the existing-file rework later that day turned a row holding a dropdown and a switch into the same row holding only the dropdown, so the card's row count and heights are unchanged and 495 still stands. Any edit that adds or removes a row invalidates the figure, and there is no test to say so. Settings has never been reported as clipped, so Advanced now fits wherever Settings does — which is the closest thing to a proof available without a shown window. The test itself **cannot be kept**, and the reason is not the STA thread.
+
+`StaticResource` resolves at load time, so the dictionaries must be in place before the page's constructor runs, which means an `Application`. `Application.Current` is a process-wide singleton bound to the thread that created it, and the test's STA thread ends with the test — leaving every later test in the assembly marshalling onto a dead dispatcher. Nine `RecordViewModelTests` failed on the first run for exactly that reason. Measuring the shell instead does not work either: an unshown window arranges to nothing, so the host `ContentControl` reports zero.
+
+This is the empirical form of the note already on `AppServicesTests` ("asserts what is registered, never what resolves"). The page's height stays a hand-checked property until either the suite gains an assembly-scoped STA fixture that owns the `Application` for its lifetime, or the page gains a `ScrollViewer` and stops needing to be measured at all.
 > The log pane became a fourth tab on 2026-08-14; see the Phase 7 findings. The predecessor's structure is a starting point, not a ceiling.
 
 ### Filename template — behaviour preserved exactly
@@ -465,7 +483,7 @@ Delivered in four PRs: **PR 1** (shell scaffold, DI, navigation, design tokens),
 - ✅ App host, DI, navigation, Fluent theme, dark mode.
 - ✅ **Record tab:** status, now-playing, elapsed, console log (with filter + copy), start/stop — **plus a live waveform**, which the plan did not ask for; see below.
 - ✅ **Settings tab:** output path, device, quality, min length, format (incl. FLAC/AAC), metadata provider (*and, from 2026-08-12, the Last.fm API key and the Spotify sign-in that make the provider choice mean something*).
-- ✅ **Advanced tab:** tray *(setting; the icon itself is below)*, timer, counter, filename template with a token reference **and live preview**, existing-file policy, detection options, tag options.
+- ✅ **Advanced tab:** tray *(setting; the icon itself is below)*, timer, counter, filename template with a token reference **and live preview**, existing-file policy, recording options *(the "detection options" card, renamed on 2026-08-29 once it had stopped being only about detection)*, tag options.
 - ✅ Inline validation via `INotifyDataErrorInfo` instead of modal dialogs.
 - ✅ i18n from `Offstream.App/Resources/Strings.resx` with an en/fr key-parity test (the reference tree's translation test, re-namespaced). **Resource keys are re-keyed for Offstream** — this is the file where inherited naming would otherwise survive longest.
 - ✅ Tray icon, minimise behaviour, single-instance guard.

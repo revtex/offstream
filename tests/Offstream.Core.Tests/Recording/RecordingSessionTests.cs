@@ -1075,7 +1075,7 @@ public sealed class RecordingSessionTests
         var playback = new FakePlaybackControl();
 
         await using var harness = new Harness(
-            s => s.SkipAlreadyRecordedTracks = true, playback: playback);
+            s => s.ExistingFilePolicy = ExistingFilePolicy.SkipAndMoveOn, playback: playback);
 
         harness.FileSystem.AddFile(@"C:\music\Artist - Title.mp3", new MockFileData("already here"));
 
@@ -1117,22 +1117,24 @@ public sealed class RecordingSessionTests
     }
 
     /// <summary>
-    /// The UI greys the setting out under the other two policies, but a hand-edited settings file
-    /// can still say true — so the pair is read together in the core rather than trusted from the
-    /// page. Overwrite records the track again, and there is nothing to skip past.
+    /// The other side of the keeps-the-file question, which one policy answering both halves
+    /// made easy to get wrong.
     /// </summary>
+    /// <remarks>
+    /// Moving on used to be a boolean beside the policy, and this test used to set it true under
+    /// Overwrite to prove the core read the pair together rather than trusting a hand-edited
+    /// settings file. That combination no longer exists to be tested. What is worth testing is
+    /// what replaced it: the session now asks <see cref="RecordingSettings.KeepsTheExistingFile"/>
+    /// instead of comparing against one member, and a policy wrongly answering yes there would
+    /// decline to record a track the user asked to have recorded over.
+    /// </remarks>
     [Fact]
-    public async Task Session_UnderAnOverwritePolicy_NeverAsksSpotifyToMoveOn()
+    public async Task Session_UnderAnOverwritePolicy_RecordsOverTheFileAndLeavesSpotifyAlone()
     {
         var playback = new FakePlaybackControl();
 
         await using var harness = new Harness(
-            s =>
-            {
-                s.ExistingFilePolicy = ExistingFilePolicy.Overwrite;
-                s.SkipAlreadyRecordedTracks = true;
-            },
-            playback: playback);
+            s => s.ExistingFilePolicy = ExistingFilePolicy.Overwrite, playback: playback);
 
         harness.FileSystem.AddFile(@"C:\music\Artist - Title.mp3", new MockFileData("already here"));
 
@@ -1140,6 +1142,11 @@ public sealed class RecordingSessionTests
 
         await RecordTrackAsync(harness, Harness.Playing("Warm Up", "First Track"));
         await RecordTrackAsync(harness, Harness.Playing("Artist", "Title"));
+
+        Assert.DoesNotContain(
+            harness.Reports,
+            r => r.Track?.Contains("Title", StringComparison.Ordinal) == true
+                && r.Message?.Contains("Kept the file", StringComparison.Ordinal) == true);
 
         Assert.Equal(0, playback.Skips);
     }
@@ -1155,7 +1162,7 @@ public sealed class RecordingSessionTests
         var playback = new FakePlaybackControl();
 
         await using var harness = new Harness(
-            s => s.SkipAlreadyRecordedTracks = true, playback: playback);
+            s => s.ExistingFilePolicy = ExistingFilePolicy.SkipAndMoveOn, playback: playback);
 
         harness.FileSystem.AddFile(@"C:\music\Artist - Title.mp3", new MockFileData("already here"));
 
@@ -1201,7 +1208,7 @@ public sealed class RecordingSessionTests
             s =>
             {
                 s.OutputTemplate = @"{album}\{artist} - {title}";
-                s.SkipAlreadyRecordedTracks = true;
+                s.ExistingFilePolicy = ExistingFilePolicy.SkipAndMoveOn;
             },
             enricher: enricher,
             playback: playback);
@@ -1234,7 +1241,7 @@ public sealed class RecordingSessionTests
             s =>
             {
                 s.OutputTemplate = @"{album}\{artist} - {title}";
-                s.SkipAlreadyRecordedTracks = true;
+                s.ExistingFilePolicy = ExistingFilePolicy.SkipAndMoveOn;
             },
             enricher: enricher,
             playback: playback);
@@ -1270,7 +1277,7 @@ public sealed class RecordingSessionTests
         };
 
         await using var harness = new Harness(
-            s => s.SkipAlreadyRecordedTracks = true, playback: playback);
+            s => s.ExistingFilePolicy = ExistingFilePolicy.SkipAndMoveOn, playback: playback);
 
         harness.FileSystem.AddFile(@"C:\music\Artist - Title.mp3", new MockFileData("already here"));
 
@@ -1306,7 +1313,7 @@ public sealed class RecordingSessionTests
         var playback = new FakePlaybackControl();
 
         await using var harness = new Harness(
-            s => s.SkipAlreadyRecordedTracks = true, playback: playback);
+            s => s.ExistingFilePolicy = ExistingFilePolicy.SkipAndMoveOn, playback: playback);
 
         for (var i = 0; i < Cap + 5; i++)
         {
@@ -1359,7 +1366,7 @@ public sealed class RecordingSessionTests
         var playback = new FakePlaybackControl();
 
         await using var harness = new Harness(
-            s => s.SkipAlreadyRecordedTracks = true, playback: playback);
+            s => s.ExistingFilePolicy = ExistingFilePolicy.SkipAndMoveOn, playback: playback);
 
         harness.FileSystem.AddFile(@"C:\music\Artist - Title.mp3", new MockFileData("already here"));
         harness.FileSystem.AddFile(@"C:\music\Artist - Next.mp3", new MockFileData("also here"));
