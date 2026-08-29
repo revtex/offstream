@@ -86,8 +86,13 @@ public sealed class RecordingSessionFactory(
             // the media session survives that, and hands over separate artist and title fields
             // rather than one string to split. See PreferredTrackSource for what "prefers" means
             // and when it hands back.
+            // One instance, used twice: it caches the session manager, and RequestAsync is a
+            // cross-process call worth making once. Reading tracks and sending a skip both go
+            // through the same Spotify session it has already found.
+            var mediaSessions = new WindowsSmtcSessions();
+
             var detector = new PreferredTrackSource(
-                new SmtcTrackSource(new WindowsSmtcSessions()),
+                new SmtcTrackSource(mediaSessions),
                 new SpotifyTrackDetector(_processManager, new SpotifyPlaybackProbe(_processManager)));
 
             return new RecordingSession(
@@ -97,7 +102,8 @@ public sealed class RecordingSessionFactory(
                 CreateEncoder(settings),
                 _fileSystem,
                 CreateEnricher(settings),
-                progress);
+                progress,
+                playback: mediaSessions);
         }
         catch
         {

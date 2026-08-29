@@ -298,6 +298,40 @@ public sealed class AdvancedViewModelTests
         Assert.True(saved.Metadata.WriteCounterToTrackNumber);
     }
 
+    /// <summary>
+    /// Overwrite and Duplicate both write the file again, so there is nothing for a skip to move
+    /// past. The toggle greys out rather than disappearing — a setting that vanishes looks like
+    /// one that never existed.
+    /// </summary>
+    [Fact]
+    public void CanSkipAlreadyRecorded_FollowsTheExistingFilePolicy()
+    {
+        var viewModel = Build();
+
+        Assert.True(viewModel.CanSkipAlreadyRecorded);
+
+        viewModel.ExistingFilePolicy = ExistingFilePolicy.Overwrite;
+
+        Assert.False(viewModel.CanSkipAlreadyRecorded);
+
+        viewModel.ExistingFilePolicy = ExistingFilePolicy.Skip;
+
+        Assert.True(viewModel.CanSkipAlreadyRecorded);
+    }
+
+    [Fact]
+    public void SkipAlreadyRecordedTracks_ReachesTheFile()
+    {
+        var fileSystem = new MockFileSystem();
+        var viewModel = Build(fileSystem: fileSystem);
+
+        Assert.False(viewModel.SkipAlreadyRecordedTracks);
+
+        viewModel.SkipAlreadyRecordedTracks = true;
+
+        Assert.True(SettingsFakes.Reload(fileSystem).Output.SkipAlreadyRecordedTracks);
+    }
+
     [Fact]
     public void AppOptions_ReachTheFile()
     {

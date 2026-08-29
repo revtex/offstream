@@ -118,6 +118,12 @@ public sealed class RecordingSessionTests
         /// <summary>Whether the lookup hangs, as a real one still chasing a provider would.</summary>
         public bool NeverAnswers { get; set; }
 
+        /// <summary>
+        /// Held open, the lookup does not come back until the test lets it — which is how a
+        /// provider that answers three songs later is reproduced without a real delay.
+        /// </summary>
+        public TaskCompletionSource? Gate { get; set; }
+
         /// <summary>The token the session gave the most recent lookup.</summary>
         public CancellationToken Token { get; private set; }
 
@@ -129,9 +135,16 @@ public sealed class RecordingSessionTests
 
             Apply?.Invoke(track);
 
-            return NeverAnswers
-                ? NeverAsync(cancellationToken)
-                : Task.FromResult(new TrackEnrichment(Updated: true, CoverArtPath));
+            if (NeverAnswers) return NeverAsync(cancellationToken);
+
+            return Gate is { } gate ? AfterAsync(gate) : Task.FromResult(new TrackEnrichment(Updated: true, CoverArtPath));
+        }
+
+        private async Task<TrackEnrichment> AfterAsync(TaskCompletionSource gate)
+        {
+            await gate.Task;
+
+            return new TrackEnrichment(Updated: true, CoverArtPath);
         }
 
         private static async Task<TrackEnrichment> NeverAsync(CancellationToken cancellationToken)
@@ -139,6 +152,27 @@ public sealed class RecordingSessionTests
             await Task.Delay(Timeout.Infinite, cancellationToken);
 
             return TrackEnrichment.None;
+        }
+    }
+
+    /// <summary>Spotify's transport, counting what the session asked it to do.</summary>
+    private sealed class FakePlaybackControl : IPlaybackControl
+    {
+        private int _skips;
+
+        /// <summary>Whether Spotify takes the command, as it declines to during an advertisement.</summary>
+        public bool Accepts { get; set; } = true;
+
+        /// <summary>Set to make the transport throw, as one whose session has gone away does.</summary>
+        public Exception? Failure { get; set; }
+
+        public int Skips => Volatile.Read(ref _skips);
+
+        public Task<bool> TrySkipNextAsync(CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref _skips);
+
+            return Failure is not null ? Task.FromException<bool>(Failure) : Task.FromResult(Accepts);
         }
     }
 
@@ -160,7 +194,8 @@ public sealed class RecordingSessionTests
             Action<RecordingSettings>? configure = null,
             TimeSpan? fileSystemDelay = null,
             WaveFormat? captureFormat = null,
-            ITrackEnricher? enricher = null)
+            ITrackEnricher? enricher = null,
+            FakePlaybackControl? playback = null)
         {
             Capture = new FakeCaptureSource(captureFormat);
 
@@ -189,8 +224,10 @@ public sealed class RecordingSessionTests
                 ? new DelayedFileSystem(FileSystem, delay)
                 : FileSystem;
 
+            Playback = playback;
+
             Session = new RecordingSession(
-                Capture, Poller, Settings, Encoder, sessionFileSystem, enricher, Progress);
+                Capture, Poller, Settings, Encoder, sessionFileSystem, enricher, Progress, playback: playback);
 
             Session.TrackSaved += (_, e) => Saved.Enqueue(e);
             Session.TrackRecorded += (_, e) => Recorded.Enqueue(e);
@@ -208,6 +245,9 @@ public sealed class RecordingSessionTests
         public SpotifyPoller Poller { get; }
 
         public RecordingSession Session { get; }
+
+        /// <summary>Null when the session was built without a transport, as most tests want.</summary>
+        public FakePlaybackControl? Playback { get; }
 
         public ConcurrentQueue<RecordingProgress> Reports { get; } = new();
 
@@ -264,6 +304,26 @@ public sealed class RecordingSessionTests
             () => harness.Session.CurrentTrack?.Title == track.Title, $"the recorder to start on {track.Title}");
 
         harness.Capture.Deliver(bytes);
+    }
+
+    /// <summary>
+    /// Gets a session past the track it will not skip, so a test can be about skipping.
+    /// </summary>
+    /// <remarks>
+    /// The first track a session admits is deliberately never a skip candidate — it is the song
+    /// already under way when the user pressed record, and it is what the media session reports
+    /// for a moment before it catches up. A track that is <em>already on disk</em> is used for
+    /// this on purpose: it arms the session without starting a recorder, so nothing is left in
+    /// flight to save itself half-way through the assertions that follow.
+    /// </remarks>
+    private static async Task ArmSkippingAsync(Harness harness)
+    {
+        harness.FileSystem.AddFile(@"C:\music\Warm Up - First Track.mp3", new MockFileData("already here"));
+        harness.Play(Harness.Playing("Warm Up", "First Track"));
+
+        await WaitFor(
+            () => harness.Reports.Any(r => r.Track?.Contains("First Track", StringComparison.Ordinal) == true),
+            "the session to admit its first track");
     }
 
     [Fact]
@@ -1003,5 +1063,321 @@ public sealed class RecordingSessionTests
         await harness.Session.StopAsync();
 
         Assert.Equal(0, Volatile.Read(ref ended));
+    }
+
+    /// <summary>
+    /// Declining to record a track the user already has leaves Spotify playing it to nobody.
+    /// This is the setting that closes the loop and asks Spotify to move on.
+    /// </summary>
+    [Fact]
+    public async Task Session_AsksSpotifyToMovePastATrackItAlreadyHas()
+    {
+        var playback = new FakePlaybackControl();
+
+        await using var harness = new Harness(
+            s => s.SkipAlreadyRecordedTracks = true, playback: playback);
+
+        harness.FileSystem.AddFile(@"C:\music\Artist - Title.mp3", new MockFileData("already here"));
+
+        harness.Session.Start();
+        await ArmSkippingAsync(harness);
+
+        harness.Play(Harness.Playing("Artist", "Title"));
+
+        await WaitFor(() => playback.Skips == 1, "Spotify to be asked to move on");
+
+        // And the file on disk is still the one that was there: skipping is in addition to the
+        // existing policy, not instead of it.
+        Assert.Equal("already here", harness.FileSystem.File.ReadAllText(@"C:\music\Artist - Title.mp3"));
+        Assert.Null(harness.Session.CurrentTrack);
+    }
+
+    /// <summary>The setting is off by default, and off means Spotify is left alone.</summary>
+    [Fact]
+    public async Task Session_LeavesSpotifyAloneWhenSkippingIsOff()
+    {
+        var playback = new FakePlaybackControl();
+
+        await using var harness = new Harness(playback: playback);
+
+        harness.FileSystem.AddFile(@"C:\music\Artist - Title.mp3", new MockFileData("already here"));
+
+        harness.Session.Start();
+        await ArmSkippingAsync(harness);
+
+        harness.Play(Harness.Playing("Artist", "Title"));
+
+        await WaitFor(
+            () => harness.Reports.Any(
+                r => r.Track?.Contains("Title", StringComparison.Ordinal) == true
+                    && r.Message?.Contains("Kept the file", StringComparison.Ordinal) == true),
+            "the track to be declined");
+
+        Assert.Equal(0, playback.Skips);
+    }
+
+    /// <summary>
+    /// The UI greys the setting out under the other two policies, but a hand-edited settings file
+    /// can still say true — so the pair is read together in the core rather than trusted from the
+    /// page. Overwrite records the track again, and there is nothing to skip past.
+    /// </summary>
+    [Fact]
+    public async Task Session_UnderAnOverwritePolicy_NeverAsksSpotifyToMoveOn()
+    {
+        var playback = new FakePlaybackControl();
+
+        await using var harness = new Harness(
+            s =>
+            {
+                s.ExistingFilePolicy = ExistingFilePolicy.Overwrite;
+                s.SkipAlreadyRecordedTracks = true;
+            },
+            playback: playback);
+
+        harness.FileSystem.AddFile(@"C:\music\Artist - Title.mp3", new MockFileData("already here"));
+
+        harness.Session.Start();
+
+        await RecordTrackAsync(harness, Harness.Playing("Warm Up", "First Track"));
+        await RecordTrackAsync(harness, Harness.Playing("Artist", "Title"));
+
+        Assert.Equal(0, playback.Skips);
+    }
+
+    /// <summary>
+    /// The one that matters. Spotify goes on reporting the outgoing track for a moment after it
+    /// takes the command, so a session that decided per observation would ask twice — and the
+    /// second skip lands on a song the user has not recorded and would have wanted.
+    /// </summary>
+    [Fact]
+    public async Task Session_AsksToMovePastATrackOnlyOnce_HoweverLongSpotifyKeepsReportingIt()
+    {
+        var playback = new FakePlaybackControl();
+
+        await using var harness = new Harness(
+            s => s.SkipAlreadyRecordedTracks = true, playback: playback);
+
+        harness.FileSystem.AddFile(@"C:\music\Artist - Title.mp3", new MockFileData("already here"));
+
+        harness.Session.Start();
+        await ArmSkippingAsync(harness);
+
+        harness.Play(Harness.Playing("Artist", "Title"));
+
+        await WaitFor(() => playback.Skips == 1, "Spotify to be asked to move on");
+
+        // The stale window: the same song, still reported, pausing and resuming as the transport
+        // catches up. Every one of these reaches Consider again.
+        for (var i = 0; i < 4; i++)
+        {
+            harness.Play(Harness.Paused("Artist", "Title"));
+            await Task.Delay(SpotifyPoller.PollInterval * 3);
+            harness.Play(Harness.Playing("Artist", "Title"));
+            await Task.Delay(SpotifyPoller.PollInterval * 3);
+        }
+
+        Assert.Equal(1, playback.Skips);
+
+        // A different song that is also on disk is a separate decision, and gets its own ask.
+        harness.FileSystem.AddFile(@"C:\music\Artist - Other.mp3", new MockFileData("also here"));
+        harness.Play(Harness.Playing("Artist", "Other"));
+
+        await WaitFor(() => playback.Skips == 2, "the next recorded track to be asked about too");
+    }
+
+    /// <summary>
+    /// The check in <c>Consider</c> runs before the lookup, so a template built on <c>{album}</c>
+    /// renders a path nothing will ever be written to and the track looks new. Wired only there,
+    /// skipping would silently never fire for exactly the libraries organised well enough to want
+    /// it; this is the second checkpoint, once the lookup has landed.
+    /// </summary>
+    [Fact]
+    public async Task Session_WhenTheLookupRevealsTheFileIsAlreadyThere_AsksSpotifyToMoveOn()
+    {
+        var playback = new FakePlaybackControl();
+        var enricher = new FakeEnricher { Apply = track => track.Album = "Album" };
+
+        await using var harness = new Harness(
+            s =>
+            {
+                s.OutputTemplate = @"{album}\{artist} - {title}";
+                s.SkipAlreadyRecordedTracks = true;
+            },
+            enricher: enricher,
+            playback: playback);
+
+        harness.FileSystem.AddFile(@"C:\music\Album\Artist - Title.mp3", new MockFileData("already here"));
+
+        harness.Session.Start();
+        await ArmSkippingAsync(harness);
+
+        // It starts recording, which is the early check being wrong — the un-enriched name is
+        // "C:\music\Artist - Title.mp3" and nothing is there.
+        await RecordTrackAsync(harness, Harness.Playing("Artist", "Title"));
+
+        await WaitFor(() => playback.Skips == 1, "Spotify to be asked to move on once the album was known");
+    }
+
+    /// <summary>
+    /// A lookup outlives the track it belongs to — that is the point of starting it early. By the
+    /// time it comes back the user may be two songs on, and skipping then would skip a song
+    /// nobody has recorded.
+    /// </summary>
+    [Fact]
+    public async Task Session_DoesNotAskToMovePastATrackTheUserHasAlreadyLeft()
+    {
+        var playback = new FakePlaybackControl();
+        var gate = new TaskCompletionSource();
+        var enricher = new FakeEnricher { Gate = gate, Apply = track => track.Album = "Album" };
+
+        await using var harness = new Harness(
+            s =>
+            {
+                s.OutputTemplate = @"{album}\{artist} - {title}";
+                s.SkipAlreadyRecordedTracks = true;
+            },
+            enricher: enricher,
+            playback: playback);
+
+        harness.FileSystem.AddFile(@"C:\music\Album\Artist - Title.mp3", new MockFileData("already here"));
+
+        harness.Session.Start();
+        await ArmSkippingAsync(harness);
+
+        await RecordTrackAsync(harness, Harness.Playing("Artist", "Title"));
+
+        // The user moves on before the provider answers.
+        await RecordTrackAsync(harness, Harness.Playing("Artist", "Next"));
+
+        gate.SetResult();
+
+        await Task.Delay(SpotifyPoller.PollInterval * 5);
+
+        Assert.Equal(0, playback.Skips);
+        Assert.Equal("Next", harness.Session.CurrentTrack?.Title);
+    }
+
+    /// <summary>
+    /// A transport that will not take commands is a broken convenience, not a broken recorder:
+    /// detection has to carry on, and the next track still gets recorded.
+    /// </summary>
+    [Fact]
+    public async Task Session_KeepsRecordingWhenTheSkipItselfFails()
+    {
+        var playback = new FakePlaybackControl
+        {
+            Failure = new InvalidOperationException("The media session went away."),
+        };
+
+        await using var harness = new Harness(
+            s => s.SkipAlreadyRecordedTracks = true, playback: playback);
+
+        harness.FileSystem.AddFile(@"C:\music\Artist - Title.mp3", new MockFileData("already here"));
+
+        harness.Session.Start();
+        await ArmSkippingAsync(harness);
+
+        harness.Play(Harness.Playing("Artist", "Title"));
+
+        await WaitFor(() => playback.Skips == 1, "the skip to be attempted");
+        await WaitFor(
+            () => harness.Reports.Any(r => r.Message?.Contains("went away", StringComparison.Ordinal) == true),
+            "the reason to be reported");
+
+        await RecordTrackAsync(harness, Harness.Playing("Artist", "Next"));
+        harness.Play(Harness.Playing("Artist", "Third"));
+
+        await WaitFor(() => !harness.Saved.IsEmpty, "the next track to be recorded anyway");
+    }
+
+    /// <summary>
+    /// The terminating condition. Put a queue Offstream already has on repeat and every skip lands
+    /// on another track that is also on disk, so without a ceiling the session drives Spotify
+    /// round the queue forever at the speed of a media command rather than of a song. It stops,
+    /// says why, and starts again as soon as a recording actually reaches the library — which is
+    /// the only real evidence there is anything new left to record.
+    /// </summary>
+    [Fact]
+    public async Task Session_StopsAskingAfterAWholeQueueOfTracksItAlreadyHas()
+    {
+        const string GaveUp = "Stopped asking Spotify to move on";
+        const int Cap = 50;
+
+        var playback = new FakePlaybackControl();
+
+        await using var harness = new Harness(
+            s => s.SkipAlreadyRecordedTracks = true, playback: playback);
+
+        for (var i = 0; i < Cap + 5; i++)
+        {
+            harness.FileSystem.AddFile($@"C:\music\Artist - Track {i}.mp3", new MockFileData("already here"));
+        }
+
+        harness.Session.Start();
+        await ArmSkippingAsync(harness);
+
+        for (var i = 0; i < Cap + 5; i++)
+        {
+            var title = $"Track {i}";
+
+            harness.Play(Harness.Playing("Artist", title));
+
+            await WaitFor(
+                () => harness.Reports.Any(r => r.Track?.Contains(title, StringComparison.Ordinal) == true),
+                $"{title} to be considered");
+        }
+
+        Assert.Equal(Cap, playback.Skips);
+        Assert.Equal(1, harness.Reports.Count(r => r.Message?.Contains(GaveUp, StringComparison.Ordinal) == true));
+
+        // Two new tracks: the first records, the second ends it so it reaches the library.
+        await RecordTrackAsync(harness, Harness.Playing("Artist", "Something New"));
+        await RecordTrackAsync(harness, Harness.Playing("Artist", "Also New"));
+
+        await WaitFor(() => !harness.Saved.IsEmpty, "the new recording to be saved");
+
+        harness.Play(Harness.Playing("Artist", "Track 0"));
+
+        await WaitFor(
+            () => playback.Skips == Cap + 1, "skipping to resume now the queue has produced something new");
+    }
+
+    /// <summary>
+    /// Pressing record does not mean "start rearranging what is playing". The song already under
+    /// way is one the user chose and is part-way through; it was never going to be recorded whole,
+    /// and cutting it off is a worse answer than letting it finish.
+    /// </summary>
+    /// <remarks>
+    /// This is also the only defence against the media session's opening lie. Starting playback
+    /// from a stopped Spotify reports the <em>previous</em> track for a few hundred milliseconds
+    /// with the play state already true, so the first thing a session sees can be a song that is
+    /// not playing at all — and a skip fired on that lands on the song the user has just started.
+    /// </remarks>
+    [Fact]
+    public async Task Session_DoesNotSkipTheTrackThatWasAlreadyPlayingWhenRecordingStarted()
+    {
+        var playback = new FakePlaybackControl();
+
+        await using var harness = new Harness(
+            s => s.SkipAlreadyRecordedTracks = true, playback: playback);
+
+        harness.FileSystem.AddFile(@"C:\music\Artist - Title.mp3", new MockFileData("already here"));
+        harness.FileSystem.AddFile(@"C:\music\Artist - Next.mp3", new MockFileData("also here"));
+
+        harness.Session.Start();
+        harness.Play(Harness.Playing("Artist", "Title"));
+
+        await WaitFor(
+            () => harness.Reports.Any(
+                r => r.Track?.Contains("Title", StringComparison.Ordinal) == true
+                    && r.Message?.Contains("Kept the file", StringComparison.Ordinal) == true),
+            "the track already playing to be declined");
+
+        Assert.Equal(0, playback.Skips);
+
+        // The next one is fair game: it began under Offstream's watch.
+        harness.Play(Harness.Playing("Artist", "Next"));
+
+        await WaitFor(() => playback.Skips == 1, "the track that started afterwards to be skipped");
     }
 }

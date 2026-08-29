@@ -25,7 +25,7 @@ namespace Offstream.Core.Spotify.Smtc;
 /// registers a media session whose id contains "Spotify".
 /// </para>
 /// </remarks>
-public sealed class WindowsSmtcSessions : ISmtcSessions
+public sealed class WindowsSmtcSessions : ISmtcSessions, IPlaybackControl
 {
     private const string SpotifyAppId = "Spotify";
 
@@ -56,6 +56,27 @@ public sealed class WindowsSmtcSessions : ISmtcSessions
             properties.AlbumArtist,
             properties.TrackNumber,
             properties.AlbumTrackCount);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// <b>Asking first is not belt-and-braces.</b> <c>TrySkipNextAsync</c> returns false for a
+    /// command the session will not take, but Spotify advertises the control as disabled while an
+    /// advertisement is playing, and that is the one case where sending it anyway would be a
+    /// behaviour change rather than a no-op. Reading <c>IsNextEnabled</c> keeps the decision on
+    /// Windows' side, where this class likes to leave it.
+    /// </remarks>
+    public async Task<bool> TrySkipNextAsync(CancellationToken cancellationToken = default)
+    {
+        var manager = _manager ??= await GlobalSystemMediaTransportControlsSessionManager
+            .RequestAsync()
+            .AsTask(cancellationToken);
+
+        var session = FindSpotify(manager);
+
+        if (session?.GetPlaybackInfo()?.Controls.IsNextEnabled != true) return false;
+
+        return await session.TrySkipNextAsync().AsTask(cancellationToken);
     }
 
     private static GlobalSystemMediaTransportControlsSession? FindSpotify(

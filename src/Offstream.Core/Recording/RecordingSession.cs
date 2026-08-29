@@ -102,12 +102,26 @@ public sealed class RecordingSession : IAsyncDisposable
     private readonly RecordingPolicy _policy;
     private readonly IFileSystem _fileSystem;
     private readonly ITrackEnricher? _enricher;
+    private readonly IPlaybackControl? _playback;
     private readonly EncodeBacklog _backlog;
     private readonly IProgress<RecordingProgress>? _progress;
     private readonly TimeProvider _time;
 
     private readonly CancellationTokenSource _stopping = new();
     private readonly Lock _gate = new();
+
+    /// <summary>
+    /// How many recorded tracks in a row to skip past before leaving Spotify alone.
+    /// </summary>
+    /// <remarks>
+    /// Not a comfort limit — skipping fifty tracks the user already has is the feature working.
+    /// It is a terminating condition. Put a fully-recorded playlist on repeat and every skip
+    /// lands on another track that is also on disk, so without a ceiling Offstream drives Spotify
+    /// round the queue forever, at the speed of a media command rather than of a song. The
+    /// counter resets whenever a recording actually reaches the library, which is the only real
+    /// evidence that there is something new left in the queue.
+    /// </remarks>
+    private const int MaxConsecutiveSkips = 50;
 
     /// <summary>Maps a queued encode back to the recording it came from, for the rename.</summary>
     private readonly Dictionary<string, TrackRecording> _pending = new(StringComparer.OrdinalIgnoreCase);
@@ -117,6 +131,27 @@ public sealed class RecordingSession : IAsyncDisposable
     private Task<TrackRecording>? _recording;
     private ITimer? _recordingTimer;
     private bool _stopAfterCurrentTrack;
+
+    /// <summary>The track a skip has already been asked for, held until a different one turns up.</summary>
+    private Track? _skipRequested;
+
+    /// <summary>
+    /// Whether this session has admitted a track yet. The first one is never skipped.
+    /// </summary>
+    /// <remarks>
+    /// Never reset, because it never needs to be: <see cref="StopAsync"/> disposes the poller, so
+    /// a session runs once and the next press of record builds a new one. That is also what makes
+    /// the rule mean what it says — stopping and starting again is the user saying "begin here",
+    /// and whatever is playing at that moment is theirs to keep.
+    /// </remarks>
+    private bool _admittedATrack;
+
+    /// <summary>Skips asked for since the last recording actually landed in the library.</summary>
+    private int _consecutiveSkips;
+
+    /// <summary>Whether the cap has been reached and reported, so it is only said once.</summary>
+    private bool _skippingGaveUp;
+
     private bool _disposed;
     private int _captureLost;
 
@@ -135,6 +170,11 @@ public sealed class RecordingSession : IAsyncDisposable
     /// </param>
     /// <param name="progress">Where stage changes are reported.</param>
     /// <param name="timeProvider">Injected for the recording timer and for dated folder names.</param>
+    /// <param name="playback">
+    /// Drives Spotify's transport, for <see cref="RecordingSettings.SkipAlreadyRecordedTracks"/>.
+    /// Null means the session can only decline to record a track it already has — which is what it
+    /// did before this existed, and what it still does when the setting is off.
+    /// </param>
     public RecordingSession(
         IAudioCaptureSource capture,
         SpotifyPoller poller,
@@ -143,7 +183,8 @@ public sealed class RecordingSession : IAsyncDisposable
         IFileSystem fileSystem,
         ITrackEnricher? enricher = null,
         IProgress<RecordingProgress>? progress = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IPlaybackControl? playback = null)
     {
         ArgumentNullException.ThrowIfNull(capture);
         ArgumentNullException.ThrowIfNull(poller);
@@ -157,6 +198,7 @@ public sealed class RecordingSession : IAsyncDisposable
         _policy = new RecordingPolicy(settings);
         _fileSystem = fileSystem;
         _enricher = enricher;
+        _playback = playback;
         _progress = progress;
         _time = timeProvider ?? TimeProvider.System;
 
@@ -501,6 +543,12 @@ public sealed class RecordingSession : IAsyncDisposable
     /// </remarks>
     private void Consider(Track track)
     {
+        // Whatever was asked for last is no longer in flight once something else is playing.
+        lock (_gate)
+        {
+            if (_skipRequested is not null && !_skipRequested.Equals(track)) _skipRequested = null;
+        }
+
         if (!_policy.IsTypeAllowed(track))
         {
             Report(RecordingStage.WaitingForTrack, track, message: DescribeSkipped(track));
@@ -517,6 +565,20 @@ public sealed class RecordingSession : IAsyncDisposable
             return;
         }
 
+        // Skipping arms on the second track this session admits, never the first.
+        //
+        // Pressing record does not mean "start rearranging what is playing". The song already
+        // under way is one the user chose and is part-way through; it was never going to be
+        // recorded whole anyway, and cutting it off is a worse answer than letting it finish.
+        //
+        // It is also the only defence against the media session's opening lie. Starting playback
+        // from a stopped Spotify reports the *previous* track for a few hundred milliseconds,
+        // with the play state already true — so the first thing a session sees can be a song that
+        // is not playing at all. Skipping on that fires the command at the song the user has just
+        // started, which is the one thing this feature must never do.
+        var maySkip = _admittedATrack;
+        _admittedATrack = true;
+
         var paths = PathsFor(track);
 
         // A shortcut, not the decision: it can only see what the title or media session gave us,
@@ -529,10 +591,12 @@ public sealed class RecordingSession : IAsyncDisposable
                 track,
                 message: $"Kept the file already on disk and did not record {track}.");
 
+            if (maySkip) RequestSkip(track);
+
             return;
         }
 
-        StartRecorder(track, paths);
+        StartRecorder(track, paths, maySkip);
     }
 
     /// <summary>
@@ -558,7 +622,7 @@ public sealed class RecordingSession : IAsyncDisposable
     /// session's own token so a teardown still ends it, and handed over with the task.
     /// </para>
     /// </remarks>
-    private void StartRecorder(Track detected, OutputPaths paths)
+    private void StartRecorder(Track detected, OutputPaths paths, bool maySkip = false)
     {
         if (_buffer is null) return;
 
@@ -587,7 +651,148 @@ public sealed class RecordingSession : IAsyncDisposable
             _recording = Task.Run(() => recorder.RunAsync(_stopping.Token), CancellationToken.None);
         }
 
+        SkipWhenEnrichmentSaysItIsRecorded(recorder, paths, enrichment, maySkip);
+
         Report(RecordingStage.Recording, track, message: $"Recording {track}.");
+    }
+
+    /// <summary>
+    /// Asks Spotify to move on if the lookup turns out to have named a file already on disk.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The early check in <see cref="Consider"/> is not enough on its own.</b> Before enrichment
+    /// lands, a template using <c>{album}</c>, <c>{year}</c> or <c>{track}</c> renders a path
+    /// nothing will ever be written to, so the check answers about the wrong file and always says
+    /// no. Skipping wired only there would silently never fire for exactly the libraries organised
+    /// well enough to want it. <see cref="TrackRecorder.AlreadyOnDisk"/> already reaches the same
+    /// conclusion a moment later and discards the recording; this is what makes Spotify move on
+    /// instead of playing a song to a recorder that is going to throw it away.
+    /// </para>
+    /// <para>
+    /// <b>Gated on the recorder still being current, and that is the whole correctness argument.</b>
+    /// A lookup outlives the track it belongs to — that is the point of starting it early — so by
+    /// the time it comes back the user may be two songs further on, and a skip fired then would
+    /// skip a song nobody has recorded.
+    /// </para>
+    /// </remarks>
+    private void SkipWhenEnrichmentSaysItIsRecorded(
+        TrackRecorder recorder, OutputPaths paths, Task<TrackEnrichment>? enrichment, bool maySkip)
+    {
+        // Carried from Consider rather than read here: by the time a lookup lands the session has
+        // long since admitted its first track, so a flag checked at this point would have
+        // forgotten that this recording was that one.
+        if (!maySkip || enrichment is null || _playback is null) return;
+        if (!_settings.HasSkipPastRecordedEnabled) return;
+
+        _ = SkipIfRecordedAsync();
+
+        async Task SkipIfRecordedAsync()
+        {
+            try
+            {
+                await enrichment;
+            }
+#pragma warning disable CA1031 // A lookup that failed has told us nothing new about the file name.
+            catch (Exception)
+#pragma warning restore CA1031
+            {
+                return;
+            }
+
+            lock (_gate)
+            {
+                if (!ReferenceEquals(_recorder, recorder)) return;
+            }
+
+            if (AlreadyRecorded(paths, recorder.Track)) RequestSkip(recorder.Track);
+        }
+    }
+
+    /// <summary>
+    /// Tells Spotify to move past a track that is already in the library.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Once per track, and the guard is held rather than compared after the fact.</b> Spotify
+    /// goes on reporting the outgoing track for a moment after it accepts the command, so a
+    /// post-hoc "did I just skip this?" test cannot tell a repeat from a skip that has not landed
+    /// yet — and would fire a second time, costing the user a song they had not recorded. Marking
+    /// the track before the call and clearing it only when a different one is considered covers
+    /// both.
+    /// </para>
+    /// <para>
+    /// <b>And never on the poll loop.</b> <see cref="Consider"/> runs there, and this is a
+    /// cross-process call; a slow or throwing transport must not hold up track detection or stop
+    /// it. A refusal is ordinary — Spotify declines while an advertisement is playing and at the
+    /// end of a queue — so only an accepted command is worth a line in the log.
+    /// </para>
+    /// </remarks>
+    private void RequestSkip(Track track)
+    {
+        if (_playback is null || !_settings.HasSkipPastRecordedEnabled) return;
+
+        bool giveUp;
+
+        lock (_gate)
+        {
+            if (_skipRequested is not null && _skipRequested.Equals(track)) return;
+            if (_skippingGaveUp) return;
+
+            giveUp = _consecutiveSkips >= MaxConsecutiveSkips;
+
+            if (giveUp)
+            {
+                _skippingGaveUp = true;
+            }
+            else
+            {
+                _skipRequested = new Track(track);
+                _consecutiveSkips++;
+            }
+        }
+
+        if (giveUp)
+        {
+            // Said once, and said plainly: going quiet without a reason is indistinguishable from
+            // the setting having broken.
+            Report(
+                RecordingStage.WaitingForTrack,
+                track,
+                message: $"Stopped asking Spotify to move on after {MaxConsecutiveSkips} tracks in a row that "
+                    + "were already in the library. Nothing new has been recorded since, so this queue looks "
+                    + "like one Offstream already has.");
+
+            return;
+        }
+
+        _ = Task.Run(() => SkipAsync(track), CancellationToken.None);
+    }
+
+    private async Task SkipAsync(Track track)
+    {
+        try
+        {
+            if (!await _playback!.TrySkipNextAsync(_stopping.Token)) return;
+
+            Report(
+                RecordingStage.WaitingForTrack,
+                track,
+                message: $"Asked Spotify to move past {track}, which is already in the library.");
+        }
+        catch (OperationCanceledException)
+        {
+            // The session is stopping. Nothing is listening for this any more.
+        }
+#pragma warning disable CA1031 // Detection has to survive a transport that will not take commands.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            Report(
+                RecordingStage.WaitingForTrack,
+                track,
+                message: $"Could not ask Spotify to move past {track}: {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -855,6 +1060,17 @@ public sealed class RecordingSession : IAsyncDisposable
                     track);
 
                 Report(RecordingStage.Tagging, track);
+            }
+
+            // A file in the library is the one thing that proves the queue still holds something
+            // Offstream does not have, so it — not a recording merely starting — is what puts the
+            // skip budget back. A recording that starts and is then discarded as already-recorded
+            // must not, or a template that only matches after enrichment would reset the cap on
+            // every track and never reach it.
+            lock (_gate)
+            {
+                _consecutiveSkips = 0;
+                _skippingGaveUp = false;
             }
 
             TrackSaved?.Invoke(this, new TrackSavedEventArgs(track, destination, recording.Duration));

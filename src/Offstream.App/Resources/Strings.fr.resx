@@ -325,6 +325,12 @@
   <data name="AdvancedExistingDuplicate" xml:space="preserve">
     <value>Enregistrer le nouveau à côté</value>
   </data>
+  <data name="AdvancedSkipAlreadyRecorded" xml:space="preserve">
+    <value>Demander aussi à Spotify de passer au suivant</value>
+  </data>
+  <data name="AdvancedSkipAlreadyRecordedHint" xml:space="preserve">
+    <value>Uniquement lorsque le réglage ci-dessus conserve le fichier sur le disque.</value>
+  </data>
   <data name="AdvancedDetectionSection" xml:space="preserve">
     <value>Détection</value>
   </data>
