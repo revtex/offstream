@@ -49,3 +49,8 @@ desktop.ini
 # Byte-code from the icon generator in tools/
 __pycache__/
 *.pyc
+
+# Claude Code: the skills under .claude/ are shared and tracked; the permission
+# allow-list and worktree scratch are per-machine and are not.
+.claude/settings.local.json
+.claude/worktrees/
