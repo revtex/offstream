@@ -220,7 +220,7 @@ original assumptions and records what replaced it; then
 <summary><b>Status — phases 0–7 complete, phase 8 (packaging) next</b></summary>
 
 ```powershell
-.\build.ps1 -Clean -Test                 # 1,089 green; add -IncludeDesktop for the FlaUI suite
+.\build.ps1 -Clean -Test                 # 1,128 green; add -IncludeDesktop for the FlaUI suite
 dotnet run --project src/Offstream.App
 ```
 
@@ -384,7 +384,7 @@ fix rather than a compiler error.
 .\build.ps1 -Configuration Release
 .\build.ps1 -Test                    # build, then run the whole suite
 .\build.ps1 -Test -Filter FileNameTemplate
-.\build.ps1 -Clean -Test             # rebuild from scratch, then test
+.\build.ps1 -Clean -Test             # delete every bin\ and obj\, rebuild, then test
 .\build.ps1 -Format                  # apply .editorconfig
 .\build.ps1 -VerifyFormat            # what CI enforces
 .\build.ps1 -Publish                 # self-contained win-x64 publish
