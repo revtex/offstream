@@ -126,10 +126,19 @@
                 <ContentControl Content="{x:Static res:Strings.AdvancedNamingSection}" Style="{StaticResource OffstreamGroupHeaderStyle}" />
 
                 <Grid>
+                    <!--
+                        The right-hand column is Auto, not a second star, and that is load-bearing
+                        now that something sits beside the existing-file dropdown. The counter
+                        field there is hidden for every template that does not use {count} — but a
+                        star column reserves its half of the card whether the thing in it is
+                        visible or not, so the left column had 450 units to fit a dropdown, a
+                        switch and its label into, and the label was cut off mid-word. Auto gives a
+                        collapsed field no width at all and a visible one exactly what it asks for.
+                    -->
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="28" />
-                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -236,20 +245,70 @@
 
                     <StackPanel Grid.Row="1" Grid.Column="0" Style="{StaticResource Field}">
                         <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedExistingLabel}" />
-                        <ComboBox AutomationProperties.AutomationId="AdvancedExistingFilePolicy"
-                                  AutomationProperties.Name="{x:Static res:Strings.AdvancedExistingLabel}"
-                                  DisplayMemberPath="Name"
-                                  ItemsSource="{Binding Policies, Mode=OneTime}"
-                                  SelectedValue="{Binding ExistingFilePolicy, Mode=TwoWay}"
-                                  SelectedValuePath="Value" />
+
+                        <!--
+                            The switch sits beside the dropdown rather than under it, for two
+                            reasons. It qualifies that one choice — it only does anything while
+                            the policy is the one that keeps the file on disk — so it belongs on
+                            the same line rather than reading as the next setting down. And this
+                            card has no vertical room to give: the page has to fit the window's
+                            minimum height without scrolling, and a second row here pushed the
+                            bottom of the one below off the end of the window.
+
+                            Disabled rather than hidden under the other two policies, as with the
+                            advertisements switch — a setting that vanishes looks like one that
+                            never existed.
+                        -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <ComboBox Grid.Column="0"
+                                      Width="240"
+                                      AutomationProperties.AutomationId="AdvancedExistingFilePolicy"
+                                      AutomationProperties.Name="{x:Static res:Strings.AdvancedExistingLabel}"
+                                      DisplayMemberPath="Name"
+                                      ItemsSource="{Binding Policies, Mode=OneTime}"
+                                      SelectedValue="{Binding ExistingFilePolicy, Mode=TwoWay}"
+                                      SelectedValuePath="Value" />
+
+                            <StackPanel Grid.Column="1"
+                                        Margin="16,0,0,0"
+                                        VerticalAlignment="Center"
+                                        IsEnabled="{Binding CanSkipAlreadyRecorded, Mode=OneWay}"
+                                        Orientation="Horizontal">
+                                <ui:ToggleSwitch VerticalAlignment="Center"
+                                                 AutomationProperties.AutomationId="AdvancedSkipAlreadyRecorded"
+                                                 AutomationProperties.Name="{x:Static res:Strings.AdvancedSkipAlreadyRecorded}"
+                                                 IsChecked="{Binding SkipAlreadyRecordedTracks, Mode=TwoWay}" />
+
+                                <!--
+                                    Ellipsised with a tooltip, like every other switch label: the
+                                    room left beside a dropdown is whatever the window has spare,
+                                    and wrapping here would put the second row back.
+                                -->
+                                <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock Style="{StaticResource SwitchRowLabel}" Text="{x:Static res:Strings.AdvancedSkipAlreadyRecorded}" />
+                                    <TextBlock Style="{StaticResource SwitchRowHint}" Text="{x:Static res:Strings.AdvancedSkipAlreadyRecordedHint}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
                     </StackPanel>
 
                     <!--
                         Only shown when the template actually uses {count}. A "next number" field
                         beside a template that never numbers anything is a setting with no effect.
+
+                        Its width is pinned because the column above is Auto: the validation
+                        message wraps, and a wrapping TextBlock asks an Auto column for its whole
+                        unwrapped length, which would take back the room the switch beside the
+                        dropdown needs.
                     -->
                     <StackPanel Grid.Row="1"
                                 Grid.Column="2"
+                                Width="260"
                                 Style="{StaticResource Field}"
                                 Visibility="{Binding UsesCounter, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
                         <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.AdvancedCounterLabel}" />

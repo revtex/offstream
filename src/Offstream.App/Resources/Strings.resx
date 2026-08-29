@@ -417,6 +417,14 @@
     <value>Save the new one alongside it</value>
     <comment>Existing-file policy: keep both, numbering the newcomer.</comment>
   </data>
+  <data name="AdvancedSkipAlreadyRecorded" xml:space="preserve">
+    <value>Also tell Spotify to move on</value>
+    <comment>Checkbox beside the existing-file policy: send a skip-next command when the track playing is already in the library.</comment>
+  </data>
+  <data name="AdvancedSkipAlreadyRecordedHint" xml:space="preserve">
+    <value>Only while the setting above keeps the file on disk.</value>
+    <comment>Explains why the skip checkbox is greyed out under the Overwrite and Duplicate policies.</comment>
+  </data>
   <data name="AdvancedDetectionSection" xml:space="preserve">
     <value>Detection</value>
     <comment>Advanced page: heading over what counts as a track worth recording. The predecessor called these "spy options"; plan §0 renames them.</comment>

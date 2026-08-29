@@ -64,7 +64,11 @@ public sealed partial class AdvancedViewModel : ObservableValidator
     private string _fileCounter = "1";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanSkipAlreadyRecorded))]
     private ExistingFilePolicy _existingFilePolicy;
+
+    [ObservableProperty]
+    private bool _skipAlreadyRecordedTracks;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TemplatePreview))]
@@ -141,6 +145,16 @@ public sealed partial class AdvancedViewModel : ObservableValidator
 
     /// <summary>What to do when the destination file already exists.</summary>
     public IReadOnlyList<ChoiceOption<ExistingFilePolicy>> Policies { get; }
+
+    /// <summary>
+    /// Whether skipping past a recorded track can do anything under the chosen policy.
+    /// </summary>
+    /// <remarks>
+    /// Overwrite and Duplicate both write the file again, so there is nothing to skip past. The
+    /// checkbox greys out rather than disappearing, so the setting is still findable — and the
+    /// core reads the two together anyway, since a hand-edited settings file can disagree.
+    /// </remarks>
+    public bool CanSkipAlreadyRecorded => ExistingFilePolicy == ExistingFilePolicy.Skip;
 
     /// <summary>UI languages, plus following Windows.</summary>
     public IReadOnlyList<ChoiceOption<string?>> Languages { get; }
@@ -223,6 +237,7 @@ public sealed partial class AdvancedViewModel : ObservableValidator
             Template = settings.Output.Template;
             FileCounter = settings.Output.CurrentFileCounter.ToString(CultureInfo.CurrentCulture);
             ExistingFilePolicy = settings.Output.ExistingFilePolicy;
+            SkipAlreadyRecordedTracks = settings.Output.SkipAlreadyRecordedTracks;
             MuteAds = settings.Recording.MuteAds;
             RecordEverything = settings.Recording.RecordEverything;
             RecordAds = settings.Recording.RecordAds;
@@ -318,6 +333,8 @@ public sealed partial class AdvancedViewModel : ObservableValidator
 
     partial void OnExistingFilePolicyChanged(ExistingFilePolicy value) => Persist();
 
+    partial void OnSkipAlreadyRecordedTracksChanged(bool value) => Persist();
+
     partial void OnIsTimerEnabledChanged(bool value) => Persist();
 
     partial void OnTimerChanged(string value) => Persist();
@@ -355,6 +372,7 @@ public sealed partial class AdvancedViewModel : ObservableValidator
             {
                 Template = Template.Trim(),
                 ExistingFilePolicy = ExistingFilePolicy,
+                SkipAlreadyRecordedTracks = SkipAlreadyRecordedTracks,
                 CurrentFileCounter = int.Parse(FileCounter, CultureInfo.CurrentCulture),
             },
             Recording = settings.Recording with

@@ -12,6 +12,28 @@ phase plan these entries follow.
 
 ## [Unreleased]
 
+### Added
+
+- **Offstream can tell Spotify to move on from a track it already has.** Keeping the file on disk
+  was only ever half the answer: Offstream declined to record the song and Spotify played it to
+  nobody for three minutes, so working through a playlist that is mostly recorded meant sitting
+  through the parts that already are. "Also tell Spotify to move on", beside the existing-file
+  setting on the Advanced page, sends a skip through the Windows media transport controls — the
+  same command as the keyboard's next-track key, so it needs no account, no scope and no Premium
+  subscription, and it reaches Spotify while it is minimised to the tray. Off by default, greyed
+  out under the two policies that record the file again, and asked exactly once per track, because
+  Spotify goes on reporting the outgoing song for a moment after it takes the command and a second
+  skip would land on a song nobody had recorded. It is asked twice per track, though: once
+  immediately, and again when the metadata lookup lands, since a template built on `{album}`,
+  `{year}` or `{track}` names a different file before the lookup and would otherwise never match
+  anything already in the library. The song already under way when recording starts is never
+  skipped — pressing record does not mean "start rearranging what is playing", and the media
+  session reports the *previous* track for a few hundred milliseconds when playback begins from a
+  stopped Spotify, so acting on the first thing a session sees would fire the command at the song
+  the user had just started. It also stops after fifty tracks in a row and says so: a queue
+  Offstream already has, left on repeat, has no other reason to ever stop skipping. Recording
+  something new puts the budget back.
+
 ### Fixed
 
 - **A recording that is thrown away no longer keeps looking its track up.** Resume Spotify on a

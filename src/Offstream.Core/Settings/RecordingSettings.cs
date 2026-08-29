@@ -34,6 +34,29 @@ public sealed class RecordingSettings
     /// <summary>What to do when the output file already exists.</summary>
     public Recording.ExistingFilePolicy ExistingFilePolicy { get; set; }
 
+    /// <summary>
+    /// Tell Spotify to move on when the track playing is one already in the library.
+    /// </summary>
+    /// <remarks>
+    /// Only meaningful alongside <see cref="Recording.ExistingFilePolicy.Skip"/>: under the other
+    /// two policies the file gets written again, so there is nothing to skip past. The setting is
+    /// read together with the policy rather than merely hidden in the UI, because a hand-edited
+    /// <c>settings.json</c> can set this true under any policy.
+    /// </remarks>
+    public bool SkipAlreadyRecordedTracks { get; set; }
+
+    /// <summary>
+    /// Whether both halves of the skip-past-recorded setting are actually in force.
+    /// </summary>
+    /// <remarks>
+    /// Named to be hard to confuse with <see cref="SkipAlreadyRecordedTracks"/>, which is the
+    /// stored half on its own: a pair differing by one letter is a pair that eventually gets
+    /// mistyped, and the mistake would silently send skip commands under a policy that records
+    /// the file again anyway.
+    /// </remarks>
+    public bool HasSkipPastRecordedEnabled =>
+        SkipAlreadyRecordedTracks && ExistingFilePolicy == Recording.ExistingFilePolicy.Skip;
+
     /// <summary>Running counter used by the <c>{count}</c> token and the track-number tag.</summary>
     public int InternalOrderNumber { get; set; } = 1;
 
