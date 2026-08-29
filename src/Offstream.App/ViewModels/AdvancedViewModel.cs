@@ -19,6 +19,20 @@ namespace Offstream.App.ViewModels;
 /// <param name="Description">What it renders to.</param>
 public sealed record TemplateToken(string Token, string Description);
 
+/// <summary>One of the ready-made layouts offered under the template box.</summary>
+/// <param name="Name">The button's label — the layout, not the tokens that spell it.</param>
+/// <param name="Template">What clicking the button writes into the template box.</param>
+/// <param name="Example">
+/// The path this layout produces, rendered by the recorder's own naming code and shown as the
+/// button's tooltip. A preset is only picked for its outcome, and the label has room for a
+/// name but not for a path.
+/// </param>
+/// <param name="AutomationId">
+/// Stable per layout rather than per position, so a UI test names the preset it means and
+/// re-ordering the list does not silently re-point it at a different one.
+/// </param>
+public sealed record TemplatePreset(string Name, string Template, string Example, string AutomationId);
+
 /// <summary>
 /// Backs the Advanced page: file naming, the recording timer, detection and tag options, and
 /// the two application settings that have nowhere else to live.
@@ -45,6 +59,9 @@ public sealed partial class AdvancedViewModel : ObservableValidator
 
     private static readonly CompositeFormat CounterInvalidFormat =
         CompositeFormat.Parse(Strings.AdvancedCounterInvalid);
+
+    private static readonly CompositeFormat PresetExampleFormat =
+        CompositeFormat.Parse(Strings.AdvancedTemplatePresetExample);
 
     private readonly SettingsDocument _document;
     private readonly IFileSystem _fileSystem;
@@ -176,34 +193,28 @@ public sealed partial class AdvancedViewModel : ObservableValidator
     /// preview cannot drift from the recorder — including the 260-character budgeting, which is
     /// the part that surprises people and the part a hand-rolled preview would omit.
     /// </remarks>
-    public string TemplatePreview
-    {
-        get
-        {
-            var settings = _document.Current.ToRecordingSettings();
-            settings.OutputTemplate = Template;
-            settings.InternalOrderNumber = int.TryParse(
-                FileCounter, NumberStyles.Integer, CultureInfo.CurrentCulture, out var counter)
-                ? counter
-                : 1;
+    public string TemplatePreview => Render(Template, withOutputFolder: true);
 
-            try
-            {
-                var (folders, fileName) = OutputPaths.BuildFromTemplate(SampleTrack(), settings, DateTime.Now);
-                var extension = EncodingProfiles.For(settings.MediaFormat).Extension;
-
-                return _fileSystem.Path.Combine(
-                    [settings.OutputPath ?? string.Empty, .. folders, $"{fileName}.{extension}"]);
-            }
-            catch (Exception ex) when (ex is UnrecognizedTrackException or InvalidOperationException
-                                           or ArgumentException)
-            {
-                // A template can be well-formed and still render to nothing usable. The field's
-                // own validation says why; the preview just declines to invent a file name.
-                return Strings.AdvancedPreviewUnavailable;
-            }
-        }
-    }
+    /// <summary>The ready-made layouts offered as buttons under the template box.</summary>
+    /// <remarks>
+    /// <para>
+    /// Data rather than a command and a button apiece, which is what the first two were: a new
+    /// layout should cost a row here, not a command, a resource key, a button and a tooltip.
+    /// </para>
+    /// <para>
+    /// Rebuilt on every read, because each example carries the output format's extension and the
+    /// Settings page can change that underneath this one. Five short-lived records beats tracking
+    /// which of them went stale.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<TemplatePreset> Presets =>
+    [
+        Preset("Default", Strings.AdvancedTemplateDefault, FileNameTemplate.Default),
+        Preset("Grouped", Strings.AdvancedTemplateGrouped, FileNameTemplate.Grouped),
+        Preset("Numbered", Strings.AdvancedTemplateNumbered, @"{artist}\{album} ({year})\{track:00} {title}"),
+        Preset("ByYear", Strings.AdvancedTemplateByYear, @"{artist}\({year}) {album}\{track:00} {title}"),
+        Preset("ByDay", Strings.AdvancedTemplateByDay, @"{date:yyyy-MM-dd}\{artist} - {title}"),
+    ];
 
     /// <summary>Which ffmpeg the current path resolves to, or that it resolves to none.</summary>
     public string FfmpegStatus
@@ -308,13 +319,69 @@ public sealed partial class AdvancedViewModel : ObservableValidator
         Playing = true,
     };
 
-    /// <summary>Restores the template Offstream ships with.</summary>
+    /// <summary>Writes a preset's layout into the template box.</summary>
+    /// <remarks>
+    /// Null-tolerant because the parameter arrives from a data template: a button whose item is
+    /// gone mid-rebuild would otherwise take the page down for a click nobody meant.
+    /// </remarks>
     [RelayCommand]
-    private void ResetTemplate() => Template = FileNameTemplate.Default;
+    private void UsePreset(TemplatePreset? preset)
+    {
+        if (preset is not null) Template = preset.Template;
+    }
 
-    /// <summary>Offers the grouped template, which is the other layout people actually want.</summary>
-    [RelayCommand]
-    private void UseGroupedTemplate() => Template = FileNameTemplate.Grouped;
+    private TemplatePreset Preset(string key, string name, string template) =>
+        new(
+            name,
+            template,
+            string.Format(
+                CultureInfo.CurrentCulture,
+                PresetExampleFormat,
+                Render(template, withOutputFolder: false)),
+            $"AdvancedTemplatePreset{key}");
+
+    /// <summary>
+    /// Renders a template against the sample track, through the recorder's own naming code.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="OutputPaths.BuildFromTemplate"/> rather than a preview-only renderer, so what
+    /// is shown cannot drift from what is written — including the 260-character budgeting, which
+    /// is the part that surprises people and the part a hand-rolled preview would omit.
+    /// </para>
+    /// <para>
+    /// The output folder is dropped for a preset's example and kept for the live preview. The
+    /// preview answers "where does the next recording go", which needs the root; a preset answers
+    /// "what shape are the names", where the root is the same for all five and only costs the
+    /// tooltip the width its answer needs. It is still passed to the renderer either way, so the
+    /// length budgeting sees the real path.
+    /// </para>
+    /// </remarks>
+    private string Render(string template, bool withOutputFolder)
+    {
+        var settings = _document.Current.ToRecordingSettings();
+        settings.OutputTemplate = template;
+        settings.InternalOrderNumber = int.TryParse(
+            FileCounter, NumberStyles.Integer, CultureInfo.CurrentCulture, out var counter)
+            ? counter
+            : 1;
+
+        try
+        {
+            var (folders, fileName) = OutputPaths.BuildFromTemplate(SampleTrack(), settings, DateTime.Now);
+            var extension = EncodingProfiles.For(settings.MediaFormat).Extension;
+            string[] root = withOutputFolder ? [settings.OutputPath ?? string.Empty] : [];
+
+            return _fileSystem.Path.Combine([.. root, .. folders, $"{fileName}.{extension}"]);
+        }
+        catch (Exception ex) when (ex is UnrecognizedTrackException or InvalidOperationException
+                                       or ArgumentException)
+        {
+            // A template can be well-formed and still render to nothing usable. The field's own
+            // validation says why; the preview just declines to invent a file name.
+            return Strings.AdvancedPreviewUnavailable;
+        }
+    }
 
     partial void OnTemplateChanged(string value) => Persist();
 
@@ -373,7 +440,13 @@ public sealed partial class AdvancedViewModel : ObservableValidator
     }
 
     /// <summary>The preview quotes the output folder, which the Settings page owns.</summary>
-    private void OnDocumentChanged(object? sender, EventArgs e) => OnPropertyChanged(nameof(TemplatePreview));
+    private void OnDocumentChanged(object? sender, EventArgs e)
+    {
+        OnPropertyChanged(nameof(TemplatePreview));
+
+        // The presets quote it too: their examples end in the output format's extension.
+        OnPropertyChanged(nameof(Presets));
+    }
 
     private static string? Trimmed(string value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

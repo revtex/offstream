@@ -150,6 +150,9 @@ and sorts where you expect it to.
 
 The rest of the page, briefly:
 
+- **Name recordings** — the filename template, with a live preview of the next file. Five presets
+  sit under it — artist and title, a folder per album, numbered tracks, albums by year, a folder
+  per day — and each one's tooltip shows the names it would produce before you pick it.
 - **Record** — how much of what Spotify plays is worth keeping. *Recognisable tracks only* is the
   default: Offstream saves what Spotify reports as an artist and a title and discards the rest.
   Widen it to *everything except advertisements* to keep podcasts too, or to *everything,

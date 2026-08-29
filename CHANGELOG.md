@@ -84,6 +84,17 @@ phase plan these entries follow.
   the user had just started. It also stops after fifty tracks in a row and says so: a queue
   Offstream already has, left on repeat, has no other reason to ever stop skipping. Recording
   something new puts the budget back.
+- **The filename presets say they are presets, and there are five of them.** Two unlabelled buttons
+  under the template box read as actions on what is in it — reset, apply — rather than as layouts
+  to start from, so they now sit behind a **Presets** caption. Alongside *Artist and title* and
+  *A folder per album* are **Numbered tracks**, which puts the track number in front of each title
+  so players and Explorer keep album order; **Albums by year**, which leads the album folder with
+  the year so an artist's records sort chronologically; and **A folder per day**, which groups by
+  recording date rather than by album. Each button's tooltip is the path its layout produces —
+  *Names files as `Artist name\(2026) Album name\04 Track title.mp3`* — rendered by the recorder's
+  own naming code rather than written out by hand, so an example cannot promise a name the recorder
+  would not write. A preset is only ever picked for its outcome, and the label has room for a name
+  but not for a path.
 
 ### Fixed
 

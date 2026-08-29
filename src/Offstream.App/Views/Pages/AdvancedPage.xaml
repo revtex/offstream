@@ -200,15 +200,53 @@
                         </DockPanel>
                     </Border>
 
-                    <StackPanel Margin="0,8,0,0" Orientation="Horizontal">
-                        <ui:Button AutomationProperties.AutomationId="AdvancedTemplateDefaultButton"
-                                   Command="{Binding ResetTemplateCommand}"
-                                   Content="{x:Static res:Strings.AdvancedTemplateDefault}" />
-                        <ui:Button Margin="8,0,0,0"
-                                   AutomationProperties.AutomationId="AdvancedTemplateGroupedButton"
-                                   Command="{Binding UseGroupedTemplateCommand}"
-                                   Content="{x:Static res:Strings.AdvancedTemplateGrouped}" />
-                    </StackPanel>
+                    <!--
+                        A caption, because two unlabelled buttons under a text box read as
+                        actions on what is in it — "reset", "apply" — rather than as layouts to
+                        start from. It docks left instead of sitting on a line of its own: this
+                        card is at the top of a page that has to fit the window's minimum height,
+                        and a row spent on one word is a row the bottom card loses.
+
+                        A WrapPanel, not a horizontal StackPanel, because five buttons at the
+                        window's narrowest are close to the card's width and a StackPanel would
+                        clip the last one silently rather than move it down.
+
+                        Each button's tooltip is the path its layout produces, rendered by the
+                        recorder's own naming code — a preset is only ever picked for its
+                        outcome, and the label has room for a name but not for a path. The same
+                        sentence is the button's HelpText: unlike the settings elsewhere on this
+                        page, what a screen reader needs here is not a description of the control
+                        but the example itself.
+                    -->
+                    <DockPanel Margin="0,8,0,0">
+                        <TextBlock Margin="0,0,10,0"
+                                   VerticalAlignment="Center"
+                                   DockPanel.Dock="Left"
+                                   Foreground="{StaticResource OffstreamIdleBrush}"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Text="{x:Static res:Strings.AdvancedTemplatePresetsLabel}" />
+
+                        <ItemsControl AutomationProperties.AutomationId="AdvancedTemplatePresets" ItemsSource="{Binding Presets, Mode=OneWay}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:TemplatePreset}">
+                                    <ui:Button Margin="0,0,8,4"
+                                               AutomationProperties.AutomationId="{Binding AutomationId, Mode=OneTime}"
+                                               AutomationProperties.HelpText="{Binding Example, Mode=OneTime}"
+                                               AutomationProperties.Name="{Binding Name, Mode=OneTime}"
+                                               Command="{Binding DataContext.UsePresetCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                               CommandParameter="{Binding Mode=OneTime}"
+                                               Content="{Binding Name, Mode=OneTime}"
+                                               ToolTip="{Binding Example, Mode=OneTime}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </DockPanel>
                 </StackPanel>
 
                 <!--

@@ -169,16 +169,67 @@ public sealed class AdvancedViewModelTests
         Assert.True(viewModel.HasErrors);
     }
 
+    /// <summary>
+    /// A preset is a string literal in a table, so nothing but this stops a typo'd token from
+    /// shipping: it costs a click to discover and the click writes the broken template into the
+    /// box the user was happy with.
+    /// </summary>
     [Fact]
-    public void ResetTemplate_AndUseGroupedTemplate_OfferTheTwoLayoutsPeopleWant()
+    public void Presets_AllOfferATemplateTheRendererAccepts()
     {
         var viewModel = Build();
 
-        viewModel.UseGroupedTemplateCommand.Execute(null);
-        Assert.Equal(FileNameTemplate.Grouped, viewModel.Template);
+        Assert.NotEmpty(viewModel.Presets);
 
-        viewModel.ResetTemplateCommand.Execute(null);
-        Assert.Equal(FileNameTemplate.Default, viewModel.Template);
+        foreach (var preset in viewModel.Presets)
+        {
+            Assert.Null(FileNameTemplate.Validate(preset.Template));
+            Assert.NotEqual(Strings.AdvancedPreviewUnavailable, preset.Example);
+        }
+    }
+
+    /// <summary>
+    /// Each button carries its own preset as the command parameter, and every one of them is
+    /// wired through the same command — so a parameter bound wrongly points every button at
+    /// whichever preset it did reach.
+    /// </summary>
+    [Fact]
+    public void UsePreset_WritesThatPresetIntoTheTemplate()
+    {
+        var viewModel = Build();
+
+        foreach (var preset in viewModel.Presets)
+        {
+            viewModel.UsePresetCommand.Execute(preset);
+
+            Assert.Equal(preset.Template, viewModel.Template);
+        }
+    }
+
+    /// <summary>
+    /// The example is the whole reason a preset is picked, and it is the one part of the button
+    /// that has to agree with what the recorder would actually write.
+    /// </summary>
+    [Fact]
+    public void Presets_ExplainThemselvesWithTheNamesTheyWouldProduce()
+    {
+        var viewModel = Build();
+
+        var byYear = viewModel.Presets.Single(
+            preset => preset.Template == @"{artist}\({year}) {album}\{track:00} {title}");
+
+        Assert.Contains(@"Artist name\(2026) Album name\04 Track title.mp3", byYear.Example, StringComparison.Ordinal);
+    }
+
+    /// <summary>Named per layout, so re-ordering the row cannot re-point a test at another one.</summary>
+    [Fact]
+    public void Presets_CarryDistinctAutomationIds()
+    {
+        var viewModel = Build();
+
+        Assert.Equal(
+            viewModel.Presets.Count,
+            viewModel.Presets.Select(preset => preset.AutomationId).Distinct(StringComparer.Ordinal).Count());
     }
 
     /// <summary>Every token the renderer knows is described, so the reference cannot fall behind it.</summary>

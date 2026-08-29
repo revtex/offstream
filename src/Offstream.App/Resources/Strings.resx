@@ -321,13 +321,33 @@
     <value>Tokens</value>
     <comment>Button that shows the list of tokens a template may use.</comment>
   </data>
+  <data name="AdvancedTemplatePresetsLabel" xml:space="preserve">
+    <value>Presets</value>
+    <comment>Caption before the row of template preset buttons. Says what the buttons are, since unlabelled buttons under a text box read as actions on it.</comment>
+  </data>
+  <data name="AdvancedTemplatePresetExample" xml:space="preserve">
+    <value>Names files as {0}</value>
+    <comment>Tooltip and accessible help on a preset button. {0} is the path that layout produces, rendered by the naming code.</comment>
+  </data>
   <data name="AdvancedTemplateDefault" xml:space="preserve">
     <value>Artist and title</value>
-    <comment>Button that sets the template Offstream ships with.</comment>
+    <comment>Template preset: the flat layout Offstream ships with.</comment>
   </data>
   <data name="AdvancedTemplateGrouped" xml:space="preserve">
     <value>A folder per album</value>
-    <comment>Button that sets the grouped template.</comment>
+    <comment>Template preset: a folder per artist, then per album.</comment>
+  </data>
+  <data name="AdvancedTemplateNumbered" xml:space="preserve">
+    <value>Numbered tracks</value>
+    <comment>Template preset: album folders with the track number in front of each title, so players and Explorer keep album order.</comment>
+  </data>
+  <data name="AdvancedTemplateByYear" xml:space="preserve">
+    <value>Albums by year</value>
+    <comment>Template preset: as above, but the year leads the album folder so an artist's albums sort chronologically.</comment>
+  </data>
+  <data name="AdvancedTemplateByDay" xml:space="preserve">
+    <value>A folder per day</value>
+    <comment>Template preset: groups by recording date rather than by album, for long sessions and radio.</comment>
   </data>
   <data name="AdvancedPreviewLabel" xml:space="preserve">
     <value>Next file</value>
