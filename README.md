@@ -148,10 +148,12 @@ Nothing reaches a file until you press Save. Each file is one row showing what *
 click on the text) opens Title, Artist and Album as editable boxes, with a **was …** line under
 anything you'd be changing, so a match that got the remix wrong is a correction rather than a
 reason to start over. Rows that would actually alter a file are marked **Will change**, which is
-how you find the three that need attention without opening the other hundred. Under the boxes,
+how you find the three that need attention without opening the other hundred. Beside the boxes,
 **Also from the match** shows what a lookup found that has no box of its own — the year, the genre
 and the artwork, before and after — because Save writes all three and a row that says it will
-change while every box matches the file otherwise looks like a mistake.
+change while every box matches the file otherwise looks like a mistake. Only what a lookup
+actually found appears there: a provider that has no genre for a track leaves the file's own alone
+rather than proposing to remove it.
 
 **Filter** narrows the list to the rows whose title, artist, album or file name contain what you
 type. It only changes what is on screen: Save still writes every ticked row, including the ones the
@@ -161,8 +163,9 @@ filter is hiding.
 
 Untick the row and nothing happens to that file. To fix it instead, either type the correct values
 into Title, Artist and Album — they're yours to edit and they win over anything a lookup found —
-or use **Not the right track?** at the bottom of the opened row. That searches Spotify for whatever
-you type and lists what it finds, with the year beside each result so you can tell a remaster from
+or use **Not the right track?** at the bottom of the opened row. The box starts filled in with the
+row's artist and title, so it is usually a word or two away from the right query. It searches
+Spotify for whatever you type and lists what it finds, with the year beside each result so you can tell a remaster from
 the original, and **Use this** fills the row in from the one you pick.
 
 Reach for the search rather than **Re-fetch** whenever the artist is the thing that's wrong.

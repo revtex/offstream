@@ -244,6 +244,34 @@ public sealed class LibraryTrackViewModelTests
         Assert.Equal("https://example.invalid/discovery.jpg", source.ToString());
     }
 
+    /// <summary>Opening a row fills its search box, however the row was opened.</summary>
+    /// <remarks>
+    /// The seeding used to hang off the toggle command, which only the title runs. A row opened
+    /// by its chevron — the control that looks like the way to open one — got an empty box, and
+    /// searching from there asked Spotify for nothing at all.
+    /// </remarks>
+    [Fact]
+    public void Expanding_SeedsTheSearchBoxFromWhatTheRowNowSays()
+    {
+        var row = Row();
+
+        row.IsExpanded = true;
+
+        Assert.Equal("Kate Bush Running Up That Hill", row.MatchQuery);
+    }
+
+    /// <summary>Reopening a row does not overwrite a query the user typed.</summary>
+    [Fact]
+    public void Expanding_LeavesAQueryTheUserAlreadyTyped()
+    {
+        var row = Row();
+
+        row.MatchQuery = "cloudbusting";
+        row.IsExpanded = true;
+
+        Assert.Equal("cloudbusting", row.MatchQuery);
+    }
+
     private static LibraryTrackViewModel Row(
         string? title = "Running Up That Hill",
         string? artist = "Kate Bush",

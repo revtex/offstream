@@ -92,6 +92,45 @@ public sealed class MetadataViewModelTests
         Assert.Equal(1, provider.Calls);
     }
 
+    /// <summary>A lookup that has no genre does not offer to remove the one the file has.</summary>
+    /// <remarks>
+    /// Every provider assigns genre and year unconditionally, which is correct where they are
+    /// used to tag a recording — the track starts empty there. Here it starts as the file's own
+    /// tags, so a provider that knows the song and has no genre for it used to hand back an empty
+    /// list. The writer never wrote it, but the row said "will change" and the panel under it
+    /// showed the genre being replaced by nothing.
+    /// </remarks>
+    [Fact]
+    public async Task Refetch_DoesNotOfferToEraseAGenreTheProviderHasNoAnswerFor()
+    {
+        var provider = new CountingProvider
+        {
+            Result = true,
+            FetchedTitle = "T",
+            FetchedArtist = "A",
+            BlanksGenreAndYear = true,
+        };
+
+        var scanned = new LibraryTrack(
+            @"C:\Music\curated.mp3",
+            new Track
+            {
+                Artist = "A",
+                Title = "T",
+                Album = "Al",
+                Genres = ["pop", "video"],
+                Year = 1999,
+            });
+
+        var viewModel = Build(new FakeScanner(scanned), chain: new FakeChain(provider));
+
+        await viewModel.ScanCommand.ExecuteAsync(null);
+        await viewModel.RefetchCommand.ExecuteAsync(viewModel.Tracks[0]);
+
+        Assert.False(viewModel.Tracks[0].HasGenreChange);
+        Assert.False(viewModel.Tracks[0].HasPendingChanges);
+    }
+
     /// <summary>With nothing configured, the page says so rather than failing every row.</summary>
     [Fact]
     public async Task AutoFetch_SaysWhenNoSourceIsConfigured()
@@ -633,6 +672,9 @@ public sealed class MetadataViewModelTests
 
         public string? FetchedArtist { get; init; }
 
+        /// <summary>Answers with an empty genre list and no year, the way a thin match does.</summary>
+        public bool BlanksGenreAndYear { get; init; }
+
         public int Calls { get; private set; }
 
         public Task<bool> EnrichAsync(Track track, CancellationToken cancellationToken = default)
@@ -644,6 +686,12 @@ public sealed class MetadataViewModelTests
             // The API setters, because that is how every real provider writes a match.
             track.SetTitleFromApi(FetchedTitle);
             track.SetArtistFromApi(FetchedArtist);
+
+            if (BlanksGenreAndYear)
+            {
+                track.Genres = [];
+                track.Year = null;
+            }
 
             return Task.FromResult(Result);
         }

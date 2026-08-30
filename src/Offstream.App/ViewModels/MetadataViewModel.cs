@@ -461,9 +461,25 @@ public sealed partial class MetadataViewModel : ObservableObject
         row.Status = LibraryTrackStatus.Fetching;
         row.FailureReason = null;
 
+        var genres = row.Track.Suggested.Genres;
+        var year = row.Track.Suggested.Year;
+
         try
         {
             var updated = await chain.EnrichAsync(row.Track.Suggested, cancellationToken);
+
+            // A lookup on this page adds tags. It never takes one away.
+            //
+            // Every provider assigns genre and year unconditionally, which is right where they
+            // were written — a recording starts with an empty track and the provider is the only
+            // source there is. Here the track starts as the file's own tags, and a provider that
+            // knows the song but has no genre for it (Last.fm returns none for an artist nobody
+            // has tagged; Spotify returns none for most of its catalogue since late 2024) hands
+            // back an empty list that overwrites one the user curated. Nothing reaches the file —
+            // the writer skips empty values — but the row said "will change" over a change Save
+            // would not make, and the panel underneath it spelled the loss out as an offer.
+            row.Track.Suggested.Genres = row.Track.Suggested.Genres is { Length: > 0 } found ? found : genres;
+            row.Track.Suggested.Year ??= year;
 
             row.Track.Status = updated ? LibraryTrackStatus.Fetched : LibraryTrackStatus.Untagged;
             row.Track.FailureReason = null;

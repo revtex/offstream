@@ -97,7 +97,22 @@ phase plan these entries follow.
   correct a bad match except to type all three fields by hand and give up the year, genre and
   artwork that come with a real one — re-fetching could not do it, because the automatic lookup
   builds its query from the file's own fields and then refuses any result whose artist disagrees
-  with them, which is precisely the case where the file is what is wrong.
+  with them, which is precisely the case where the file is what is wrong. The list scrolls by
+  pixel rather than by row, because a wheel notch moved three rows and a row here is three lines
+  of text — most of a screen at a time. A row has no selected state either: nothing on the page
+  acts on "the selected row", so a highlight following the arrow keys was a third kind of emphasis
+  competing with the tick box, which says what Save writes, and the chevron, which says what is
+  open. The panel that opens is a recessed well with its labels above its fields, the shape the
+  rest of the application uses, with the four fields in two columns and what the match found
+  beside them; two earlier versions were laid out as a form instead of as a comparison, and the
+  second one hung its labels in a right-aligned gutter of its own invention and ran eight rows
+  deep. Opening a row by its chevron now fills the search box the way opening it by its title
+  always did — the seeding hung off the title's command, so the control that looks like the way to
+  open a row left the box empty and searching from there asked Spotify for nothing at all. And a
+  lookup that has no genre for a track no longer offers to remove the one the file has: every
+  provider assigns genre and year unconditionally, which is right where they were written, tagging
+  a recording that starts with nothing, and wrong here, where the track starts as the file's own
+  tags.
 - **Looking a track up now falls back from Spotify to Last.fm instead of stopping at whichever
   one the Settings page names.** That setting answers "who tags a recording as it is made", where
   one source keeps a library consistent. Repairing files already on disk is the opposite problem —
