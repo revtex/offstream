@@ -388,11 +388,17 @@ public sealed partial class LibraryTrackViewModel : ObservableValidator
 
     /// <summary>Opens or closes this row's fields.</summary>
     [RelayCommand]
-    private void ToggleExpand()
-    {
-        IsExpanded = !IsExpanded;
+    private void ToggleExpand() => IsExpanded = !IsExpanded;
 
-        if (IsExpanded) SeedMatchQuery();
+    /// <summary>Seeds the search box whichever way the row was opened.</summary>
+    /// <remarks>
+    /// This hung off the command, so a row opened by clicking its title got a seeded query and
+    /// the same row opened by its chevron — the affordance that looks like the way to do it —
+    /// got an empty box, and searching from there asked Spotify for nothing.
+    /// </remarks>
+    partial void OnIsExpandedChanged(bool value)
+    {
+        if (value) SeedMatchQuery();
     }
 
     private static string Or(string? value, string fallback) =>

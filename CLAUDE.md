@@ -54,6 +54,20 @@ These are load-bearing; violating them breaks the app in ways that are not obvio
 - **Never enable aggressive trimming.** WPF trims poorly and settings/localisation are reflection-driven. Publish self-contained and untrimmed.
 - **`Offstream.Core` must not reference WPF or `System.Windows`.** The predecessor passed the form itself into its watcher and recorder; Offstream uses events or `IProgress<T>` instead.
 - **All conversion goes through ffmpeg.** No NAudio.Lame, no bundled LAME DLLs. This governs *conversion*, and only that. **Retagging a file that already exists goes through TagLib#** (decided 2026-08-29, `Metadata/Library/TagLibTagStore.cs`), because ffmpeg cannot edit a tag in place — the equivalent is remuxing the whole file to change one string, which rewrites audio that had nothing wrong with it. So "ffmpeg writes every textual tag" stays true of the recording pipeline and is false of the Metadata page. Two rules follow from having a second writer: it writes tags and cover art in **one** TagLib# session rather than calling `CoverArtWriter` after itself, which would save the file twice for one edit; and it pins `Id3v2.Tag.DefaultVersion = 3`, because TagLib# defaults to v2.4 while this project ships v2.3 — a retag that silently upgraded the tag would make tags vanish from Windows Explorer and Media Player on files that displayed correctly before Offstream touched them.
+- **A lookup on the Metadata page adds tags; it never takes one away** (decided 2026-08-30). Every
+  provider assigns genre and year unconditionally — right where they were written, tagging a
+  recording that starts with nothing and where the provider is the only source there is, and wrong
+  on this page, where the track starts as the file's own tags. Spotify returns an empty genre list
+  for most of its catalogue since late 2024 and Last.fm returns none for an artist nobody has
+  tagged, so without this a lookup blanks a genre the user curated. Nothing ever reaches the file —
+  `TagLibTagStore` writes a genre only when there is one — but the row reports a change Save will
+  not make, and the editor spells it out as an offer to erase. It lives in **two** places, and
+  both are load-bearing. `MetadataViewModel.FetchOneAsync` is the call site every automatic lookup
+  passes through, so the rule holds there for whichever provider in the chain answers and for any
+  provider added later — it was fixed once inside the Spotify path alone and the Last.fm fallback
+  still had the hole. `SpotifyCatalogEnricher` keeps its own copy because the manual-match path
+  (**Use this**, via `SpotifyMatchSearch.ApplyAsync`) reaches the enricher without going through
+  `FetchOneAsync`. Deleting either one restores the bug on one of the two paths.
 - **Use `ProcessStartInfo.ArgumentList`, never a command string.** Track metadata comes from Spotify window titles and is untrusted. The argv array prevents argument injection structurally; the old app needed hand-written `CommandLineToArgvW` escaping because .NET Framework lacked `ArgumentList`.
 
 ## Spotify Web API rules
