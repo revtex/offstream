@@ -645,4 +645,129 @@
     <value>Close</value>
     <comment>Button that dismisses the licence and notices window.</comment>
   </data>
+  <data name="NavMetadata" xml:space="preserve">
+    <value>Metadata</value>
+    <comment>Fifth tab in the shell, between Advanced and Logs.</comment>
+  </data>
+  <data name="MetadataHeading" xml:space="preserve">
+    <value>Fix tags on recordings you already have</value>
+  </data>
+  <data name="MetadataIntro" xml:space="preserve">
+    <value>Offstream tags a recording while it makes it. This is how you repair one that was recorded before a metadata source was set up, or that Spotify could not identify at the time.</value>
+  </data>
+  <data name="MetadataFolderLabel" xml:space="preserve">
+    <value>Folder</value>
+  </data>
+  <data name="MetadataFolderHelp" xml:space="preserve">
+    <value>The folder to read. Starts at wherever recordings are being saved; every subfolder is included.</value>
+  </data>
+  <data name="MetadataBrowse" xml:space="preserve">
+    <value>Browse…</value>
+  </data>
+  <data name="MetadataScan" xml:space="preserve">
+    <value>Scan Directory</value>
+  </data>
+  <data name="MetadataScanHelp" xml:space="preserve">
+    <value>Reads the tags every audio file in this folder already carries. Nothing is changed.</value>
+  </data>
+  <data name="MetadataAutoFetch" xml:space="preserve">
+    <value>Auto-Fetch Metadata</value>
+  </data>
+  <data name="MetadataAutoFetchHelp" xml:space="preserve">
+    <value>Looks up the files that are missing a title, artist or album. Spotify is asked first, then Last.fm. Results are proposed here, not written to the files.</value>
+  </data>
+  <data name="MetadataSaveSelected" xml:space="preserve">
+    <value>Save Selected Tags</value>
+  </data>
+  <data name="MetadataSaveHelp" xml:space="preserve">
+    <value>Writes the ticked rows into their files. This is the only action that changes anything on disk.</value>
+  </data>
+  <data name="MetadataRefetch" xml:space="preserve">
+    <value>Re-fetch</value>
+  </data>
+  <data name="MetadataRefetchHelp" xml:space="preserve">
+    <value>Looks this one file up again, even if its tags already look complete.</value>
+  </data>
+  <data name="MetadataWasLabel" xml:space="preserve">
+    <value>was</value>
+    <comment>Precedes the value a file carried before, shown only under a field that changed.</comment>
+  </data>
+  <data name="MetadataExpand" xml:space="preserve">
+    <value>Show tag fields</value>
+  </data>
+  <data name="MetadataCollapse" xml:space="preserve">
+    <value>Hide tag fields</value>
+  </data>
+  <data name="MetadataWillChange" xml:space="preserve">
+    <value>Will change</value>
+    <comment>Marks a row whose save would alter the file, so those rows can be found without opening each one.</comment>
+  </data>
+  <data name="MetadataFieldTitle" xml:space="preserve">
+    <value>Title</value>
+  </data>
+  <data name="MetadataFieldArtist" xml:space="preserve">
+    <value>Artist</value>
+  </data>
+  <data name="MetadataFieldAlbum" xml:space="preserve">
+    <value>Album</value>
+  </data>
+  <data name="MetadataNoValue" xml:space="preserve">
+    <value>—</value>
+    <comment>Shown in a Currently column when the file carries no value for that field.</comment>
+  </data>
+  <data name="MetadataEmpty" xml:space="preserve">
+    <value>Nothing scanned yet. Choose a folder and select Scan Directory.</value>
+  </data>
+  <data name="MetadataScanning" xml:space="preserve">
+    <value>Scanning…</value>
+  </data>
+  <data name="MetadataCancelled" xml:space="preserve">
+    <value>Stopped.</value>
+  </data>
+  <data name="MetadataNoProvider" xml:space="preserve">
+    <value>No metadata source is set up. Sign in to Spotify or add a Last.fm API key on the Settings page.</value>
+  </data>
+  <data name="MetadataTitleRequired" xml:space="preserve">
+    <value>A title is needed before this row can be saved.</value>
+  </data>
+  <data name="MetadataArtistRequired" xml:space="preserve">
+    <value>An artist is needed before this row can be saved.</value>
+  </data>
+  <data name="MetadataScanSummary" xml:space="preserve">
+    <value>{0} file(s) found, {1} WAV skipped, {2} unreadable.</value>
+    <comment>{0} taggable files, {1} skipped WAV files, {2} files that could not be read.</comment>
+  </data>
+  <data name="MetadataFetchProgress" xml:space="preserve">
+    <value>Looking up {0} of {1}…</value>
+    <comment>{0} current file number, {1} total.</comment>
+  </data>
+  <data name="MetadataFetchSummary" xml:space="preserve">
+    <value>Matched {0} of {1}. {2} failed.</value>
+    <comment>{0} matched, {1} attempted, {2} failed.</comment>
+  </data>
+  <data name="MetadataSaveSummary" xml:space="preserve">
+    <value>Saved {0}. {1} failed.</value>
+    <comment>{0} files written, {1} that could not be.</comment>
+  </data>
+  <data name="MetadataStatusUntagged" xml:space="preserve">
+    <value>Untagged</value>
+    <comment>Row state: the file is missing a title, artist or album.</comment>
+  </data>
+  <data name="MetadataStatusMatched" xml:space="preserve">
+    <value>Complete</value>
+    <comment>Row state: the file already has all three fields, so auto-fetch leaves it alone.</comment>
+  </data>
+  <data name="MetadataStatusFetching" xml:space="preserve">
+    <value>Looking up…</value>
+  </data>
+  <data name="MetadataStatusFetched" xml:space="preserve">
+    <value>Suggested</value>
+    <comment>Row state: a provider answered and the result is awaiting review.</comment>
+  </data>
+  <data name="MetadataStatusSaved" xml:space="preserve">
+    <value>Saved</value>
+  </data>
+  <data name="MetadataStatusFailed" xml:space="preserve">
+    <value>Failed</value>
+  </data>
 </root>

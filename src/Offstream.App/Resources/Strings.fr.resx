@@ -496,4 +496,118 @@
   <data name="NoticesClose" xml:space="preserve">
     <value>Fermer</value>
   </data>
+  <data name="NavMetadata" xml:space="preserve">
+    <value>Métadonnées</value>
+  </data>
+  <data name="MetadataHeading" xml:space="preserve">
+    <value>Corriger les étiquettes des enregistrements existants</value>
+  </data>
+  <data name="MetadataIntro" xml:space="preserve">
+    <value>Offstream étiquette un enregistrement pendant qu'il le réalise. Ceci permet de réparer un fichier enregistré avant la configuration d'une source de métadonnées, ou que Spotify n'a pas su identifier sur le moment.</value>
+  </data>
+  <data name="MetadataFolderLabel" xml:space="preserve">
+    <value>Dossier</value>
+  </data>
+  <data name="MetadataFolderHelp" xml:space="preserve">
+    <value>Le dossier à lire. Commence là où les enregistrements sont enregistrés ; tous les sous-dossiers sont inclus.</value>
+  </data>
+  <data name="MetadataBrowse" xml:space="preserve">
+    <value>Parcourir…</value>
+  </data>
+  <data name="MetadataScan" xml:space="preserve">
+    <value>Analyser le dossier</value>
+  </data>
+  <data name="MetadataScanHelp" xml:space="preserve">
+    <value>Lit les étiquettes que chaque fichier audio de ce dossier porte déjà. Rien n'est modifié.</value>
+  </data>
+  <data name="MetadataAutoFetch" xml:space="preserve">
+    <value>Récupérer les métadonnées</value>
+  </data>
+  <data name="MetadataAutoFetchHelp" xml:space="preserve">
+    <value>Recherche les fichiers auxquels il manque un titre, un artiste ou un album. Spotify est interrogé en premier, puis Last.fm. Les résultats sont proposés ici, pas écrits dans les fichiers.</value>
+  </data>
+  <data name="MetadataSaveSelected" xml:space="preserve">
+    <value>Enregistrer la sélection</value>
+  </data>
+  <data name="MetadataSaveHelp" xml:space="preserve">
+    <value>Écrit les lignes cochées dans leurs fichiers. C'est la seule action qui modifie quelque chose sur le disque.</value>
+  </data>
+  <data name="MetadataRefetch" xml:space="preserve">
+    <value>Rechercher à nouveau</value>
+  </data>
+  <data name="MetadataRefetchHelp" xml:space="preserve">
+    <value>Recherche à nouveau ce fichier, même si ses étiquettes semblent déjà complètes.</value>
+  </data>
+  <data name="MetadataWasLabel" xml:space="preserve">
+    <value>avant</value>
+  </data>
+  <data name="MetadataExpand" xml:space="preserve">
+    <value>Afficher les champs</value>
+  </data>
+  <data name="MetadataCollapse" xml:space="preserve">
+    <value>Masquer les champs</value>
+  </data>
+  <data name="MetadataWillChange" xml:space="preserve">
+    <value>Sera modifié</value>
+  </data>
+  <data name="MetadataFieldTitle" xml:space="preserve">
+    <value>Titre</value>
+  </data>
+  <data name="MetadataFieldArtist" xml:space="preserve">
+    <value>Artiste</value>
+  </data>
+  <data name="MetadataFieldAlbum" xml:space="preserve">
+    <value>Album</value>
+  </data>
+  <data name="MetadataNoValue" xml:space="preserve">
+    <value>—</value>
+  </data>
+  <data name="MetadataEmpty" xml:space="preserve">
+    <value>Rien n'a encore été analysé. Choisissez un dossier puis sélectionnez Analyser le dossier.</value>
+  </data>
+  <data name="MetadataScanning" xml:space="preserve">
+    <value>Analyse en cours…</value>
+  </data>
+  <data name="MetadataCancelled" xml:space="preserve">
+    <value>Arrêté.</value>
+  </data>
+  <data name="MetadataNoProvider" xml:space="preserve">
+    <value>Aucune source de métadonnées n'est configurée. Connectez-vous à Spotify ou ajoutez une clé d'API Last.fm dans la page Paramètres.</value>
+  </data>
+  <data name="MetadataTitleRequired" xml:space="preserve">
+    <value>Un titre est nécessaire pour enregistrer cette ligne.</value>
+  </data>
+  <data name="MetadataArtistRequired" xml:space="preserve">
+    <value>Un artiste est nécessaire pour enregistrer cette ligne.</value>
+  </data>
+  <data name="MetadataScanSummary" xml:space="preserve">
+    <value>{0} fichier(s) trouvé(s), {1} WAV ignoré(s), {2} illisible(s).</value>
+  </data>
+  <data name="MetadataFetchProgress" xml:space="preserve">
+    <value>Recherche de {0} sur {1}…</value>
+  </data>
+  <data name="MetadataFetchSummary" xml:space="preserve">
+    <value>{0} trouvé(s) sur {1}. {2} en échec.</value>
+  </data>
+  <data name="MetadataSaveSummary" xml:space="preserve">
+    <value>{0} enregistré(s). {1} en échec.</value>
+  </data>
+  <data name="MetadataStatusUntagged" xml:space="preserve">
+    <value>Incomplet</value>
+  </data>
+  <data name="MetadataStatusMatched" xml:space="preserve">
+    <value>Complet</value>
+  </data>
+  <data name="MetadataStatusFetching" xml:space="preserve">
+    <value>Recherche…</value>
+  </data>
+  <data name="MetadataStatusFetched" xml:space="preserve">
+    <value>Proposé</value>
+  </data>
+  <data name="MetadataStatusSaved" xml:space="preserve">
+    <value>Enregistré</value>
+  </data>
+  <data name="MetadataStatusFailed" xml:space="preserve">
+    <value>Échec</value>
+  </data>
 </root>

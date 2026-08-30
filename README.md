@@ -129,6 +129,35 @@ in.
 > Offstream asks for the narrowest permission that works: reading what's currently playing. It never
 > sees your password.
 
+## Fixing tags on recordings you already have
+
+Offstream tags a recording while it makes it, so a track recorded before you set up a provider —
+or while Last.fm was down, or whose title Spotify reported oddly — keeps whatever thin tags it got
+at the time. The **Metadata** tab is where you repair those.
+
+1. **Scan Directory** reads every taggable file in the folder shown. It starts at your recordings
+   folder; **Browse…** points it somewhere else, so a library Offstream didn't record works too.
+2. **Auto-Fetch Metadata** looks up the files that are missing a title, artist or album. Spotify is
+   asked first if you're signed in, then Last.fm if you have a key. Files that already have all
+   three are left alone and cost no lookup — use **Re-fetch** on a row when its tags are complete
+   but wrong.
+3. **Save Selected Tags** writes the ticked rows into the files.
+
+Nothing reaches a file until you press Save. Each file is one row showing what *would* be written
+— the title, then the artist and album, then the file it came from. The chevron on the right (or a
+click on the text) opens Title, Artist and Album as editable boxes, with a **was …** line under
+anything you'd be changing, so a match that got the remix wrong is a correction rather than a
+reason to start over. Rows that would actually alter a file are marked **Will change**, which is
+how you find the three that need attention without opening the other hundred.
+
+A few things worth knowing:
+
+- **`.wav` files are skipped**, and the page says how many. WAV has no tag format players agree on,
+  so a row for one would look editable and then fail when you saved it.
+- **A file that's open elsewhere can't be written.** If you're playing the track you're retagging,
+  the row says so; close it and press Save again.
+- **MP3 tags stay ID3v2.3**, the version Windows Explorer and Media Player actually read.
+
 ## Naming files, and the rest of the options
 
 The **Advanced** page is where the details live.

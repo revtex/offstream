@@ -20,6 +20,13 @@ public enum ShellTab
     /// <summary>Naming, detection, tags, and the application's own options.</summary>
     Advanced,
 
+    /// <summary>Repairing the tags on recordings that are already on disk.</summary>
+    /// <remarks>
+    /// After Advanced because it is a maintenance job rather than a setting, and before
+    /// <see cref="Logs"/> because that one stays last by design.
+    /// </remarks>
+    Metadata,
+
     /// <summary>The activity log. Last because it is where you go when something is wrong.</summary>
     Logs,
 }

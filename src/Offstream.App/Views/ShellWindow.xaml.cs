@@ -33,11 +33,13 @@ public partial class ShellWindow : FluentWindow
         RecordPage recordPage,
         SettingsPage settingsPage,
         AdvancedPage advancedPage,
+        MetadataPage metadataPage,
         LogsPage logsPage)
     {
         ArgumentNullException.ThrowIfNull(recordPage);
         ArgumentNullException.ThrowIfNull(settingsPage);
         ArgumentNullException.ThrowIfNull(advancedPage);
+        ArgumentNullException.ThrowIfNull(metadataPage);
         ArgumentNullException.ThrowIfNull(logsPage);
 
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
@@ -48,6 +50,7 @@ public partial class ShellWindow : FluentWindow
         RecordHost.Content = recordPage;
         SettingsHost.Content = settingsPage;
         AdvancedHost.Content = advancedPage;
+        MetadataHost.Content = metadataPage;
         LogsHost.Content = logsPage;
 
         StateChanged += OnStateChanged;

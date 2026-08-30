@@ -50,6 +50,7 @@ public sealed partial class ShellViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsRecordTab))]
     [NotifyPropertyChangedFor(nameof(IsSettingsTab))]
     [NotifyPropertyChangedFor(nameof(IsAdvancedTab))]
+    [NotifyPropertyChangedFor(nameof(IsMetadataTab))]
     [NotifyPropertyChangedFor(nameof(IsLogsTab))]
     private ShellTab _tab = ShellTab.Record;
 
@@ -132,6 +133,9 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <inheritdoc cref="IsRecordTab"/>
     public bool IsAdvancedTab => Tab == ShellTab.Advanced;
+
+    /// <inheritdoc cref="IsRecordTab"/>
+    public bool IsMetadataTab => Tab == ShellTab.Metadata;
 
     /// <inheritdoc cref="IsRecordTab"/>
     public bool IsLogsTab => Tab == ShellTab.Logs;

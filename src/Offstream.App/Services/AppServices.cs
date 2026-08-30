@@ -7,6 +7,8 @@ using Offstream.App.Views;
 using Offstream.App.Views.Pages;
 using Offstream.Core.Diagnostics;
 using Offstream.Core.Interop;
+using Offstream.Core.Metadata;
+using Offstream.Core.Metadata.Library;
 using Offstream.Core.Settings;
 using Offstream.Core.Spotify.Auth;
 using SpotifyAPI.Web;
@@ -77,6 +79,20 @@ public static class AppServices
         services.AddSingleton<SettingsViewModel>();
         services.AddSingleton<AdvancedPage>();
         services.AddSingleton<AdvancedViewModel>();
+
+        // The metadata manager repairs tags on files that already exist, so its pieces are
+        // independent of the recording pipeline's: a scanner over the file system, a TagLib#
+        // store, and a provider chain rebuilt per run so signing in takes effect immediately.
+        services.AddSingleton<ILibraryTagStore, TagLibTagStore>();
+        services.AddSingleton<ILibraryScanner, LibraryScanner>();
+        services.AddSingleton<ILibraryTagWriter, LibraryTagWriter>();
+        services.AddSingleton<ILibraryMetadataChain, LibraryMetadataChain>();
+        services.AddSingleton<ICoverArtFetcher>(provider => new CoverArtFetcher(
+            provider.GetRequiredService<IHttpClientFactory>()
+                .CreateClient(RecordingSessionFactory.MetadataHttpClient),
+            provider.GetRequiredService<IFileSystem>()));
+        services.AddSingleton<MetadataPage>();
+        services.AddSingleton<MetadataViewModel>();
 
         // No ViewModel of its own: the Logs page is a second view onto RecordViewModel, which
         // already holds the lines and has been subscribed to the sink since startup.
