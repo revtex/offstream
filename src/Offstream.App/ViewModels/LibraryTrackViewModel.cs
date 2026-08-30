@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.IO;
@@ -107,6 +108,7 @@ public sealed partial class LibraryTrackViewModel : ObservableValidator
 
     /// <summary>Cover art to preview, from the file or from a fetched suggestion.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SuggestedCoverArtSource))]
     private BitmapImage? _coverArt;
 
     /// <summary>Whether the row's editable fields are showing.</summary>
@@ -213,6 +215,34 @@ public sealed partial class LibraryTrackViewModel : ObservableValidator
     /// <summary>Whether saving would put a different picture in the file.</summary>
     public bool HasCoverArtChange => _track.CoverArtWouldChange;
 
+    /// <summary>The artwork that would actually be written, however it is going to get there.</summary>
+    /// <remarks>
+    /// <para>
+    /// Returns either a decoded picture or a <see cref="Uri"/>, and WPF's <c>Image.Source</c>
+    /// accepts both — the second is left for the framework to fetch rather than downloaded here,
+    /// which keeps the network off the view model and off whatever thread a fetch happened to
+    /// finish on.
+    /// </para>
+    /// <para>
+    /// Both cases are real. A lookup that finds artwork usually hands back a URL and no bytes,
+    /// and the writer downloads it at save time — so binding the thumbnail to the decoded image
+    /// alone showed the artwork the file already had while claiming to show what saving would do.
+    /// After a hand-picked match, where the old picture is dropped deliberately, that meant the
+    /// before-and-after displayed the replaced track's sleeve on both sides.
+    /// </para>
+    /// </remarks>
+    public object? SuggestedCoverArtSource
+    {
+        get
+        {
+            if (_track.Suggested.AlbumArtImage is { Length: > 0 }) return CoverArt;
+
+            return Uri.TryCreate(_track.Suggested.AlbumArtUrl, UriKind.Absolute, out var url)
+                ? url
+                : CoverArt;
+        }
+    }
+
     /// <summary>
     /// Whether the match changed anything the three editable boxes do not show.
     /// </summary>
@@ -255,6 +285,7 @@ public sealed partial class LibraryTrackViewModel : ObservableValidator
         OnPropertyChanged(nameof(HasGenreChange));
         OnPropertyChanged(nameof(HasCoverArtChange));
         OnPropertyChanged(nameof(HasMatchDetails));
+        OnPropertyChanged(nameof(SuggestedCoverArtSource));
     }
 
     /// <summary>
@@ -312,9 +343,57 @@ public sealed partial class LibraryTrackViewModel : ObservableValidator
         }
     }
 
+    /// <summary>Results of the last manual search on this row.</summary>
+    public ObservableCollection<LibraryMatchViewModel> Candidates { get; } = [];
+
+    /// <summary>What to search the catalogue for.</summary>
+    /// <remarks>
+    /// Seeded from the row rather than left blank, because the query the user wants is almost
+    /// always a correction of the one already there — an artist misspelt, a featured act that
+    /// belongs in the title, a remaster suffix to drop.
+    /// </remarks>
+    [ObservableProperty]
+    private string _matchQuery = string.Empty;
+
+    /// <summary>Whether a manual search is running on this row.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsNotSearching))]
+    private bool _isSearching;
+
+    /// <summary>Whether the row's search button is available.</summary>
+    public bool IsNotSearching => !IsSearching;
+
+    /// <summary>Why the last search returned nothing, or null.</summary>
+    [ObservableProperty]
+    private string? _searchMessage;
+
+    /// <summary>Whether there are results to choose from.</summary>
+    public bool HasCandidates => Candidates.Count > 0;
+
+    /// <summary>Announces that <see cref="Candidates"/> has been refilled.</summary>
+    public void NotifyCandidatesChanged() => OnPropertyChanged(nameof(HasCandidates));
+
+    /// <summary>Fills the search box from whatever the row says now.</summary>
+    /// <remarks>
+    /// Called when the fields open. Doing it on expand rather than in the constructor means the
+    /// box reflects a fetch or an edit that happened in between, instead of the values the file
+    /// carried when it was scanned.
+    /// </remarks>
+    public void SeedMatchQuery()
+    {
+        if (!string.IsNullOrWhiteSpace(MatchQuery)) return;
+
+        MatchQuery = string.Join(' ', new[] { Artist, Title }.Where(part => !string.IsNullOrWhiteSpace(part)));
+    }
+
     /// <summary>Opens or closes this row's fields.</summary>
     [RelayCommand]
-    private void ToggleExpand() => IsExpanded = !IsExpanded;
+    private void ToggleExpand()
+    {
+        IsExpanded = !IsExpanded;
+
+        if (IsExpanded) SeedMatchQuery();
+    }
 
     private static string Or(string? value, string fallback) =>
         string.IsNullOrWhiteSpace(value) ? fallback : value;

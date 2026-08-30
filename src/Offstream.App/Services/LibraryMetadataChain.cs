@@ -3,6 +3,7 @@ using Offstream.Core.Metadata.Library;
 using Offstream.Core.Metadata.Providers;
 using Offstream.Core.Settings;
 using Serilog;
+using SpotifyAPI.Web;
 
 namespace Offstream.App.Services;
 
@@ -17,6 +18,17 @@ public interface ILibraryMetadataChain
     /// effect on the next fetch instead of at the next restart.
     /// </remarks>
     FallbackMetadataProvider Create();
+
+    /// <summary>
+    /// The catalogue search behind "find a different match", or null when nobody is signed in.
+    /// </summary>
+    /// <remarks>
+    /// Spotify only, and null rather than a chain. Last.fm's <c>track.getInfo</c> answers a
+    /// question about a named artist and title — it is a lookup, not a search — so it has no
+    /// results to offer someone who does not yet know what the track is called. Offering an empty
+    /// box that can never return anything would be worse than saying it needs Spotify.
+    /// </remarks>
+    ILibraryMatchSearch? CreateMatchSearch();
 }
 
 /// <inheritdoc cref="ILibraryMetadataChain" />
@@ -68,6 +80,14 @@ public sealed class LibraryMetadataChain(
         return new FallbackMetadataProvider(providers);
     }
 
+    /// <inheritdoc />
+    public ILibraryMatchSearch? CreateMatchSearch()
+    {
+        var client = CreateClient(settingsDocument.Current);
+
+        return client is null ? null : new SpotifyMatchSearch(client);
+    }
+
     /// <summary>The search provider, or null when nobody is signed in.</summary>
     /// <remarks>
     /// Deliberately <see cref="SpotifySearchMetadataProvider"/> and not the recording path's
@@ -77,13 +97,16 @@ public sealed class LibraryMetadataChain(
     /// </remarks>
     private SpotifySearchMetadataProvider? CreateSpotify(OffstreamSettings settings)
     {
-        var client = spotifyAccount.CreateClient(
-            settings.Metadata.SpotifyClientId,
-            settings.Metadata.SpotifyRefreshToken,
-            StoreRotatedRefreshToken);
+        var client = CreateClient(settings);
 
         return client is null ? null : new SpotifySearchMetadataProvider(client);
     }
+
+    private ISpotifyClient? CreateClient(OffstreamSettings settings) =>
+        spotifyAccount.CreateClient(
+            settings.Metadata.SpotifyClientId,
+            settings.Metadata.SpotifyRefreshToken,
+            StoreRotatedRefreshToken);
 
     /// <summary>
     /// Persists the refresh token Spotify hands back on renewal.

@@ -654,4 +654,40 @@
     <value>Après enregistrement</value>
     <comment>Caption under the artwork that would be written.</comment>
   </data>
+  <data name="MetadataWrongMatchHeading" xml:space="preserve">
+    <value>Ce n'est pas le bon morceau ?</value>
+    <comment>Heading over the manual catalogue search in an opened row.</comment>
+  </data>
+  <data name="MetadataSearchLabel" xml:space="preserve">
+    <value>Rechercher</value>
+    <comment>Label for the manual search box.</comment>
+  </data>
+  <data name="MetadataSearchHelp" xml:space="preserve">
+    <value>Recherche sur Spotify ce que vous saisissez et affiche tous les résultats pour que vous choisissiez le bon. À utiliser quand la correspondance automatique s'est trompée de morceau : relancer la recherche pose la même question et donne la même réponse.</value>
+    <comment>Tooltip for the manual search box.</comment>
+  </data>
+  <data name="MetadataSearchAction" xml:space="preserve">
+    <value>Rechercher sur Spotify</value>
+    <comment>Button that runs the manual search.</comment>
+  </data>
+  <data name="MetadataSearchNoResults" xml:space="preserve">
+    <value>Spotify n'a renvoyé aucun résultat pour cette recherche.</value>
+    <comment>Shown when a manual search matched nothing.</comment>
+  </data>
+  <data name="MetadataSearchNeedsSpotify" xml:space="preserve">
+    <value>La recherche d'une autre correspondance nécessite Spotify. Connectez-vous depuis la page Paramètres.</value>
+    <comment>Shown when a manual search is attempted without a Spotify sign-in.</comment>
+  </data>
+  <data name="MetadataUseMatch" xml:space="preserve">
+    <value>Utiliser</value>
+    <comment>Button that applies one search result to the row.</comment>
+  </data>
+  <data name="MetadataUseMatchHelp" xml:space="preserve">
+    <value>Remplit les champs de cette ligne à partir du résultat sélectionné. Rien n'est écrit dans le fichier avant l'enregistrement.</value>
+    <comment>Tooltip for the button that applies a search result.</comment>
+  </data>
+  <data name="MetadataSearching" xml:space="preserve">
+    <value>Recherche en cours…</value>
+    <comment>Shown while a manual search is running.</comment>
+  </data>
 </root>

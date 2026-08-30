@@ -91,7 +91,13 @@ phase plan these entries follow.
   scroll — it changes what is drawn and nothing else, so Save still writes every ticked row it is
   hiding. Beneath the editable fields, **Also from the match** shows the year, genre and artwork a
   lookup found: Save writes all three and they appeared nowhere, so a row could announce that it
-  would change while every field on screen matched the file exactly.
+  would change while every field on screen matched the file exactly. And when the match itself is
+  wrong, **Not the right track?** searches Spotify for whatever you type and lists what it finds,
+  year included, so a remaster can be told from the original. Until this there was no way to
+  correct a bad match except to type all three fields by hand and give up the year, genre and
+  artwork that come with a real one — re-fetching could not do it, because the automatic lookup
+  builds its query from the file's own fields and then refuses any result whose artist disagrees
+  with them, which is precisely the case where the file is what is wrong.
 - **Looking a track up now falls back from Spotify to Last.fm instead of stopping at whichever
   one the Settings page names.** That setting answers "who tags a recording as it is made", where
   one source keeps a library consistent. Repairing files already on disk is the opposite problem —

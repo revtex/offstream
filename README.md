@@ -157,6 +157,21 @@ change while every box matches the file otherwise looks like a mistake.
 type. It only changes what is on screen: Save still writes every ticked row, including the ones the
 filter is hiding.
 
+### When the match is wrong
+
+Untick the row and nothing happens to that file. To fix it instead, either type the correct values
+into Title, Artist and Album — they're yours to edit and they win over anything a lookup found —
+or use **Not the right track?** at the bottom of the opened row. That searches Spotify for whatever
+you type and lists what it finds, with the year beside each result so you can tell a remaster from
+the original, and **Use this** fills the row in from the one you pick.
+
+Reach for the search rather than **Re-fetch** whenever the artist is the thing that's wrong.
+Re-fetch asks the same question the automatic lookup already asked — built from the file's own
+fields, and refusing any result whose artist disagrees with them — so it returns the same answer
+however many times you press it. The search takes your words instead, which is the only way to
+reach a track the file's tags point away from. Picking a result also replaces the cover art, since
+the old one belongs to whatever the file used to claim to be.
+
 A few things worth knowing:
 
 - **`.wav` files are skipped**, and the page says how many. WAV has no tag format players agree on,

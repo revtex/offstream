@@ -1,3 +1,4 @@
+using Offstream.App.Resources;
 using Offstream.App.Services;
 using Offstream.App.ViewModels;
 using Offstream.Core.Metadata;
@@ -380,6 +381,158 @@ public sealed class MetadataViewModelTests
         Assert.False(viewModel.IsFiltered);
     }
 
+    /// <summary>A manual search fills the row with results to choose from.</summary>
+    [Fact]
+    public async Task SearchMatches_OffersWhatSpotifyReturned()
+    {
+        var search = new FakeMatchSearch(
+            Candidate("1", "Mr. Wendal", "Arrested Development", "3 Years", 1992),
+            Candidate("2", "Mr. Wendal - Live", "Arrested Development", "Unplugged", 1993));
+
+        var viewModel = Build(
+            new FakeScanner(Scanned("a.mp3", "Wrong Artist", "Mr Wendal", null)),
+            chain: new FakeChain(null) { MatchSearch = search });
+
+        await viewModel.ScanCommand.ExecuteAsync(null);
+
+        var row = viewModel.Tracks[0];
+        row.MatchQuery = "arrested development mr wendal";
+
+        await viewModel.SearchMatchesCommand.ExecuteAsync(row);
+
+        Assert.Equal(2, row.Candidates.Count);
+        Assert.True(row.HasCandidates);
+        Assert.Equal("arrested development mr wendal", search.LastQuery);
+    }
+
+    /// <summary>
+    /// Choosing a result rewrites the row, including over a wrong artist.
+    /// </summary>
+    /// <remarks>
+    /// The case nothing else on the page can reach. Auto-fetch skips a row with all three fields
+    /// filled in, and re-fetch searches on those same fields and then refuses any result whose
+    /// artist disagrees with them — so a file confidently tagged with the wrong artist is exactly
+    /// the file the automatic path can never correct, however many times it is run.
+    /// </remarks>
+    [Fact]
+    public async Task UseMatch_RewritesTheRowFromTheChosenResult()
+    {
+        var search = new FakeMatchSearch(
+            Candidate("1", "Mr. Wendal", "Arrested Development", "3 Years", 1992));
+
+        var viewModel = Build(
+            new FakeScanner(Scanned("a.mp3", "Wrong Artist", "Mr Wendal", "Wrong Album")),
+            chain: new FakeChain(null) { MatchSearch = search });
+
+        await viewModel.ScanCommand.ExecuteAsync(null);
+
+        var row = viewModel.Tracks[0];
+        row.MatchQuery = "arrested development mr wendal";
+
+        await viewModel.SearchMatchesCommand.ExecuteAsync(row);
+        await viewModel.UseMatchCommand.ExecuteAsync(row.Candidates[0]);
+
+        Assert.Equal("Mr. Wendal", row.Title);
+        Assert.Equal("Arrested Development", row.Artist);
+        Assert.Equal("3 Years", row.Album);
+        Assert.Equal(LibraryTrackStatus.Fetched, row.Status);
+        Assert.True(row.HasPendingChanges);
+    }
+
+    /// <summary>The results close once one has been taken.</summary>
+    [Fact]
+    public async Task UseMatch_ClearsTheResultsAfterwards()
+    {
+        var search = new FakeMatchSearch(
+            Candidate("1", "Mr. Wendal", "Arrested Development", "3 Years", 1992));
+
+        var viewModel = Build(
+            new FakeScanner(Scanned("a.mp3", "A", "T", null)),
+            chain: new FakeChain(null) { MatchSearch = search });
+
+        await viewModel.ScanCommand.ExecuteAsync(null);
+
+        var row = viewModel.Tracks[0];
+        row.MatchQuery = "anything";
+
+        await viewModel.SearchMatchesCommand.ExecuteAsync(row);
+        await viewModel.UseMatchCommand.ExecuteAsync(row.Candidates[0]);
+
+        Assert.Empty(row.Candidates);
+        Assert.False(row.HasCandidates);
+    }
+
+    /// <summary>A search that matched nothing says so on the row.</summary>
+    [Fact]
+    public async Task SearchMatches_SaysWhenNothingMatched()
+    {
+        var viewModel = Build(
+            new FakeScanner(Scanned("a.mp3", "A", "T", null)),
+            chain: new FakeChain(null) { MatchSearch = new FakeMatchSearch() });
+
+        await viewModel.ScanCommand.ExecuteAsync(null);
+
+        var row = viewModel.Tracks[0];
+        row.MatchQuery = "nothing at all";
+
+        await viewModel.SearchMatchesCommand.ExecuteAsync(row);
+
+        Assert.Empty(row.Candidates);
+        Assert.Equal(Strings.MetadataSearchNoResults, row.SearchMessage);
+    }
+
+    /// <summary>Spotify's own words reach the row when a search fails.</summary>
+    [Fact]
+    public async Task SearchMatches_SurfacesTheProvidersMessage()
+    {
+        var search = new FakeMatchSearch { Failure = "Spotify refused the request: quota exceeded." };
+
+        var viewModel = Build(
+            new FakeScanner(Scanned("a.mp3", "A", "T", null)),
+            chain: new FakeChain(null) { MatchSearch = search });
+
+        await viewModel.ScanCommand.ExecuteAsync(null);
+
+        var row = viewModel.Tracks[0];
+        row.MatchQuery = "anything";
+
+        await viewModel.SearchMatchesCommand.ExecuteAsync(row);
+
+        Assert.Equal("Spotify refused the request: quota exceeded.", row.SearchMessage);
+        Assert.False(row.IsSearching);
+    }
+
+    /// <summary>Without a Spotify sign-in the row says what is missing.</summary>
+    /// <remarks>
+    /// Last.fm cannot stand in here. Its lookup answers a question about a named artist and
+    /// title — it has no results to offer someone who does not yet know what the track is called.
+    /// </remarks>
+    [Fact]
+    public async Task SearchMatches_SaysWhenSpotifyIsNotSignedIn()
+    {
+        var viewModel = Build(
+            new FakeScanner(Scanned("a.mp3", "A", "T", null)),
+            chain: new FakeChain(null));
+
+        await viewModel.ScanCommand.ExecuteAsync(null);
+
+        var row = viewModel.Tracks[0];
+        row.MatchQuery = "anything";
+
+        await viewModel.SearchMatchesCommand.ExecuteAsync(row);
+
+        Assert.Equal(Strings.MetadataSearchNeedsSpotify, row.SearchMessage);
+        Assert.Empty(row.Candidates);
+    }
+
+    private static LibraryMatchCandidate Candidate(
+        string id,
+        string title,
+        string artist,
+        string album,
+        int? year) =>
+        new(id, title, artist, album, year, null);
+
     private static MetadataViewModel Build(
         ILibraryScanner? scanner = null,
         ILibraryTagWriter? writer = null,
@@ -424,8 +577,48 @@ public sealed class MetadataViewModelTests
 
     private sealed class FakeChain(IMetadataProvider? provider) : ILibraryMetadataChain
     {
+        public ILibraryMatchSearch? MatchSearch { get; init; }
+
         public FallbackMetadataProvider Create() =>
             provider is null ? new FallbackMetadataProvider() : new FallbackMetadataProvider(provider);
+
+        public ILibraryMatchSearch? CreateMatchSearch() => MatchSearch;
+    }
+
+    /// <summary>A manual search that answers with whatever it was handed.</summary>
+    private sealed class FakeMatchSearch(params LibraryMatchCandidate[] results) : ILibraryMatchSearch
+    {
+        public string? LastQuery { get; private set; }
+
+        public LibraryMatchCandidate? Applied { get; private set; }
+
+        public string? Failure { get; init; }
+
+        public Task<IReadOnlyList<LibraryMatchCandidate>> SearchAsync(
+            string query,
+            CancellationToken cancellationToken = default)
+        {
+            LastQuery = query;
+
+            if (Failure is not null) throw new MetadataLookupException(Failure);
+
+            return Task.FromResult<IReadOnlyList<LibraryMatchCandidate>>(results);
+        }
+
+        public Task ApplyAsync(
+            Track track,
+            LibraryMatchCandidate candidate,
+            CancellationToken cancellationToken = default)
+        {
+            Applied = candidate;
+
+            track.SetTitleFromApi(candidate.Title);
+            track.SetArtistFromApi(candidate.Artist);
+            track.Album = candidate.Album;
+            track.Year = candidate.Year;
+
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class CountingProvider : IMetadataProvider
