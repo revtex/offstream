@@ -47,12 +47,6 @@ public sealed class SpotifySearchMetadataProvider(ISpotifyClient client) : IMeta
     /// </remarks>
     private const int SearchLimit = 5;
 
-    /// <summary>
-    /// How many artist genres reach the tag — the same three the recording path takes, so a
-    /// library tagged by both does not end up with two ideas of how long a genre tag is.
-    /// </summary>
-    private const int MaximumGenres = 3;
-
     /// <inheritdoc />
     public MetadataProvider Kind => MetadataProvider.Spotify;
 
@@ -85,7 +79,7 @@ public sealed class SpotifySearchMetadataProvider(ISpotifyClient client) : IMeta
                 return false;
             }
 
-            await ApplyAsync(track, match, cancellationToken);
+            await SpotifyCatalogEnricher.ApplyAsync(client, track, match, cancellationToken);
 
             return true;
         }
@@ -137,65 +131,13 @@ public sealed class SpotifySearchMetadataProvider(ISpotifyClient client) : IMeta
         && !string.IsNullOrWhiteSpace(right)
         && string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>Copies the match onto the track, then fills in what a track object cannot say.</summary>
-    /// <remarks>
-    /// <para>
-    /// The same three-step shape the recording path uses: the track carries title, artist and
-    /// position; the album carries year and cover art; and genre lives on the artist, because
-    /// Spotify has no genre field on a track and stopped populating the album's for most of the
-    /// catalogue in late 2024.
-    /// </para>
-    /// <para>
-    /// <b>What the file already had is put back when Spotify offers nothing.</b> The album
-    /// mapping assigns genre and year unconditionally — right for a recording, where the track
-    /// starts empty and Spotify is the only source there is, and wrong here, where the track
-    /// starts as the file's own tags. Spotify returns an empty genre list for most of its
-    /// catalogue, so without this a lookup silently blanks a genre the user curated. Nothing was
-    /// ever written — the writer skips empty values — but the row reported a change it would not
-    /// make, and once the page started showing before-and-after it read as an offer to erase.
-    /// </para>
-    /// </remarks>
-    private async Task ApplyAsync(Track track, FullTrack match, CancellationToken cancellationToken)
-    {
-        var seededGenres = track.Genres;
-        var seededYear = track.Year;
-
-        SpotifyTrackMapper.Apply(track, match);
-
-        var albumId = match.Album?.Id;
-
-        if (!string.IsNullOrEmpty(albumId))
-        {
-            SpotifyTrackMapper.Apply(track, await client.Albums.Get(albumId, cancellationToken));
-        }
-
-        track.Year ??= seededYear;
-
-        if (track.Genres is { Length: > 0 }) return;
-
-        track.Genres = seededGenres;
-
-        if (track.Genres is { Length: > 0 }) return;
-
-        var artistId = match.Artists?.FirstOrDefault(artist => !string.IsNullOrEmpty(artist.Id))?.Id;
-
-        if (string.IsNullOrEmpty(artistId)) return;
-
-        var artistDetail = await client.Artists.Get(artistId, cancellationToken);
-
-        if (artistDetail?.Genres is { Count: > 0 } genres)
-        {
-            track.Genres = [.. genres.Take(MaximumGenres)];
-        }
-    }
-
     /// <summary>Turns Spotify's refusal into a sentence, keeping Spotify's own words in it.</summary>
     /// <remarks>
     /// The status decides what to add, never what to replace. A 403 in particular means either
     /// "this account is not on the dashboard app's list" or "the app is past its quota", and only
     /// the body tells them apart — so the body leads and the hint follows.
     /// </remarks>
-    private static string Describe(APIException ex)
+    internal static string Describe(APIException ex)
     {
         var reason = SpotifyMetadataProvider.ReasonFor(ex) ?? "no reason given";
 

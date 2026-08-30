@@ -814,4 +814,40 @@
     <value>After saving</value>
     <comment>Caption under the artwork that would be written.</comment>
   </data>
+  <data name="MetadataWrongMatchHeading" xml:space="preserve">
+    <value>Not the right track?</value>
+    <comment>Heading over the manual catalogue search in an opened row.</comment>
+  </data>
+  <data name="MetadataSearchLabel" xml:space="preserve">
+    <value>Search</value>
+    <comment>Label for the manual search box.</comment>
+  </data>
+  <data name="MetadataSearchHelp" xml:space="preserve">
+    <value>Searches Spotify for whatever you type, and shows every result so you can pick the right one. Use this when the automatic match found the wrong song — re-fetching asks the same question and gets the same answer.</value>
+    <comment>Tooltip for the manual search box.</comment>
+  </data>
+  <data name="MetadataSearchAction" xml:space="preserve">
+    <value>Search Spotify</value>
+    <comment>Button that runs the manual search.</comment>
+  </data>
+  <data name="MetadataSearchNoResults" xml:space="preserve">
+    <value>Spotify returned no results for that search.</value>
+    <comment>Shown when a manual search matched nothing.</comment>
+  </data>
+  <data name="MetadataSearchNeedsSpotify" xml:space="preserve">
+    <value>Searching for a different match needs Spotify. Sign in on the Settings page.</value>
+    <comment>Shown when a manual search is attempted without a Spotify sign-in.</comment>
+  </data>
+  <data name="MetadataUseMatch" xml:space="preserve">
+    <value>Use this</value>
+    <comment>Button that applies one search result to the row.</comment>
+  </data>
+  <data name="MetadataUseMatchHelp" xml:space="preserve">
+    <value>Fills this row's fields from the selected result. Nothing is written to the file until you save.</value>
+    <comment>Tooltip for the button that applies a search result.</comment>
+  </data>
+  <data name="MetadataSearching" xml:space="preserve">
+    <value>Searching…</value>
+    <comment>Shown while a manual search is running.</comment>
+  </data>
 </root>

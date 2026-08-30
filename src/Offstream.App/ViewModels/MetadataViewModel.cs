@@ -310,6 +310,98 @@ public sealed partial class MetadataViewModel : ObservableObject
         }
     }
 
+    /// <summary>Searches the catalogue for what the user typed on one row.</summary>
+    /// <remarks>
+    /// The escape hatch of last resort, and the only one that can correct a match the automatic
+    /// path is certain about. Re-fetch asks the same question again and gets the same answer;
+    /// this asks a different question, and the automatic path's own rule — reject any result
+    /// whose artist disagrees with the file — is precisely what stops it helping when the file's
+    /// artist is the thing that is wrong.
+    /// </remarks>
+    [RelayCommand]
+    private async Task SearchMatchesAsync(LibraryTrackViewModel? row)
+    {
+        if (row is null || string.IsNullOrWhiteSpace(row.MatchQuery)) return;
+
+        var search = _chain.CreateMatchSearch();
+
+        if (search is null)
+        {
+            row.SearchMessage = Strings.MetadataSearchNeedsSpotify;
+
+            return;
+        }
+
+        row.IsSearching = true;
+        row.SearchMessage = null;
+        row.Candidates.Clear();
+        row.NotifyCandidatesChanged();
+
+        try
+        {
+            var results = await search.SearchAsync(row.MatchQuery, CancellationToken.None);
+
+            foreach (var result in results) row.Candidates.Add(new LibraryMatchViewModel(row, result));
+
+            row.SearchMessage = results.Count == 0 ? Strings.MetadataSearchNoResults : null;
+        }
+        catch (MetadataLookupException ex)
+        {
+            row.SearchMessage = ex.Message;
+        }
+        finally
+        {
+            row.IsSearching = false;
+            row.NotifyCandidatesChanged();
+        }
+    }
+
+    /// <summary>Applies a chosen search result to its row.</summary>
+    /// <remarks>
+    /// The results disappear afterwards. The choice has been made and its effect is visible in
+    /// the fields above, so leaving the list open invites picking a second one on top of the
+    /// first — which works, but reads as though neither had been applied.
+    /// </remarks>
+    [RelayCommand]
+    private async Task UseMatchAsync(LibraryMatchViewModel? choice)
+    {
+        if (choice is null) return;
+
+        var search = _chain.CreateMatchSearch();
+
+        if (search is null)
+        {
+            choice.Row.SearchMessage = Strings.MetadataSearchNeedsSpotify;
+
+            return;
+        }
+
+        var row = choice.Row;
+
+        row.IsSearching = true;
+
+        try
+        {
+            await search.ApplyAsync(row.Track.Suggested, choice.Candidate, CancellationToken.None);
+
+            row.Track.Status = LibraryTrackStatus.Fetched;
+            row.Track.FailureReason = null;
+            row.RefreshFromSuggestion();
+
+            row.Candidates.Clear();
+            row.SearchMessage = null;
+        }
+        catch (MetadataLookupException ex)
+        {
+            row.SearchMessage = ex.Message;
+        }
+        finally
+        {
+            row.IsSearching = false;
+            row.NotifyCandidatesChanged();
+        }
+    }
+
     /// <summary>Writes the ticked rows back to their files.</summary>
     [RelayCommand]
     private async Task SaveSelectedAsync(CancellationToken cancellationToken)

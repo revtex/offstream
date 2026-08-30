@@ -87,7 +87,7 @@
                                 VerticalAlignment="Center"
                                 Background="{DynamicResource ControlFillColorSecondaryBrush}"
                                 CornerRadius="4">
-                            <Image Source="{Binding CoverArt, Mode=OneWay}" Stretch="UniformToFill" />
+                            <Image Source="{Binding SuggestedCoverArtSource, Mode=OneWay}" Stretch="UniformToFill" />
                         </Border>
 
                         <!--
@@ -210,6 +210,7 @@
                         </Grid.ColumnDefinitions>
 
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -351,7 +352,7 @@
                                     <StackPanel>
                                         <Image Width="56"
                                                Height="56"
-                                               Source="{Binding CoverArt, Mode=OneWay}"
+                                               Source="{Binding SuggestedCoverArtSource, Mode=OneWay}"
                                                Stretch="UniformToFill" />
 
                                         <TextBlock Margin="0,2,0,0"
@@ -371,6 +372,92 @@
                                    CommandParameter="{Binding}"
                                    Content="{x:Static res:Strings.MetadataRefetch}"
                                    ToolTip="{x:Static res:Strings.MetadataRefetchHelp}" />
+
+                        <!--
+                            The answer to a wrong match, and the reason it needs its own search
+                            rather than another Re-fetch: the automatic lookup builds its query
+                            from the file and then rejects any result whose artist disagrees with
+                            it, so the one case it cannot help with is a file whose artist is
+                            wrong. Asking it again returns the same answer. This asks Spotify what
+                            the user typed and shows everything it says.
+                        -->
+                        <StackPanel Grid.Row="5" Grid.Column="1" Margin="0,16,0,0">
+                            <TextBlock Margin="0,0,0,6"
+                                       Style="{StaticResource OffstreamFieldLabelStyle}"
+                                       Text="{x:Static res:Strings.MetadataWrongMatchHeading}" />
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <ui:TextBox Grid.Column="0"
+                                            Margin="0,0,8,0"
+                                            VerticalAlignment="Center"
+                                            AutomationProperties.HelpText="{x:Static res:Strings.MetadataSearchHelp}"
+                                            AutomationProperties.Name="{x:Static res:Strings.MetadataSearchLabel}"
+                                            PlaceholderText="{x:Static res:Strings.MetadataSearchLabel}"
+                                            Text="{Binding MatchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            ToolTip="{x:Static res:Strings.MetadataSearchHelp}" />
+
+                                <ui:Button Grid.Column="1"
+                                           VerticalAlignment="Center"
+                                           Command="{Binding DataContext.SearchMatchesCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                           CommandParameter="{Binding}"
+                                           Content="{x:Static res:Strings.MetadataSearchAction}"
+                                           IsEnabled="{Binding IsNotSearching, Mode=OneWay}"
+                                           ToolTip="{x:Static res:Strings.MetadataSearchHelp}" />
+                            </Grid>
+
+                            <TextBlock Margin="0,6,0,0"
+                                       AutomationProperties.LiveSetting="Polite"
+                                       Style="{StaticResource MetadataWasStyle}"
+                                       Text="{x:Static res:Strings.MetadataSearching}"
+                                       Visibility="{Binding IsSearching, Converter={StaticResource BooleanToVisibility}}" />
+
+                            <TextBlock Margin="0,6,0,0"
+                                       AutomationProperties.LiveSetting="Polite"
+                                       Style="{StaticResource MetadataWasStyle}"
+                                       Text="{Binding SearchMessage, Mode=OneWay}"
+                                       TextWrapping="Wrap" />
+
+                            <ItemsControl Margin="0,6,0,0"
+                                          ItemsSource="{Binding Candidates, Mode=OneWay}"
+                                          Visibility="{Binding HasCandidates, Converter={StaticResource BooleanToVisibility}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:LibraryMatchViewModel}">
+                                        <Grid Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel Grid.Column="0"
+                                                        Margin="0,0,8,0"
+                                                        VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Title, Mode=OneTime}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           TextWrapping="NoWrap" />
+
+                                                <TextBlock Style="{StaticResource MetadataWasStyle}"
+                                                           Text="{Binding Summary, Mode=OneTime}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           TextWrapping="NoWrap" />
+                                            </StackPanel>
+
+                                            <ui:Button Grid.Column="1"
+                                                       VerticalAlignment="Center"
+                                                       AutomationProperties.HelpText="{x:Static res:Strings.MetadataUseMatchHelp}"
+                                                       Command="{Binding DataContext.UseMatchCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                       CommandParameter="{Binding}"
+                                                       Content="{x:Static res:Strings.MetadataUseMatch}"
+                                                       ToolTip="{x:Static res:Strings.MetadataUseMatchHelp}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
                     </Grid>
                 </Grid>
             </Border>

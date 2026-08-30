@@ -220,6 +220,30 @@ public sealed class LibraryTrackViewModelTests
         Assert.False(row.HasMatchDetails);
     }
 
+    /// <summary>The thumbnail follows a match that brought a URL rather than bytes.</summary>
+    /// <remarks>
+    /// A lookup normally returns a link and no picture — the writer downloads it at save time —
+    /// so a thumbnail bound to the decoded image alone showed the artwork the file already had
+    /// while claiming to show what saving would do.
+    /// </remarks>
+    [Fact]
+    public void CoverPreview_FollowsAUrlWhenTheMatchBroughtNoBytes()
+    {
+        var track = new LibraryTrack(
+            @"C:\Music\01 Who Made Who.mp3",
+            new Track { Title = "Who Made Who", Artist = "AC", Album = "Who Made Who" });
+
+        var row = new LibraryTrackViewModel(track);
+
+        track.Suggested.AlbumArtImage = null;
+        track.Suggested.AlbumArtUrl = "https://example.invalid/discovery.jpg";
+        row.RefreshFromSuggestion();
+
+        var source = Assert.IsType<Uri>(row.SuggestedCoverArtSource);
+
+        Assert.Equal("https://example.invalid/discovery.jpg", source.ToString());
+    }
+
     private static LibraryTrackViewModel Row(
         string? title = "Running Up That Hill",
         string? artist = "Kate Bush",
