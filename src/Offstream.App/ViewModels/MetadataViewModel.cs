@@ -35,6 +35,9 @@ public sealed partial class MetadataViewModel : ObservableObject
     private static readonly CompositeFormat ScanSummaryFormat =
         CompositeFormat.Parse(Strings.MetadataScanSummary);
 
+    private static readonly CompositeFormat FilterSummaryFormat =
+        CompositeFormat.Parse(Strings.MetadataFilterSummary);
+
     private static readonly CompositeFormat FetchProgressFormat =
         CompositeFormat.Parse(Strings.MetadataFetchProgress);
 
@@ -72,8 +75,23 @@ public sealed partial class MetadataViewModel : ObservableObject
         _folder = settings.Current.Output.Path ?? OffstreamPaths.DefaultOutputDirectory;
     }
 
-    /// <summary>The rows, one per taggable file.</summary>
+    /// <summary>Every row the scan found, one per taggable file.</summary>
+    /// <remarks>
+    /// The authority for everything except what is drawn. Save, the counts and the auto-fetch
+    /// queue all read this rather than <see cref="VisibleTracks"/>, so a filter narrows the list
+    /// on screen and changes nothing about what the buttons do. A filter that quietly reduced
+    /// what Save wrote would be a filter that loses work.
+    /// </remarks>
     public ObservableCollection<LibraryTrackViewModel> Tracks { get; } = [];
+
+    /// <summary>The rows the list actually shows, after <see cref="Filter"/>.</summary>
+    /// <remarks>
+    /// Rebuilt rather than filtered through an <c>ICollectionView</c>. The rows are the same
+    /// instances either way, so nothing is lost by rebuilding, and a plain collection keeps this
+    /// testable without a Dispatcher — the view models are covered by ordinary unit tests and a
+    /// collection view would have dragged WPF's threading rules into them.
+    /// </remarks>
+    public ObservableCollection<LibraryTrackViewModel> VisibleTracks { get; } = [];
 
     /// <summary>The folder to scan. Starts at wherever recordings are being written.</summary>
     [ObservableProperty]
@@ -82,6 +100,15 @@ public sealed partial class MetadataViewModel : ObservableObject
     /// <summary>What just happened, shown under the buttons.</summary>
     [ObservableProperty]
     private string? _statusMessage;
+
+    /// <summary>Narrows the list to rows matching this text.</summary>
+    /// <remarks>
+    /// A hundred and twenty-seven files is a scroll; a real library is a search. Matching covers
+    /// the file name as well as the three tags, because the row that needs fixing is often the
+    /// one whose tags are wrong and whose name is the only true thing about it.
+    /// </remarks>
+    [ObservableProperty]
+    private string _filter = string.Empty;
 
     /// <summary>Whether a scan, fetch or save is running.</summary>
     [ObservableProperty]
@@ -92,7 +119,63 @@ public sealed partial class MetadataViewModel : ObservableObject
     public bool IsIdle => !IsBusy;
 
     /// <summary>Whether anything has been scanned yet.</summary>
+    /// <remarks>
+    /// Deliberately the unfiltered count. A filter that matches nothing should say so against a
+    /// list that is still there, not collapse the page back to its empty state as though the
+    /// scan had been undone.
+    /// </remarks>
     public bool HasTracks => Tracks.Count > 0;
+
+    /// <summary>Whether a filter is narrowing the list.</summary>
+    public bool IsFiltered => !string.IsNullOrWhiteSpace(Filter);
+
+    /// <summary>Whether the filter is on and matched nothing.</summary>
+    public bool HasNoMatches => IsFiltered && VisibleTracks.Count == 0;
+
+    /// <summary>How much of the library is showing, when only some of it is.</summary>
+    public string FilterSummary => string.Format(
+        CultureInfo.CurrentCulture,
+        FilterSummaryFormat,
+        VisibleTracks.Count,
+        Tracks.Count);
+
+    /// <summary>Re-applies <see cref="Filter"/> to the visible list.</summary>
+    private void ApplyFilter()
+    {
+        var needle = Filter?.Trim();
+
+        VisibleTracks.Clear();
+
+        foreach (var row in Tracks)
+        {
+            if (Matches(row, needle)) VisibleTracks.Add(row);
+        }
+
+        OnPropertyChanged(nameof(IsFiltered));
+        OnPropertyChanged(nameof(HasNoMatches));
+        OnPropertyChanged(nameof(FilterSummary));
+    }
+
+    partial void OnFilterChanged(string value) => ApplyFilter();
+
+    /// <summary>Whether one row answers the filter.</summary>
+    /// <remarks>
+    /// Case-insensitive substring across the three tags and the file name. Not a fuzzy match:
+    /// the user typing here knows what they are looking for, and a fuzzy filter over a list this
+    /// long returns the whole library for a two-letter word.
+    /// </remarks>
+    private static bool Matches(LibraryTrackViewModel row, string? needle)
+    {
+        if (string.IsNullOrWhiteSpace(needle)) return true;
+
+        return Contains(row.Title, needle)
+            || Contains(row.Artist, needle)
+            || Contains(row.Album, needle)
+            || Contains(row.FileName, needle);
+    }
+
+    private static bool Contains(string? haystack, string needle) =>
+        haystack?.Contains(needle, StringComparison.CurrentCultureIgnoreCase) == true;
 
     /// <summary>Chooses a different folder to scan.</summary>
     /// <remarks>
@@ -121,6 +204,8 @@ public sealed partial class MetadataViewModel : ObservableObject
             Tracks.Clear();
 
             foreach (var track in scan.Tracks) Tracks.Add(new LibraryTrackViewModel(track));
+
+            ApplyFilter();
 
             OnPropertyChanged(nameof(HasTracks));
 

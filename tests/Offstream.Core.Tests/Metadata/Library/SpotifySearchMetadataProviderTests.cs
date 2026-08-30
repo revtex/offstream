@@ -184,6 +184,97 @@ public sealed class SpotifySearchMetadataProviderTests
         Assert.Equal(["synthpop", "indie pop", "scottish"], track.Genres!);
     }
 
+    /// <summary>A genre the file already carried survives a lookup that offers none.</summary>
+    /// <remarks>
+    /// Spotify returns an empty genre list for most of its catalogue, and the album mapping
+    /// assigns it unconditionally — correct while recording, where the track starts empty, and
+    /// destructive here, where it starts as the file's own tags. Nothing was ever written, since
+    /// the writer skips empty values, but the row claimed a change it would not make and the
+    /// before-and-after read as an offer to erase a curated genre.
+    /// </remarks>
+    [Fact]
+    public async Task Enrich_KeepsTheGenreTheFileAlreadyHad()
+    {
+        var harness = new Harness();
+        harness.Returns(Found("Mr. Wendal", "Arrested Development"));
+        harness.ReturnsAlbum("album-1", new FullAlbum
+        {
+            Id = "album-1",
+            Name = "3 Years, 5 Months and 2 Days in the Life Of...",
+            ReleaseDate = "1992-03-24",
+            Genres = [],
+            Images = [],
+        });
+
+        var track = new Track
+        {
+            Artist = "Arrested Development",
+            Title = "Mr. Wendal",
+            Genres = ["Hip-Hop", "rap"],
+        };
+
+        Assert.True(await harness.Provider.EnrichAsync(track));
+        Assert.Equal(["Hip-Hop", "rap"], track.Genres!);
+
+        // The file's own genre is good enough, so the artist is never asked.
+        harness.Artists.Verify(
+            x => x.Get(It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    /// <summary>A year the file already carried survives an album with no release date.</summary>
+    [Fact]
+    public async Task Enrich_KeepsTheYearTheFileAlreadyHad()
+    {
+        var harness = new Harness();
+        harness.Returns(Found("Mr. Wendal", "Arrested Development"));
+        harness.ReturnsAlbum("album-1", new FullAlbum
+        {
+            Id = "album-1",
+            Name = "3 Years, 5 Months and 2 Days in the Life Of...",
+            ReleaseDate = string.Empty,
+            Genres = [],
+            Images = [],
+        });
+        harness.ReturnsArtist("artist-1", "hip hop");
+
+        var track = new Track
+        {
+            Artist = "Arrested Development",
+            Title = "Mr. Wendal",
+            Year = 1992,
+        };
+
+        Assert.True(await harness.Provider.EnrichAsync(track));
+        Assert.Equal(1992, track.Year);
+    }
+
+    /// <summary>A file with no genre still gets the artist's.</summary>
+    /// <remarks>
+    /// The other half of the rule above: putting the file's own value back must not stop the
+    /// fallback that fills a genuinely empty field, which is the reason the lookup runs at all.
+    /// </remarks>
+    [Fact]
+    public async Task Enrich_StillFallsBackToTheArtistWhenTheFileHasNoGenre()
+    {
+        var harness = new Harness();
+        harness.Returns(Found("Mr. Wendal", "Arrested Development"));
+        harness.ReturnsAlbum("album-1", new FullAlbum
+        {
+            Id = "album-1",
+            Name = "3 Years, 5 Months and 2 Days in the Life Of...",
+            ReleaseDate = "1992-03-24",
+            Genres = [],
+            Images = [],
+        });
+        harness.ReturnsArtist("artist-1", "hip hop", "conscious hip hop");
+
+        var track = new Track { Artist = "Arrested Development", Title = "Mr. Wendal" };
+
+        Assert.True(await harness.Provider.EnrichAsync(track));
+        Assert.Equal(["hip hop", "conscious hip hop"], track.Genres!);
+    }
+
     private static FullTrack Found(string name, string artist) => new()
     {
         Name = name,

@@ -48,7 +48,13 @@
             column off the right-hand edge. One long name used to reshape the whole page.
         -->
         <DataTemplate x:Key="LibraryTrackTemplate" DataType="{x:Type vm:LibraryTrackViewModel}">
-            <Border Padding="8,10"
+            <!--
+                The right-hand padding is for the scroll bar. WPF-UI draws it as an overlay: it
+                is painted over the viewport rather than taking width from it, so the rows are
+                measured as though it were not there and it lands on top of the chevron of every
+                row it covers. Nothing in the layout can discover that, so the room is reserved.
+            -->
+            <Border Padding="8,10,20,10"
                     BorderBrush="{StaticResource OffstreamRowSeparatorBrush}"
                     BorderThickness="0,0,0,1">
                 <Grid>
@@ -208,6 +214,7 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
                         <TextBlock Grid.Row="0"
@@ -267,7 +274,95 @@
                             </TextBlock>
                         </StackPanel>
 
-                        <ui:Button Grid.Row="3"
+                        <!--
+                            Year, genre and artwork are written by Save and had no representation
+                            anywhere, so a row could say "will change" with all three boxes above
+                            it matching the file exactly. Read-only on purpose: they come from the
+                            match or they do not come at all, and a box for a genre invites typing
+                            one Spotify has never heard of.
+                        -->
+                        <StackPanel Grid.Row="3"
+                                    Grid.Column="1"
+                                    Margin="0,14,0,0"
+                                    Visibility="{Binding HasMatchDetails, Converter={StaticResource BooleanToVisibility}}">
+                            <TextBlock Margin="0,0,0,6"
+                                       Style="{StaticResource OffstreamFieldLabelStyle}"
+                                       Text="{x:Static res:Strings.MetadataMatchHeading}" />
+
+                            <Grid Visibility="{Binding HasYearChange, Converter={StaticResource BooleanToVisibility}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="64" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Style="{StaticResource MetadataFieldLabelStyle}"
+                                           Text="{x:Static res:Strings.MetadataFieldYear}" />
+
+                                <TextBlock Grid.Column="1" Style="{StaticResource MetadataWasStyle}">
+                                    <Run Text="{Binding SuggestedYear, Mode=OneWay}" />
+                                    <Run Text="{x:Static res:Strings.MetadataWasLabel}" />
+                                    <Run Text="{Binding CurrentYear, Mode=OneTime}" />
+                                </TextBlock>
+                            </Grid>
+
+                            <Grid Visibility="{Binding HasGenreChange, Converter={StaticResource BooleanToVisibility}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="64" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Style="{StaticResource MetadataFieldLabelStyle}"
+                                           Text="{x:Static res:Strings.MetadataFieldGenre}" />
+
+                                <TextBlock Grid.Column="1"
+                                           Style="{StaticResource MetadataWasStyle}"
+                                           TextTrimming="CharacterEllipsis"
+                                           TextWrapping="NoWrap">
+                                    <Run Text="{Binding SuggestedGenres, Mode=OneWay}" />
+                                    <Run Text="{x:Static res:Strings.MetadataWasLabel}" />
+                                    <Run Text="{Binding CurrentGenres, Mode=OneTime}" />
+                                </TextBlock>
+                            </Grid>
+
+                            <Grid Margin="0,4,0,0" Visibility="{Binding HasCoverArtChange, Converter={StaticResource BooleanToVisibility}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="64" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Style="{StaticResource MetadataFieldLabelStyle}"
+                                           Text="{x:Static res:Strings.MetadataFieldCover}" />
+
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <StackPanel Margin="0,0,16,0">
+                                        <Image Width="56"
+                                               Height="56"
+                                               Source="{Binding ExistingCoverArt, Mode=OneTime}"
+                                               Stretch="UniformToFill" />
+
+                                        <TextBlock Margin="0,2,0,0"
+                                                   Style="{StaticResource MetadataWasStyle}"
+                                                   Text="{x:Static res:Strings.MetadataCoverBefore}" />
+                                    </StackPanel>
+
+                                    <StackPanel>
+                                        <Image Width="56"
+                                               Height="56"
+                                               Source="{Binding CoverArt, Mode=OneWay}"
+                                               Stretch="UniformToFill" />
+
+                                        <TextBlock Margin="0,2,0,0"
+                                                   Style="{StaticResource MetadataWasStyle}"
+                                                   Text="{x:Static res:Strings.MetadataCoverAfter}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+
+                        <ui:Button Grid.Row="4"
                                    Grid.Column="1"
                                    Margin="0,10,0,0"
                                    HorizontalAlignment="Right"
@@ -381,7 +476,52 @@
             </Grid>
 
             <Grid Grid.Row="4">
-                <TextBlock Margin="4,12,0,0"
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!--
+                    The filter narrows what is drawn and nothing else. It is placed over the list
+                    rather than beside the buttons because it belongs to the list: the buttons act
+                    on the whole library whatever is typed here, and putting it in their row would
+                    suggest otherwise.
+                -->
+                <Grid Grid.Row="0"
+                      Margin="0,0,0,8"
+                      Visibility="{Binding HasTracks, Converter={StaticResource BooleanToVisibility}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" MaxWidth="420" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0"
+                               Margin="0,0,8,0"
+                               VerticalAlignment="Center"
+                               Style="{StaticResource OffstreamFieldLabelStyle}"
+                               Text="{x:Static res:Strings.MetadataFilterLabel}" />
+
+                    <ui:TextBox Grid.Column="1"
+                                VerticalAlignment="Center"
+                                AutomationProperties.AutomationId="MetadataFilter"
+                                AutomationProperties.HelpText="{x:Static res:Strings.MetadataFilterHelp}"
+                                AutomationProperties.Name="{x:Static res:Strings.MetadataFilterLabel}"
+                                PlaceholderText="{x:Static res:Strings.MetadataFilterPlaceholder}"
+                                Text="{Binding Filter, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                ToolTip="{x:Static res:Strings.MetadataFilterHelp}" />
+
+                    <TextBlock Grid.Column="2"
+                               Margin="12,0,0,0"
+                               VerticalAlignment="Center"
+                               AutomationProperties.LiveSetting="Polite"
+                               Style="{StaticResource OffstreamHintStyle}"
+                               Text="{Binding FilterSummary, Mode=OneWay}"
+                               Visibility="{Binding IsFiltered, Converter={StaticResource BooleanToVisibility}}" />
+                </Grid>
+
+                <TextBlock Grid.Row="1"
+                           Margin="4,12,0,0"
                            VerticalAlignment="Top"
                            Text="{x:Static res:Strings.MetadataEmpty}"
                            TextWrapping="Wrap">
@@ -405,11 +545,21 @@
                     Horizontal scrolling is disabled rather than automatic, which is what forces
                     the rows to be measured at the width actually available. See the row template.
                 -->
-                <ListBox AutomationProperties.AutomationId="MetadataTrackList"
+                <TextBlock Grid.Row="1"
+                           Margin="4,12,0,0"
+                           VerticalAlignment="Top"
+                           AutomationProperties.LiveSetting="Polite"
+                           Style="{StaticResource OffstreamHintStyle}"
+                           Text="{x:Static res:Strings.MetadataNoMatches}"
+                           TextWrapping="Wrap"
+                           Visibility="{Binding HasNoMatches, Converter={StaticResource BooleanToVisibility}}" />
+
+                <ListBox Grid.Row="1"
+                         AutomationProperties.AutomationId="MetadataTrackList"
                          Background="Transparent"
                          BorderThickness="0"
                          ItemTemplate="{StaticResource LibraryTrackTemplate}"
-                         ItemsSource="{Binding Tracks, Mode=OneWay}"
+                         ItemsSource="{Binding VisibleTracks, Mode=OneWay}"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                          Visibility="{Binding HasTracks, Converter={StaticResource BooleanToVisibility}}"
                          VirtualizingPanel.IsVirtualizing="True"

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using System.IO;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -57,6 +58,10 @@ public sealed partial class LibraryTrackViewModel : ObservableValidator
         _status = track.Status;
 
         CoverArt = LoadCoverArt(track.Existing.AlbumArtImage);
+        ExistingCoverArt = CoverArt;
+
+        CurrentYear = track.Existing.Year?.ToString(CultureInfo.CurrentCulture) ?? Strings.MetadataNoValue;
+        CurrentGenres = Join(track.Existing.Genres);
     }
 
     /// <summary>The file's own name, which is what identifies the row.</summary>
@@ -64,6 +69,14 @@ public sealed partial class LibraryTrackViewModel : ObservableValidator
 
     /// <summary>Full path, shown as the row's tooltip so nested folders stay distinguishable.</summary>
     public string Path { get; }
+
+    /// <summary>The picture the file carried when it was scanned, kept for the before-and-after.</summary>
+    /// <remarks>
+    /// <see cref="CoverArt"/> is replaced when a match brings a different picture, because the
+    /// row's thumbnail shows what would be written. This one is not, so the two can be shown side
+    /// by side — which is the only way artwork changing is visible at all.
+    /// </remarks>
+    public BitmapImage? ExistingCoverArt { get; }
 
     /// <summary>What the file carried when it was scanned.</summary>
     public string CurrentTitle { get; }
@@ -73,6 +86,12 @@ public sealed partial class LibraryTrackViewModel : ObservableValidator
 
     /// <inheritdoc cref="CurrentTitle" />
     public string CurrentAlbum { get; }
+
+    /// <inheritdoc cref="CurrentTitle" />
+    public string CurrentYear { get; }
+
+    /// <inheritdoc cref="CurrentTitle" />
+    public string CurrentGenres { get; }
 
     /// <summary>The scanned track this row edits.</summary>
     internal LibraryTrack Track => _track;
@@ -177,6 +196,35 @@ public sealed partial class LibraryTrackViewModel : ObservableValidator
     /// <inheritdoc cref="HasTitleChange" />
     public bool HasAlbumChange => Differs(_existingAlbum, Album);
 
+    /// <summary>The year the match found, or the placeholder.</summary>
+    public string SuggestedYear =>
+        _track.Suggested.Year?.ToString(CultureInfo.CurrentCulture) ?? Strings.MetadataNoValue;
+
+    /// <summary>The genres the match found, comma-separated, or the placeholder.</summary>
+    public string SuggestedGenres => Join(_track.Suggested.Genres);
+
+    /// <summary>Whether the match brought a different year.</summary>
+    public bool HasYearChange => _track.Existing.Year != _track.Suggested.Year;
+
+    /// <summary>Whether the match brought different genres.</summary>
+    public bool HasGenreChange =>
+        !string.Equals(CurrentGenres, SuggestedGenres, StringComparison.Ordinal);
+
+    /// <summary>Whether saving would put a different picture in the file.</summary>
+    public bool HasCoverArtChange => _track.CoverArtWouldChange;
+
+    /// <summary>
+    /// Whether the match changed anything the three editable boxes do not show.
+    /// </summary>
+    /// <remarks>
+    /// This is the answer to a complaint the page earned: a row saying "will change" with title,
+    /// artist and album all identical to the file, and nothing on screen saying why. Year, genre
+    /// and artwork are written by Save and were shown nowhere, so the badge looked wrong when it
+    /// was right. The block this gates is hidden entirely when the match changed only the fields
+    /// that already have boxes, because then the "was ..." lines have said it.
+    /// </remarks>
+    public bool HasMatchDetails => HasYearChange || HasGenreChange || HasCoverArtChange;
+
     /// <summary>Pulls a fetched suggestion back onto the row.</summary>
     /// <remarks>
     /// Called after a provider has enriched the underlying track. The editable fields are
@@ -199,8 +247,14 @@ public sealed partial class LibraryTrackViewModel : ObservableValidator
         }
 
         // A fetch that confirmed what the file already said changes no field, so nothing above
-        // raised a notification - but it may still have brought cover art, which is a change.
+        // raised a notification - but it may still have brought a year, a genre or cover art.
         OnPropertyChanged(nameof(HasPendingChanges));
+        OnPropertyChanged(nameof(SuggestedYear));
+        OnPropertyChanged(nameof(SuggestedGenres));
+        OnPropertyChanged(nameof(HasYearChange));
+        OnPropertyChanged(nameof(HasGenreChange));
+        OnPropertyChanged(nameof(HasCoverArtChange));
+        OnPropertyChanged(nameof(HasMatchDetails));
     }
 
     /// <summary>
@@ -264,6 +318,9 @@ public sealed partial class LibraryTrackViewModel : ObservableValidator
 
     private static string Or(string? value, string fallback) =>
         string.IsNullOrWhiteSpace(value) ? fallback : value;
+
+    private static string Join(string[]? genres) =>
+        genres is { Length: > 0 } ? string.Join(", ", genres) : Strings.MetadataNoValue;
 
     /// <summary>Whether a proposed value says something the file does not already say.</summary>
     /// <remarks>

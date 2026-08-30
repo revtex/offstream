@@ -148,6 +148,78 @@ public sealed class LibraryTrackViewModelTests
     public void WasLine_IsHiddenWhenTheFileAndTheBoxAreBothEmpty() =>
         Assert.False(Row(album: null).HasAlbumChange);
 
+    /// <summary>A row whose match changed nothing outside the three boxes shows no extra block.</summary>
+    [Fact]
+    public void MatchDetails_AreHiddenWhenTheBoxesSayItAll()
+    {
+        var row = Row();
+
+        row.Title = "Something Else";
+
+        Assert.False(row.HasMatchDetails);
+    }
+
+    /// <summary>A year the file did not have is a change the boxes cannot show.</summary>
+    /// <remarks>
+    /// This is the complaint the block answers. Before it, a row could say "will change" with
+    /// title, artist and album all identical to the file and nothing on screen saying why —
+    /// the match had brought a year, a genre or artwork, and Save writes all three.
+    /// </remarks>
+    [Fact]
+    public void MatchDetails_ShowTheYearAMatchBrought()
+    {
+        var track = new LibraryTrack(
+            @"C:\Music\01 Cloudbusting.mp3",
+            new Track { Title = "Cloudbusting", Artist = "Kate Bush", Album = "Hounds of Love" });
+
+        var row = new LibraryTrackViewModel(track);
+
+        track.Suggested.Year = 1985;
+        row.RefreshFromSuggestion();
+
+        Assert.True(row.HasYearChange);
+        Assert.True(row.HasMatchDetails);
+        Assert.Equal("1985", row.SuggestedYear);
+        Assert.True(row.HasPendingChanges);
+    }
+
+    /// <summary>Genres are shown the same way, joined for reading.</summary>
+    [Fact]
+    public void MatchDetails_ShowTheGenresAMatchBrought()
+    {
+        var track = new LibraryTrack(
+            @"C:\Music\01 Cloudbusting.mp3",
+            new Track { Title = "Cloudbusting", Artist = "Kate Bush", Album = "Hounds of Love" });
+
+        var row = new LibraryTrackViewModel(track);
+
+        track.Suggested.Genres = ["art pop", "art rock"];
+        row.RefreshFromSuggestion();
+
+        Assert.True(row.HasGenreChange);
+        Assert.Equal("art pop, art rock", row.SuggestedGenres);
+    }
+
+    /// <summary>Artwork the file already has is not a change, so no before-and-after appears.</summary>
+    [Fact]
+    public void MatchDetails_IgnoreArtworkTheFileAlreadyHas()
+    {
+        var picture = new byte[] { 1, 2, 3, 4 };
+
+        var row = new LibraryTrackViewModel(new LibraryTrack(
+            @"C:\Music\01 Cloudbusting.mp3",
+            new Track
+            {
+                Title = "Cloudbusting",
+                Artist = "Kate Bush",
+                Album = "Hounds of Love",
+                AlbumArtImage = picture,
+            }));
+
+        Assert.False(row.HasCoverArtChange);
+        Assert.False(row.HasMatchDetails);
+    }
+
     private static LibraryTrackViewModel Row(
         string? title = "Running Up That Hill",
         string? artist = "Kate Bush",

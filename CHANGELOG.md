@@ -86,7 +86,12 @@ phase plan these entries follow.
   cost no request; a single row can still be looked up deliberately when its tags are complete
   and wrong. Each file is one compact row showing what would be written, with the fields opening
   underneath only when asked — a library is a hundred files of which three are wrong, and a row
-  marked **Will change** is how the three are found without opening the other ninety-seven.
+  marked **Will change** is how the three are found without opening the other ninety-seven. A
+  **Filter** box narrows the list by title, artist, album or file name for libraries too long to
+  scroll — it changes what is drawn and nothing else, so Save still writes every ticked row it is
+  hiding. Beneath the editable fields, **Also from the match** shows the year, genre and artwork a
+  lookup found: Save writes all three and they appeared nowhere, so a row could announce that it
+  would change while every field on screen matched the file exactly.
 - **Looking a track up now falls back from Spotify to Last.fm instead of stopping at whichever
   one the Settings page names.** That setting answers "who tags a recording as it is made", where
   one source keeps a library consistent. Repairing files already on disk is the opposite problem —

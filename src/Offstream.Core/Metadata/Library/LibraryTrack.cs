@@ -77,6 +77,11 @@ public sealed class LibraryTrack
     /// <summary>Whether saving would put a different picture in the file than the one it has.</summary>
     /// <remarks>
     /// <para>
+    /// Public because the page shows it. A row can report that it will change while all three of
+    /// its editable fields are identical — the match brought a year, a genre or artwork — and a
+    /// badge with no visible cause reads as a bug rather than as information.
+    /// </para>
+    /// <para>
     /// This asked "does the suggestion have a picture at all", which is true of every file that
     /// was already tagged: the scan reads the file's own artwork into <see cref="Existing"/> and
     /// the copy constructor carries it into <see cref="Suggested"/>. So every well-tagged file in
@@ -90,7 +95,7 @@ public sealed class LibraryTrack
     /// already has changes nothing.
     /// </para>
     /// </remarks>
-    private bool CoverArtWouldChange =>
+    public bool CoverArtWouldChange =>
         !SameImage(Existing.AlbumArtImage, Suggested.AlbumArtImage)
         || (Suggested.AlbumArtImage is null or { Length: 0 }
             && !string.IsNullOrWhiteSpace(Suggested.AlbumArtUrl));

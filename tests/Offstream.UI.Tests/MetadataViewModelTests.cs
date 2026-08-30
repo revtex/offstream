@@ -269,6 +269,117 @@ public sealed class MetadataViewModelTests
         Assert.Equal(@"C:\Somewhere", viewModel.Folder);
     }
 
+    /// <summary>The filter narrows what is drawn.</summary>
+    [Fact]
+    public async Task Filter_NarrowsTheVisibleRows()
+    {
+        var viewModel = Build(new FakeScanner(
+            Scanned("kate.mp3", "Kate Bush", "Cloudbusting", "Hounds of Love"),
+            Scanned("run.mp3", "AWOLNATION", "Run", "Run")));
+
+        await viewModel.ScanCommand.ExecuteAsync(null);
+
+        viewModel.Filter = "kate";
+
+        Assert.Single(viewModel.VisibleTracks);
+        Assert.Equal("Cloudbusting", viewModel.VisibleTracks[0].Title);
+    }
+
+    /// <summary>It matches the file name too, not just the tags.</summary>
+    /// <remarks>
+    /// The row most in need of repair is routinely the one whose tags are wrong and whose name is
+    /// the only true thing about it, so a filter over tags alone cannot reach it.
+    /// </remarks>
+    [Fact]
+    public async Task Filter_MatchesTheFileName()
+    {
+        var viewModel = Build(new FakeScanner(
+            Scanned("cloudbusting.mp3", "Wrong", "Wrong", "Wrong"),
+            Scanned("run.mp3", "AWOLNATION", "Run", "Run")));
+
+        await viewModel.ScanCommand.ExecuteAsync(null);
+
+        viewModel.Filter = "cloudbust";
+
+        Assert.Single(viewModel.VisibleTracks);
+    }
+
+    /// <summary>A filter that hides a ticked row does not stop it being saved.</summary>
+    /// <remarks>
+    /// The discriminating test for the whole feature. Filtering is a way of looking at the list,
+    /// not a way of choosing what Save writes — a filter that quietly reduced the write would
+    /// silently lose work the user had already approved, and the tick box is the thing that says
+    /// what Save touches.
+    /// </remarks>
+    [Fact]
+    public async Task Filter_DoesNotChangeWhatSaveWrites()
+    {
+        var writer = new FakeWriter();
+        var viewModel = Build(
+            new FakeScanner(
+                Scanned("kate.mp3", "Kate Bush", "Cloudbusting", "Hounds of Love"),
+                Scanned("run.mp3", "AWOLNATION", "Run", "Run")),
+            writer);
+
+        await viewModel.ScanCommand.ExecuteAsync(null);
+
+        foreach (var row in viewModel.Tracks) row.Album = "Edited";
+
+        viewModel.Filter = "kate";
+
+        await viewModel.SaveSelectedCommand.ExecuteAsync(null);
+
+        Assert.Equal(2, writer.Saved.Count);
+    }
+
+    /// <summary>The counts describe the library, not the filter.</summary>
+    [Fact]
+    public async Task Filter_LeavesTheLibraryCountsAlone()
+    {
+        var viewModel = Build(new FakeScanner(
+            Scanned("kate.mp3", "Kate Bush", "Cloudbusting", "Hounds of Love"),
+            Scanned("run.mp3", "AWOLNATION", "Run", "Run")));
+
+        await viewModel.ScanCommand.ExecuteAsync(null);
+
+        viewModel.Filter = "kate";
+
+        Assert.Equal(2, viewModel.Tracks.Count);
+        Assert.True(viewModel.HasTracks);
+    }
+
+    /// <summary>A filter matching nothing says so rather than looking like an empty scan.</summary>
+    [Fact]
+    public async Task Filter_ThatMatchesNothingIsDistinctFromAnEmptyScan()
+    {
+        var viewModel = Build(new FakeScanner(Scanned("run.mp3", "AWOLNATION", "Run", "Run")));
+
+        await viewModel.ScanCommand.ExecuteAsync(null);
+
+        viewModel.Filter = "nothing here";
+
+        Assert.Empty(viewModel.VisibleTracks);
+        Assert.True(viewModel.HasNoMatches);
+        Assert.True(viewModel.HasTracks);
+    }
+
+    /// <summary>Clearing the filter brings the list back.</summary>
+    [Fact]
+    public async Task Filter_ClearedShowsEverythingAgain()
+    {
+        var viewModel = Build(new FakeScanner(
+            Scanned("kate.mp3", "Kate Bush", "Cloudbusting", "Hounds of Love"),
+            Scanned("run.mp3", "AWOLNATION", "Run", "Run")));
+
+        await viewModel.ScanCommand.ExecuteAsync(null);
+
+        viewModel.Filter = "kate";
+        viewModel.Filter = string.Empty;
+
+        Assert.Equal(2, viewModel.VisibleTracks.Count);
+        Assert.False(viewModel.IsFiltered);
+    }
+
     private static MetadataViewModel Build(
         ILibraryScanner? scanner = null,
         ILibraryTagWriter? writer = null,

@@ -139,13 +139,27 @@ public sealed class SpotifySearchMetadataProvider(ISpotifyClient client) : IMeta
 
     /// <summary>Copies the match onto the track, then fills in what a track object cannot say.</summary>
     /// <remarks>
+    /// <para>
     /// The same three-step shape the recording path uses: the track carries title, artist and
     /// position; the album carries year and cover art; and genre lives on the artist, because
     /// Spotify has no genre field on a track and stopped populating the album's for most of the
     /// catalogue in late 2024.
+    /// </para>
+    /// <para>
+    /// <b>What the file already had is put back when Spotify offers nothing.</b> The album
+    /// mapping assigns genre and year unconditionally — right for a recording, where the track
+    /// starts empty and Spotify is the only source there is, and wrong here, where the track
+    /// starts as the file's own tags. Spotify returns an empty genre list for most of its
+    /// catalogue, so without this a lookup silently blanks a genre the user curated. Nothing was
+    /// ever written — the writer skips empty values — but the row reported a change it would not
+    /// make, and once the page started showing before-and-after it read as an offer to erase.
+    /// </para>
     /// </remarks>
     private async Task ApplyAsync(Track track, FullTrack match, CancellationToken cancellationToken)
     {
+        var seededGenres = track.Genres;
+        var seededYear = track.Year;
+
         SpotifyTrackMapper.Apply(track, match);
 
         var albumId = match.Album?.Id;
@@ -154,6 +168,12 @@ public sealed class SpotifySearchMetadataProvider(ISpotifyClient client) : IMeta
         {
             SpotifyTrackMapper.Apply(track, await client.Albums.Get(albumId, cancellationToken));
         }
+
+        track.Year ??= seededYear;
+
+        if (track.Genres is { Length: > 0 }) return;
+
+        track.Genres = seededGenres;
 
         if (track.Genres is { Length: > 0 }) return;
 

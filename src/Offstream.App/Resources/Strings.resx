@@ -770,4 +770,48 @@
   <data name="MetadataStatusFailed" xml:space="preserve">
     <value>Failed</value>
   </data>
+  <data name="MetadataFilterLabel" xml:space="preserve">
+    <value>Filter</value>
+    <comment>Label for the box that narrows the scanned list.</comment>
+  </data>
+  <data name="MetadataFilterPlaceholder" xml:space="preserve">
+    <value>Title, artist, album or file name</value>
+    <comment>Placeholder in the filter box.</comment>
+  </data>
+  <data name="MetadataFilterHelp" xml:space="preserve">
+    <value>Narrows the list on screen only. Save still writes every ticked row, including ones the filter is hiding.</value>
+    <comment>Tooltip for the filter box.</comment>
+  </data>
+  <data name="MetadataFilterSummary" xml:space="preserve">
+    <value>Showing {0} of {1}</value>
+    <comment>Count under the filter box. {0} is the number showing, {1} the total scanned.</comment>
+  </data>
+  <data name="MetadataNoMatches" xml:space="preserve">
+    <value>No file matches that filter.</value>
+    <comment>Shown in place of the list when the filter matches nothing.</comment>
+  </data>
+  <data name="MetadataMatchHeading" xml:space="preserve">
+    <value>Also from the match</value>
+    <comment>Heading over the fields a match fills in that have no box of their own.</comment>
+  </data>
+  <data name="MetadataFieldYear" xml:space="preserve">
+    <value>Year</value>
+    <comment>Label for the year a match found.</comment>
+  </data>
+  <data name="MetadataFieldGenre" xml:space="preserve">
+    <value>Genre</value>
+    <comment>Label for the genres a match found.</comment>
+  </data>
+  <data name="MetadataFieldCover" xml:space="preserve">
+    <value>Cover</value>
+    <comment>Label for the before-and-after artwork.</comment>
+  </data>
+  <data name="MetadataCoverBefore" xml:space="preserve">
+    <value>In the file</value>
+    <comment>Caption under the artwork the file already has.</comment>
+  </data>
+  <data name="MetadataCoverAfter" xml:space="preserve">
+    <value>After saving</value>
+    <comment>Caption under the artwork that would be written.</comment>
+  </data>
 </root>
