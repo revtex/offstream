@@ -630,10 +630,6 @@
     <value>Aucun fichier ne correspond à ce filtre.</value>
     <comment>Shown in place of the list when the filter matches nothing.</comment>
   </data>
-  <data name="MetadataMatchHeading" xml:space="preserve">
-    <value>Également trouvé</value>
-    <comment>Heading over the fields a match fills in that have no box of their own.</comment>
-  </data>
   <data name="MetadataFieldYear" xml:space="preserve">
     <value>Année</value>
     <comment>Label for the year a match found.</comment>
@@ -689,5 +685,32 @@
   <data name="MetadataSearching" xml:space="preserve">
     <value>Recherche en cours…</value>
     <comment>Shown while a manual search is running.</comment>
+  </data>
+  <data name="MetadataFieldAlbumArtist" xml:space="preserve">
+    <value>Artiste de l'album</value>
+  </data>
+  <data name="MetadataFieldTrackNumber" xml:space="preserve">
+    <value>Piste</value>
+  </data>
+  <data name="MetadataFieldTrackCount" xml:space="preserve">
+    <value>Pistes sur l'album</value>
+  </data>
+  <data name="MetadataFieldDisc" xml:space="preserve">
+    <value>Disque</value>
+  </data>
+  <data name="MetadataFieldCopyright" xml:space="preserve">
+    <value>Droits d'auteur</value>
+  </data>
+  <data name="MetadataFieldArtwork" xml:space="preserve">
+    <value>Pochette</value>
+  </data>
+  <data name="MetadataListHint" xml:space="preserve">
+    <value>Séparez les valeurs par des virgules.</value>
+  </data>
+  <data name="MetadataYearInvalid" xml:space="preserve">
+    <value>Saisissez une année à quatre chiffres ou laissez le champ vide.</value>
+  </data>
+  <data name="MetadataNumberInvalid" xml:space="preserve">
+    <value>Saisissez un entier supérieur à zéro ou laissez le champ vide.</value>
   </data>
 </root>

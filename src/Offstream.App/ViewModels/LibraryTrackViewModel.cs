@@ -31,6 +31,13 @@ public sealed partial class LibraryTrackViewModel : ObservableValidator
     private readonly string? _existingTitle;
     private readonly string? _existingArtist;
     private readonly string? _existingAlbum;
+    private readonly string? _existingAlbumArtist;
+    private readonly string? _existingGenres;
+    private readonly string? _existingYear;
+    private readonly string? _existingTrackNumber;
+    private readonly string? _existingTrackCount;
+    private readonly string? _existingDisc;
+    private readonly string? _existingCopyright;
 
     /// <summary>Wraps a scanned file for display.</summary>
     public LibraryTrackViewModel(LibraryTrack track)
@@ -47,21 +54,39 @@ public sealed partial class LibraryTrackViewModel : ObservableValidator
         _existingTitle = track.Existing.Title;
         _existingArtist = track.Existing.Artist;
         _existingAlbum = track.Existing.Album;
+        _existingAlbumArtist = List(track.Existing.AlbumArtists);
+        _existingGenres = List(track.Existing.Genres);
+        _existingYear = Number(track.Existing.Year);
+        _existingTrackNumber = Number(track.Existing.AlbumPosition);
+        _existingTrackCount = Number(track.Existing.AlbumTrackCount);
+        _existingDisc = Number(track.Existing.Disc);
+        _existingCopyright = track.Existing.Copyright;
 
         CurrentTitle = Or(track.Existing.Title, Strings.MetadataNoValue);
         CurrentArtist = Or(track.Existing.Artist, Strings.MetadataNoValue);
         CurrentAlbum = Or(track.Existing.Album, Strings.MetadataNoValue);
+        CurrentAlbumArtist = Or(_existingAlbumArtist, Strings.MetadataNoValue);
+        CurrentGenres = Or(_existingGenres, Strings.MetadataNoValue);
+        CurrentYear = Or(_existingYear, Strings.MetadataNoValue);
+        CurrentTrackNumber = Or(_existingTrackNumber, Strings.MetadataNoValue);
+        CurrentTrackCount = Or(_existingTrackCount, Strings.MetadataNoValue);
+        CurrentDisc = Or(_existingDisc, Strings.MetadataNoValue);
+        CurrentCopyright = Or(_existingCopyright, Strings.MetadataNoValue);
 
         _title = track.Suggested.Title ?? string.Empty;
         _artist = track.Suggested.Artist ?? string.Empty;
         _album = track.Suggested.Album ?? string.Empty;
+        _albumArtist = List(track.Suggested.AlbumArtists) ?? string.Empty;
+        _genres = List(track.Suggested.Genres) ?? string.Empty;
+        _year = Number(track.Suggested.Year) ?? string.Empty;
+        _trackNumber = Number(track.Suggested.AlbumPosition) ?? string.Empty;
+        _trackCount = Number(track.Suggested.AlbumTrackCount) ?? string.Empty;
+        _disc = Number(track.Suggested.Disc) ?? string.Empty;
+        _copyright = track.Suggested.Copyright ?? string.Empty;
         _status = track.Status;
 
         CoverArt = LoadCoverArt(track.Existing.AlbumArtImage);
         ExistingCoverArt = CoverArt;
-
-        CurrentYear = track.Existing.Year?.ToString(CultureInfo.CurrentCulture) ?? Strings.MetadataNoValue;
-        CurrentGenres = Join(track.Existing.Genres);
     }
 
     /// <summary>The file's own name, which is what identifies the row.</summary>
@@ -88,10 +113,25 @@ public sealed partial class LibraryTrackViewModel : ObservableValidator
     public string CurrentAlbum { get; }
 
     /// <inheritdoc cref="CurrentTitle" />
+    public string CurrentAlbumArtist { get; }
+
+    /// <inheritdoc cref="CurrentTitle" />
     public string CurrentYear { get; }
 
     /// <inheritdoc cref="CurrentTitle" />
     public string CurrentGenres { get; }
+
+    /// <inheritdoc cref="CurrentTitle" />
+    public string CurrentTrackNumber { get; }
+
+    /// <inheritdoc cref="CurrentTitle" />
+    public string CurrentTrackCount { get; }
+
+    /// <inheritdoc cref="CurrentTitle" />
+    public string CurrentDisc { get; }
+
+    /// <inheritdoc cref="CurrentTitle" />
+    public string CurrentCopyright { get; }
 
     /// <summary>The scanned track this row edits.</summary>
     internal LibraryTrack Track => _track;
@@ -142,6 +182,52 @@ public sealed partial class LibraryTrackViewModel : ObservableValidator
     [NotifyPropertyChangedFor(nameof(HasPendingChanges))]
     private string _album;
 
+    /// <summary>Who the album is filed under, which is not always who performed the track.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAlbumArtistChange))]
+    [NotifyPropertyChangedFor(nameof(HasPendingChanges))]
+    private string _albumArtist;
+
+    /// <summary>Genres, comma-separated, because every container stores a list.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasGenreChange))]
+    [NotifyPropertyChangedFor(nameof(HasPendingChanges))]
+    private string _genres;
+
+    [ObservableProperty]
+    [NotifyDataErrorInfo]
+    [NotifyPropertyChangedFor(nameof(HasYearChange))]
+    [NotifyPropertyChangedFor(nameof(HasPendingChanges))]
+    [CustomValidation(typeof(LibraryTrackViewModel), nameof(ValidateYear))]
+    private string _year;
+
+    [ObservableProperty]
+    [NotifyDataErrorInfo]
+    [NotifyPropertyChangedFor(nameof(HasTrackNumberChange))]
+    [NotifyPropertyChangedFor(nameof(HasPendingChanges))]
+    [CustomValidation(typeof(LibraryTrackViewModel), nameof(ValidateCount))]
+    private string _trackNumber;
+
+    [ObservableProperty]
+    [NotifyDataErrorInfo]
+    [NotifyPropertyChangedFor(nameof(HasTrackCountChange))]
+    [NotifyPropertyChangedFor(nameof(HasPendingChanges))]
+    [CustomValidation(typeof(LibraryTrackViewModel), nameof(ValidateCount))]
+    private string _trackCount;
+
+    [ObservableProperty]
+    [NotifyDataErrorInfo]
+    [NotifyPropertyChangedFor(nameof(HasDiscChange))]
+    [NotifyPropertyChangedFor(nameof(HasPendingChanges))]
+    [CustomValidation(typeof(LibraryTrackViewModel), nameof(ValidateCount))]
+    private string _disc;
+
+    /// <summary>The copyright line. Filled by a match far more often than it is typed.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCopyrightChange))]
+    [NotifyPropertyChangedFor(nameof(HasPendingChanges))]
+    private string _copyright;
+
     /// <summary>The status, translated.</summary>
     public string StatusText => Status switch
     {
@@ -188,19 +274,26 @@ public sealed partial class LibraryTrackViewModel : ObservableValidator
     /// <inheritdoc cref="HasTitleChange" />
     public bool HasAlbumChange => Differs(_existingAlbum, Album);
 
-    /// <summary>The year the match found, or the placeholder.</summary>
-    public string SuggestedYear =>
-        _track.Suggested.Year?.ToString(CultureInfo.CurrentCulture) ?? Strings.MetadataNoValue;
+    /// <inheritdoc cref="HasTitleChange" />
+    public bool HasAlbumArtistChange => Differs(_existingAlbumArtist, AlbumArtist);
 
-    /// <summary>The genres the match found, comma-separated, or the placeholder.</summary>
-    public string SuggestedGenres => Join(_track.Suggested.Genres);
+    /// <inheritdoc cref="HasTitleChange" />
+    public bool HasGenreChange => Differs(_existingGenres, Genres);
 
-    /// <summary>Whether the match brought a different year.</summary>
-    public bool HasYearChange => _track.Existing.Year != _track.Suggested.Year;
+    /// <inheritdoc cref="HasTitleChange" />
+    public bool HasYearChange => Differs(_existingYear, Year);
 
-    /// <summary>Whether the match brought different genres.</summary>
-    public bool HasGenreChange =>
-        !string.Equals(CurrentGenres, SuggestedGenres, StringComparison.Ordinal);
+    /// <inheritdoc cref="HasTitleChange" />
+    public bool HasTrackNumberChange => Differs(_existingTrackNumber, TrackNumber);
+
+    /// <inheritdoc cref="HasTitleChange" />
+    public bool HasTrackCountChange => Differs(_existingTrackCount, TrackCount);
+
+    /// <inheritdoc cref="HasTitleChange" />
+    public bool HasDiscChange => Differs(_existingDisc, Disc);
+
+    /// <inheritdoc cref="HasTitleChange" />
+    public bool HasCopyrightChange => Differs(_existingCopyright, Copyright);
 
     /// <summary>Whether saving would put a different picture in the file.</summary>
     public bool HasCoverArtChange => _track.CoverArtWouldChange;
@@ -233,30 +326,26 @@ public sealed partial class LibraryTrackViewModel : ObservableValidator
         }
     }
 
-    /// <summary>
-    /// Whether the match changed anything the three editable boxes do not show.
-    /// </summary>
-    /// <remarks>
-    /// This is the answer to a complaint the page earned: a row saying "will change" with title,
-    /// artist and album all identical to the file, and nothing on screen saying why. Year, genre
-    /// and artwork are written by Save and were shown nowhere, so the badge looked wrong when it
-    /// was right. The block this gates is hidden entirely when the match changed only the fields
-    /// that already have boxes, because then the "was ..." lines have said it.
-    /// </remarks>
-    public bool HasMatchDetails => HasYearChange || HasGenreChange || HasCoverArtChange;
 
     /// <summary>Pulls a fetched suggestion back onto the row.</summary>
     /// <remarks>
     /// Called after a provider has enriched the underlying track. The editable fields are
-    /// overwritten because the whole point of a fetch is to replace the guess — but only the
-    /// three the user can see, so a provider cannot quietly change something the page never
-    /// showed.
+    /// overwritten because the whole point of a fetch is to replace the guess — and every field
+    /// the writer touches now has a box, so there is nothing a provider can change that the page
+    /// does not show.
     /// </remarks>
     public void RefreshFromSuggestion()
     {
         Title = _track.Suggested.Title ?? string.Empty;
         Artist = _track.Suggested.Artist ?? string.Empty;
         Album = _track.Suggested.Album ?? string.Empty;
+        AlbumArtist = List(_track.Suggested.AlbumArtists) ?? string.Empty;
+        Genres = List(_track.Suggested.Genres) ?? string.Empty;
+        Year = Number(_track.Suggested.Year) ?? string.Empty;
+        TrackNumber = Number(_track.Suggested.AlbumPosition) ?? string.Empty;
+        TrackCount = Number(_track.Suggested.AlbumTrackCount) ?? string.Empty;
+        Disc = Number(_track.Suggested.Disc) ?? string.Empty;
+        Copyright = _track.Suggested.Copyright ?? string.Empty;
 
         Status = _track.Status;
         FailureReason = _track.FailureReason;
@@ -267,14 +356,9 @@ public sealed partial class LibraryTrackViewModel : ObservableValidator
         }
 
         // A fetch that confirmed what the file already said changes no field, so nothing above
-        // raised a notification - but it may still have brought a year, a genre or cover art.
+        // raised a notification - but it may still have brought cover art.
         OnPropertyChanged(nameof(HasPendingChanges));
-        OnPropertyChanged(nameof(SuggestedYear));
-        OnPropertyChanged(nameof(SuggestedGenres));
-        OnPropertyChanged(nameof(HasYearChange));
-        OnPropertyChanged(nameof(HasGenreChange));
         OnPropertyChanged(nameof(HasCoverArtChange));
-        OnPropertyChanged(nameof(HasMatchDetails));
         OnPropertyChanged(nameof(SuggestedCoverArtSource));
     }
 
@@ -316,6 +400,84 @@ public sealed partial class LibraryTrackViewModel : ObservableValidator
         _track.Suggested.Album = value;
         MarkEdited();
     }
+
+    /// <inheritdoc cref="OnTitleChanged" />
+    partial void OnAlbumArtistChanged(string value)
+    {
+        _track.Suggested.AlbumArtists = AsList(value, _track.Suggested.AlbumArtists);
+        MarkEdited();
+    }
+
+    /// <inheritdoc cref="OnTitleChanged" />
+    partial void OnGenresChanged(string value)
+    {
+        _track.Suggested.Genres = SplitList(value);
+        MarkEdited();
+    }
+
+    /// <summary>
+    /// A number the user is halfway through typing is not a reason to throw the old one away.
+    /// </summary>
+    /// <remarks>
+    /// The boxes update on every keystroke, so "19" is a state every four-digit year passes
+    /// through. Writing whatever parses would put 19 into the track and then 198 and then 1984,
+    /// which is harmless — but a value that does <i>not</i> parse has to leave the field alone
+    /// rather than null it, or backspacing over a year to retype it clears the tag underneath and
+    /// the validation message that says so never gets a chance to stop the save.
+    /// </remarks>
+    partial void OnYearChanged(string value) =>
+        SetNumber(value, number => _track.Suggested.Year = number);
+
+    /// <inheritdoc cref="OnYearChanged" />
+    partial void OnTrackNumberChanged(string value) =>
+        SetNumber(value, number => _track.Suggested.AlbumPosition = number);
+
+    /// <inheritdoc cref="OnYearChanged" />
+    partial void OnTrackCountChanged(string value) =>
+        SetNumber(value, number => _track.Suggested.AlbumTrackCount = number);
+
+    /// <inheritdoc cref="OnYearChanged" />
+    partial void OnDiscChanged(string value) =>
+        SetNumber(value, number => _track.Suggested.Disc = number);
+
+    /// <inheritdoc cref="OnTitleChanged" />
+    partial void OnCopyrightChanged(string value)
+    {
+        _track.Suggested.Copyright = value;
+        MarkEdited();
+    }
+
+    /// <summary>Assigns a numeric box, leaving the tag alone while the value is unusable.</summary>
+    private void SetNumber(string value, Action<int?> assign)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            assign(null);
+        }
+        else if (ParseNumber(value) is { } number)
+        {
+            assign(number);
+        }
+
+        MarkEdited();
+    }
+
+    /// <summary>A year is four digits, and everything Offstream can tag was recorded after 1000.</summary>
+    /// <remarks>
+    /// Empty passes, here and in every numeric box on the page. A file that has never had a track
+    /// number is not in error for still not having one, and the writer leaves an empty value
+    /// alone rather than clearing the file's own.
+    /// </remarks>
+    public static ValidationResult? ValidateYear(string? value, ValidationContext context) =>
+        string.IsNullOrWhiteSpace(value) || ParseNumber(value) is >= 1000 and <= 9999
+            ? ValidationResult.Success
+            : new ValidationResult(Strings.MetadataYearInvalid);
+
+    /// <inheritdoc cref="ValidateYear" />
+    public static ValidationResult? ValidateCount(string? value, ValidationContext context) =>
+        string.IsNullOrWhiteSpace(value) || ParseNumber(value) is not null
+            ? ValidationResult.Success
+            : new ValidationResult(Strings.MetadataNumberInvalid);
 
     /// <summary>Takes a row back out of the saved state when it is edited again.</summary>
     /// <remarks>
@@ -379,8 +541,47 @@ public sealed partial class LibraryTrackViewModel : ObservableValidator
     private static string Or(string? value, string fallback) =>
         string.IsNullOrWhiteSpace(value) ? fallback : value;
 
-    private static string Join(string[]? genres) =>
-        genres is { Length: > 0 } ? string.Join(", ", genres) : Strings.MetadataNoValue;
+    /// <summary>A tag list as one editable line, or nothing at all.</summary>
+    private static string? List(string[]? values) =>
+        values is { Length: > 0 } ? string.Join(", ", values) : null;
+
+    /// <summary>The inverse of <see cref="List"/>. Blank entries are dropped, not stored empty.</summary>
+    private static string[]? SplitList(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? null
+            : value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    /// <summary>A name list edited as one line, without reading the commas inside a name.</summary>
+    /// <remarks>
+    /// Artist names contain commas — "Earth, Wind &amp; Fire" is one band — so splitting this box
+    /// the way <see cref="SplitList"/> splits genres would file that album under three artists,
+    /// which is a worse corruption than the multi-value tag it was meant to preserve. The box is
+    /// filled from <paramref name="current"/>, so text that still matches means nobody has typed
+    /// over it and the list goes back untouched, however many values it holds; text that does not
+    /// match is one name the user chose. Genres keep the split — a genre list really is a list,
+    /// and commas inside a single genre are vanishingly rare.
+    /// </remarks>
+    private static string[]? AsList(string? value, string[]? current) =>
+        string.IsNullOrWhiteSpace(value) ? null
+            : string.Equals(List(current), value, StringComparison.Ordinal) ? current
+            : [value.Trim()];
+
+    private static string? Number(int? value) =>
+        value is > 0 ? value.Value.ToString(CultureInfo.InvariantCulture) : null;
+
+    /// <summary>
+    /// Reads a box back as a number, invariantly.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="NumberStyles.None"/> is what rejects "-3", "1,984" and " 12 " — a tag number is
+    /// digits and nothing else, and a group separator that parses in one locale and fails in the
+    /// next would make the same typed year valid or invalid depending on the machine.
+    /// </remarks>
+    private static int? ParseNumber(string? value) =>
+        int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var number)
+        && number > 0
+            ? number
+            : null;
 
     /// <summary>Whether a proposed value says something the file does not already say.</summary>
     /// <remarks>

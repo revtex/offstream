@@ -998,6 +998,22 @@ Three second-order notes from doing it:
 
 Commands bound from inside the pane reach the page with `RelativeSource={RelativeSource AncestorType=UserControl}`; the row template's old `AncestorType=ListBox` has no such ancestor once the editor is out of the list.
 
+### Finding: a tag the recorder writes and the editor cannot reach is a tag nobody can fix (2026-08-31)
+
+The page shipped with three editable fields — title, artist, album — and showed year, genre and artwork read-only beside them. The scope question "which fields belong here" has an answer that is not a matter of taste: **whatever the recording path writes**. `FFmpegArguments.MetadataArguments` writes title, artist, album, album artist, genre, date, track, disc and copyright, so a recording could carry a wrong disc number that no part of Offstream could correct. Composer, comment and BPM are in neither list, and that is what keeps this from drifting into a general-purpose tag editor.
+
+Filling the gap turned up three defects underneath it, none of which were visible while the fields were absent.
+
+**Ten fields do not stack.** 10 × 65 DIP is 650 in a 347 DIP pane — the same arithmetic as the finding above, discovered a day later on the pane that fixed it. Paired into two columns it is 390 DIP, so seven of ten are visible at the minimum window and all ten at any real size. Numeric boxes read fine at half width, which is what makes the pairing free.
+
+**An emptied box is not a change.** `HasChanges` compared before against after, so clearing the album box lit **Will change** and then saved nothing — the writer has never written a blank over a value. The predicate now asks whether saving would alter the file, which is the question the badge was always claiming to answer.
+
+**Writing one artist back over a tag that held two destroyed data.** ID3v2.3 separates artists with a slash, so the file recorded as `AC/DC` holds the two values `AC` and `DC`; `Read` took `FirstPerformer`, the box showed `AC`, and `Write` did `tag.Performers = [track.Artist]` — narrowing the tag on the page whose purpose is repairing tags. It had been there since the writer was written and was invisible until an album artist box appeared next to the artist box showing `AC, DC` beside `AC`. The fix writes the original list back verbatim when its first entry still matches the box, since that is where the box was filled from; a match satisfies this by construction, because the mapper sets the artist from the first performer it assigns.
+
+The tempting fix is worse than the bug: splitting the box on commas the way the genre box splits reads `Earth, Wind & Fire` as three artists. **A list of names cannot be edited as a comma-separated line.** Genres can, because a genre list really is a list and commas inside one genre are vanishingly rare; names cannot, because commas inside one name are ordinary. Both artist boxes therefore keep the array they were filled from whenever the text still matches it, and take the whole line as a single value when it does not.
+
+The never-erase rule from the day before became one helper, `LibraryLookup`, rather than two hand-written copies, and grew from genre and year to all seven fields a lookup can leave empty. There are still two call sites, and both are still load-bearing — `MetadataViewModel.FetchOneAsync` for every automatic lookup and `SpotifyCatalogEnricher` for the manual **Use this** path, which does not pass through it — but the rule itself now exists once, so the next field cannot be added to one copy and forgotten in the other. That is precisely how the bug survived its first fix.
+
 ---
 
 ## 12. Risks

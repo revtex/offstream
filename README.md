@@ -145,17 +145,24 @@ at the time. The **Metadata** tab is where you repair those.
 
 Nothing reaches a file until you press Save. The page is a list beside an editor. Each file is one
 row showing what *would* be written — the title, then the artist and album, then the file it came
-from — and clicking a row, or arrowing onto it, fills the pane on the right with Title, Artist and
-Album as editable boxes. There is a **was …** line under anything you'd be changing, so a match
+from — and clicking a row, or arrowing onto it, fills the pane on the right with its tags as
+editable boxes: Title, Artist, Album artist, Album, Genre, Year, Disc, Track, Tracks on album and
+Copyright. That is every tag Offstream writes while recording, so anything it can put into a file
+it can also repair. There is a **was …** line under anything you'd be changing, so a match
 that got the remix wrong is a correction rather than a reason to start over. The pane stays the
 same size and in the same place whichever row you pick, so the library never moves out from under
 you while you're working on one of its files. Rows that would actually alter a file are marked
 **Will change**, which is how you find the three that need attention without reading the other
-hundred. Under the boxes, **Also from the match** shows what a lookup found that has no box of
-its own — the year, the genre and the artwork, before and after — because Save writes all three
-and a row that says it will change while every box matches the file otherwise looks like a
-mistake. Only what a lookup actually found appears there: a provider that has no genre for a
-track leaves the file's own alone rather than proposing to remove it.
+hundred. Artwork a lookup found is shown under the boxes, before and after, since it is the one
+thing Save writes that you can't type.
+
+Only what a lookup actually found is proposed: a provider with no genre for a track leaves the
+file's own alone rather than offering to remove it. Save writes no blank over a value either, so
+emptying a box leaves that tag as it was — clear a box to stop Offstream changing something, not
+to erase it. Type a comma into **Genre** to give a track more than one; **Artist** and **Album
+artist** take the name as you write it, commas and all, because "Earth, Wind & Fire" is one band.
+A file whose artist tag already holds several names shows the first in the box and keeps all of
+them on Save unless you type over it.
 
 **Filter** narrows the list to the rows whose title, artist, album or file name contain what you
 type. It only changes what is on screen: Save still writes every ticked row, including the ones the

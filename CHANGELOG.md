@@ -89,10 +89,14 @@ phase plan these entries follow.
   files of which three are wrong, and a row marked **Will change** is how the three are found
   without reading the other ninety-seven. A **Filter** box narrows the list by title, artist,
   album or file name for libraries too long to scroll — it changes what is drawn and nothing else,
-  so Save still writes every ticked row it is hiding. Under the editable fields, **Also from the
-  match** shows the year, genre and artwork a lookup found: Save writes all three and they
-  appeared nowhere, so a row could announce that it would change while every field on screen
-  matched the file exactly. And when the match itself is wrong, **Not the right track?** searches
+  so Save still writes every ticked row it is hiding. Every tag Offstream writes while recording
+  can be edited here: title, artist, album artist, album, genre, year, track number, tracks on
+  album, disc and copyright. Three of them were editable at first and the rest were not shown at
+  all, which left a row free to announce that it would change while every field on screen matched
+  the file exactly — and left a tag the recorder writes but the page could not reach as a tag
+  nobody could ever fix. The fields sit in two columns rather than one, because ten stacked
+  fields are 650 DIP inside a 347 DIP pane and seven of them would have opened below the fold.
+  And when the match itself is wrong, **Not the right track?** searches
   Spotify for whatever you type and lists what it finds, year included, so a remaster can be told
   from the original; it is pinned to the foot of the pane, so the results arrive where the user is
   already looking rather than below a fold. Until this there was no way to correct a bad match
@@ -106,7 +110,13 @@ phase plan these entries follow.
   lookup that has no genre for a track no longer offers to remove the one the file has: every
   provider assigns genre and year unconditionally, which is right where they were written, tagging
   a recording that starts with nothing, and wrong here, where the track starts as the file's own
-  tags.
+  tags. The same holds for every other tag a lookup can leave empty, and for clearing a box by
+  hand — Save writes no blank over a value, so an emptied field stopped claiming a change it was
+  never going to make. Saving also keeps an artist tag that holds more than one name. ID3v2.3
+  separates artists with a slash, so a file recorded as `AC/DC` is stored as the two values `AC`
+  and `DC`; the page has one artist box, it is filled from the first of them, and writing that
+  box back narrowed the tag to `AC` — the repair page destroying the tag it was opened to
+  repair. An artist nobody has typed over is now written back exactly as it was found.
 - **Looking a track up now falls back from Spotify to Last.fm instead of stopping at whichever
   one the Settings page names.** That setting answers "who tags a recording as it is made", where
   one source keeps a library consistent. Repairing files already on disk is the opposite problem —

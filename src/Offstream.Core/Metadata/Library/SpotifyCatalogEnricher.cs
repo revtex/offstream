@@ -31,13 +31,10 @@ internal static class SpotifyCatalogEnricher
     /// catalogue in late 2024.
     /// </para>
     /// <para>
-    /// <b>What the track already had is put back when Spotify offers nothing.</b> The album
-    /// mapping assigns genre and year unconditionally — right for a recording, where the track
-    /// starts empty and Spotify is the only source there is, and wrong on the Metadata page,
-    /// where it starts as the file's own tags. Spotify returns an empty genre list for most of
-    /// its catalogue, so without this a lookup silently blanks a genre the user curated. Nothing
-    /// was ever written — the writer skips empty values — but the row reported a change it would
-    /// not make, and once the page started showing before-and-after it read as an offer to erase.
+    /// <b>What the track already had is put back when Spotify offers nothing</b>, by
+    /// <see cref="LibraryLookup.KeepWhatWasThere"/> — see it for why. This call site is the manual
+    /// one: <c>MetadataViewModel.FetchOneAsync</c> covers every automatic lookup and never runs
+    /// for a match the user picked by hand, so the rule has to hold here too.
     /// </para>
     /// </remarks>
     public static async Task ApplyAsync(
@@ -46,8 +43,7 @@ internal static class SpotifyCatalogEnricher
         FullTrack match,
         CancellationToken cancellationToken)
     {
-        var seededGenres = track.Genres;
-        var seededYear = track.Year;
+        var before = LibraryLookup.Snapshot(track);
 
         SpotifyTrackMapper.Apply(track, match);
 
@@ -58,11 +54,7 @@ internal static class SpotifyCatalogEnricher
             SpotifyTrackMapper.Apply(track, await client.Albums.Get(albumId, cancellationToken));
         }
 
-        track.Year ??= seededYear;
-
-        if (track.Genres is { Length: > 0 }) return;
-
-        track.Genres = seededGenres;
+        LibraryLookup.KeepWhatWasThere(track, before);
 
         if (track.Genres is { Length: > 0 }) return;
 

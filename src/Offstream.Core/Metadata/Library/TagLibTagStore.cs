@@ -72,6 +72,12 @@ public sealed class TagLibTagStore : ILibraryTagStore
                 Album = NullIfBlank(tag.Album),
                 Genres = tag.Genres is { Length: > 0 } genres ? genres : null,
                 Year = tag.Year > 0 ? (int)tag.Year : null,
+                AlbumArtists = tag.AlbumArtists is { Length: > 0 } albumArtists ? albumArtists : null,
+                Performers = tag.Performers is { Length: > 0 } performers ? performers : null,
+                AlbumPosition = PositiveOrNull(tag.Track),
+                AlbumTrackCount = PositiveOrNull(tag.TrackCount),
+                Disc = PositiveOrNull(tag.Disc),
+                Copyright = NullIfBlank(tag.Copyright),
                 AlbumArtImage = tag.Pictures is [var picture, ..] ? picture.Data?.Data : null,
             };
 
@@ -100,17 +106,30 @@ public sealed class TagLibTagStore : ILibraryTagStore
             using var file = TagLib.File.Create(path);
             var tag = file.Tag;
 
-            // Only fields the user can actually see and correct on the page. Writing everything
-            // Track can hold would let a provider's idea of, say, disc number silently replace a
-            // value the user curated, on a page that never showed it to them.
+            // Every tag the recording path writes, and nothing beyond it. The two lists being the
+            // same list is the point: a tag Offstream puts into a file when it records it and
+            // cannot put right afterwards is a tag the user has no way to fix at all. Composer,
+            // comment and BPM are absent from both, so this is not a general-purpose tag editor.
+            //
+            // Empty is still never written. Clearing a box leaves the file's own value alone
+            // rather than erasing it, which is the same promise a lookup makes.
             if (!string.IsNullOrWhiteSpace(track.Title)) tag.Title = track.Title;
             if (!string.IsNullOrWhiteSpace(track.Album)) tag.Album = track.Album;
             if (track.Year is > 0) tag.Year = (uint)track.Year.Value;
             if (track.Genres is { Length: > 0 }) tag.Genres = track.Genres;
+            if (track.AlbumPosition is > 0) tag.Track = (uint)track.AlbumPosition.Value;
+            if (track.AlbumTrackCount is > 0) tag.TrackCount = (uint)track.AlbumTrackCount.Value;
+            if (track.Disc is > 0) tag.Disc = (uint)track.Disc.Value;
+            if (!string.IsNullOrWhiteSpace(track.Copyright)) tag.Copyright = track.Copyright;
+
+            // Before the artist block on purpose: that block fills the album artist in from the
+            // artist only when nothing else has, so an album artist the user typed has to be in
+            // place by the time it runs or it would lose to the fallback.
+            if (track.AlbumArtists is { Length: > 0 } albumArtists) tag.AlbumArtists = albumArtists;
 
             if (!string.IsNullOrWhiteSpace(track.Artist))
             {
-                tag.Performers = [track.Artist];
+                tag.Performers = KeepsEveryPerformer(track) ? track.Performers! : [track.Artist];
 
                 // Without this the album artist keeps whatever was there before, and players that
                 // group by album artist file the corrected track under the old, wrong name.
@@ -168,4 +187,34 @@ public sealed class TagLibTagStore : ILibraryTagStore
 
     private static string? NullIfBlank(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value;
+
+    /// <summary>
+    /// Whether the performer list still agrees with the artist box, and so survives the save.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// An artist tag can hold more than one value, and the page shows one box. Writing
+    /// <c>[track.Artist]</c> unconditionally therefore threw the rest away: a file recorded as
+    /// <c>AC/DC</c> is stored as the two values <c>AC</c> and <c>DC</c> — ID3v2.3 treats the
+    /// slash as its separator — so the box read "AC" and Save narrowed the tag to "AC" on a page
+    /// whose whole purpose is repairing tags.
+    /// </para>
+    /// <para>
+    /// The first element is what the box was filled from, so it agreeing means nobody has typed
+    /// over it and the original list can go back verbatim. It disagreeing means the user or a
+    /// match replaced the artist, and their one value is what should be written. A Spotify match
+    /// satisfies this by construction — the mapper sets the artist from the first performer it
+    /// assigns — so a match still writes its full performer list, exactly as the recorder does.
+    /// </para>
+    /// <para>
+    /// Deliberately not "split the box on commas". That reads <c>Earth, Wind &amp; Fire</c> as
+    /// three artists, which is a worse corruption than the one being fixed.
+    /// </para>
+    /// </remarks>
+    private static bool KeepsEveryPerformer(Track track) =>
+        track.Performers is { Length: > 0 } performers
+        && string.Equals(performers[0], track.Artist, StringComparison.Ordinal);
+
+    /// <summary>TagLib# reports an absent number as zero, which is not a track number.</summary>
+    private static int? PositiveOrNull(uint value) => value > 0 ? (int)value : null;
 }
