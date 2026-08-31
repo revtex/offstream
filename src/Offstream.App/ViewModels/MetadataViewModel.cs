@@ -93,6 +93,34 @@ public sealed partial class MetadataViewModel : ObservableObject
     /// </remarks>
     public ObservableCollection<LibraryTrackViewModel> VisibleTracks { get; } = [];
 
+    /// <summary>The row the editor on the right is editing, or null when none is picked.</summary>
+    /// <remarks>
+    /// The editor used to open inside the row itself, and it never fitted: an opened row measured
+    /// 539 device-independent pixels against a list viewport of 347, so choosing a track buried
+    /// the library it was chosen from and pushed the search results off the bottom of the page.
+    /// Hoisting the choice to the page turns the same controls into a pane that is always the
+    /// same size and always in the same place, and nothing reflows when the pick changes.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSelection))]
+    private LibraryTrackViewModel? _selectedTrack;
+
+    /// <summary>Whether a row is picked, and so whether the editor has anything to show.</summary>
+    public bool HasSelection => SelectedTrack is not null;
+
+    /// <summary>Fills the picked row's search box.</summary>
+    /// <remarks>
+    /// Seeding on selection covers every way in — clicking a row, arrowing onto it, or the list
+    /// re-filtering under a pick. It hung off an expand command once, so a row opened by its
+    /// chevron rather than its title got an empty box and searching from there asked Spotify for
+    /// nothing.
+    /// <para>This can fire more than once for the same pick: re-filtering clears the selection
+    /// and puts it back, so the row is seeded twice. That is harmless only because seeding is
+    /// idempotent — it returns early on a query that is already there. Anything added here has
+    /// to stay safe to repeat.</para>
+    /// </remarks>
+    partial void OnSelectedTrackChanged(LibraryTrackViewModel? value) => value?.SeedMatchQuery();
+
     /// <summary>The folder to scan. Starts at wherever recordings are being written.</summary>
     [ObservableProperty]
     private string _folder;
@@ -144,12 +172,20 @@ public sealed partial class MetadataViewModel : ObservableObject
     {
         var needle = Filter?.Trim();
 
+        // Clearing the collection makes the list null its own SelectedItem, which travels back
+        // here through the two-way binding. Without putting the pick back, typing in the filter
+        // box would empty the editor on every keystroke — including the keystrokes that still
+        // match the row being edited.
+        var picked = SelectedTrack;
+
         VisibleTracks.Clear();
 
         foreach (var row in Tracks)
         {
             if (Matches(row, needle)) VisibleTracks.Add(row);
         }
+
+        SelectedTrack = picked is not null && VisibleTracks.Contains(picked) ? picked : null;
 
         OnPropertyChanged(nameof(IsFiltered));
         OnPropertyChanged(nameof(HasNoMatches));
@@ -201,6 +237,7 @@ public sealed partial class MetadataViewModel : ObservableObject
         {
             var scan = await _scanner.ScanAsync(Folder, cancellationToken);
 
+            SelectedTrack = null;
             Tracks.Clear();
 
             foreach (var track in scan.Tracks) Tracks.Add(new LibraryTrackViewModel(track));

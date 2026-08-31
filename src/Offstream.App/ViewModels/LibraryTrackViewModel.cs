@@ -4,7 +4,6 @@ using System.Globalization;
 using System.IO;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using Offstream.App.Resources;
 using Offstream.Core.Metadata.Library;
 using Serilog;
@@ -110,15 +109,6 @@ public sealed partial class LibraryTrackViewModel : ObservableValidator
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SuggestedCoverArtSource))]
     private BitmapImage? _coverArt;
-
-    /// <summary>Whether the row's editable fields are showing.</summary>
-    /// <remarks>
-    /// Collapsed is the resting state. A library is a hundred files and three of them are wrong;
-    /// keeping every row's boxes open costs the other ninety-seven their share of the window, and
-    /// the first version of this page showed three of a hundred and twenty-seven files at once.
-    /// </remarks>
-    [ObservableProperty]
-    private bool _isExpanded;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StatusText))]
@@ -375,8 +365,8 @@ public sealed partial class LibraryTrackViewModel : ObservableValidator
 
     /// <summary>Fills the search box from whatever the row says now.</summary>
     /// <remarks>
-    /// Called when the fields open. Doing it on expand rather than in the constructor means the
-    /// box reflects a fetch or an edit that happened in between, instead of the values the file
+    /// Called when the row becomes the selected one, not from the constructor, so the box
+    /// reflects a fetch or an edit that happened in between rather than the values the file
     /// carried when it was scanned.
     /// </remarks>
     public void SeedMatchQuery()
@@ -384,21 +374,6 @@ public sealed partial class LibraryTrackViewModel : ObservableValidator
         if (!string.IsNullOrWhiteSpace(MatchQuery)) return;
 
         MatchQuery = string.Join(' ', new[] { Artist, Title }.Where(part => !string.IsNullOrWhiteSpace(part)));
-    }
-
-    /// <summary>Opens or closes this row's fields.</summary>
-    [RelayCommand]
-    private void ToggleExpand() => IsExpanded = !IsExpanded;
-
-    /// <summary>Seeds the search box whichever way the row was opened.</summary>
-    /// <remarks>
-    /// This hung off the command, so a row opened by clicking its title got a seeded query and
-    /// the same row opened by its chevron — the affordance that looks like the way to do it —
-    /// got an empty box, and searching from there asked Spotify for nothing.
-    /// </remarks>
-    partial void OnIsExpandedChanged(bool value)
-    {
-        if (value) SeedMatchQuery();
     }
 
     private static string Or(string? value, string fallback) =>

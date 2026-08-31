@@ -325,6 +325,95 @@ public sealed class MetadataViewModelTests
         Assert.Equal("Cloudbusting", viewModel.VisibleTracks[0].Title);
     }
 
+    /// <summary>Picking a row fills its search box.</summary>
+    /// <remarks>
+    /// Seeding lives on the page's selection rather than on the row, so it happens however the
+    /// row was reached — clicked, arrowed onto, or restored after a re-filter. It used to hang
+    /// off an expand command that only one of the two ways of opening a row ran, and the other
+    /// way left the box empty and searched Spotify for nothing.
+    /// </remarks>
+    [Fact]
+    public async Task Selecting_SeedsTheRowsSearchBox()
+    {
+        var viewModel = Build(new FakeScanner(Scanned("kate.mp3", "Kate Bush", "Cloudbusting", "Hounds of Love")));
+
+        await viewModel.ScanCommand.ExecuteAsync(null);
+
+        Assert.Null(viewModel.SelectedTrack);
+        Assert.False(viewModel.HasSelection);
+
+        viewModel.SelectedTrack = viewModel.VisibleTracks[0];
+
+        Assert.True(viewModel.HasSelection);
+        Assert.Equal("Kate Bush Cloudbusting", viewModel.SelectedTrack.MatchQuery);
+    }
+
+    /// <summary>A filter that still matches the picked row leaves it picked.</summary>
+    /// <remarks>
+    /// Re-filtering empties the visible collection and refills it, which makes the list null its
+    /// own selection on the way through. Without putting the pick back, typing in the filter box
+    /// would close the editor on every keystroke — including the keystrokes that narrow the list
+    /// towards the very row being edited.
+    /// </remarks>
+    [Fact]
+    public async Task Filtering_KeepsTheRowTheEditorIsShowing()
+    {
+        var viewModel = Build(new FakeScanner(
+            Scanned("kate.mp3", "Kate Bush", "Cloudbusting", "Hounds of Love"),
+            Scanned("run.mp3", "AWOLNATION", "Run", "Run")));
+
+        await viewModel.ScanCommand.ExecuteAsync(null);
+
+        var picked = viewModel.VisibleTracks[0];
+        viewModel.SelectedTrack = picked;
+
+        viewModel.Filter = "kate";
+
+        Assert.Same(picked, viewModel.SelectedTrack);
+    }
+
+    /// <summary>A filter that hides the picked row empties the editor.</summary>
+    /// <remarks>
+    /// The other half of the rule above. Holding on to a row that is no longer in the list would
+    /// leave the pane editing a file the user cannot see, and Save would then write a change with
+    /// nothing on screen to account for it.
+    /// </remarks>
+    [Fact]
+    public async Task Filtering_ClearsTheEditorWhenItsRowIsHidden()
+    {
+        var viewModel = Build(new FakeScanner(
+            Scanned("kate.mp3", "Kate Bush", "Cloudbusting", "Hounds of Love"),
+            Scanned("run.mp3", "AWOLNATION", "Run", "Run")));
+
+        await viewModel.ScanCommand.ExecuteAsync(null);
+
+        viewModel.SelectedTrack = viewModel.VisibleTracks[0];
+
+        viewModel.Filter = "awolnation";
+
+        Assert.Null(viewModel.SelectedTrack);
+        Assert.False(viewModel.HasSelection);
+    }
+
+    /// <summary>Scanning again empties the editor.</summary>
+    /// <remarks>
+    /// The rows a scan produces are new objects, so a pick held across one would point at a row
+    /// that is no longer in any list — an editor bound to a file the new scan may not even have
+    /// found.
+    /// </remarks>
+    [Fact]
+    public async Task Scanning_ClearsTheEditor()
+    {
+        var viewModel = Build(new FakeScanner(Scanned("kate.mp3", "Kate Bush", "Cloudbusting", "Hounds of Love")));
+
+        await viewModel.ScanCommand.ExecuteAsync(null);
+        viewModel.SelectedTrack = viewModel.VisibleTracks[0];
+
+        await viewModel.ScanCommand.ExecuteAsync(null);
+
+        Assert.Null(viewModel.SelectedTrack);
+    }
+
     /// <summary>It matches the file name too, not just the tags.</summary>
     /// <remarks>
     /// The row most in need of repair is routinely the one whose tags are wrong and whose name is

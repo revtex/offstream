@@ -541,11 +541,11 @@
   <data name="MetadataWasLabel" xml:space="preserve">
     <value>avant</value>
   </data>
-  <data name="MetadataExpand" xml:space="preserve">
-    <value>Afficher les champs</value>
+  <data name="MetadataNoSelection" xml:space="preserve">
+    <value>Choisissez une piste à gauche pour vérifier et modifier ses métadonnées.</value>
   </data>
-  <data name="MetadataCollapse" xml:space="preserve">
-    <value>Masquer les champs</value>
+  <data name="MetadataEditorHeading" xml:space="preserve">
+    <value>Métadonnées à écrire</value>
   </data>
   <data name="MetadataWillChange" xml:space="preserve">
     <value>Sera modifié</value>

@@ -84,31 +84,25 @@ phase plan these entries follow.
   an automatic match is wrong often enough that the review step is the feature rather than
   friction in front of it. Files that already carry a title, artist and album are left alone and
   cost no request; a single row can still be looked up deliberately when its tags are complete
-  and wrong. Each file is one compact row showing what would be written, with the fields opening
-  underneath only when asked — a library is a hundred files of which three are wrong, and a row
-  marked **Will change** is how the three are found without opening the other ninety-seven. A
-  **Filter** box narrows the list by title, artist, album or file name for libraries too long to
-  scroll — it changes what is drawn and nothing else, so Save still writes every ticked row it is
-  hiding. Beneath the editable fields, **Also from the match** shows the year, genre and artwork a
-  lookup found: Save writes all three and they appeared nowhere, so a row could announce that it
-  would change while every field on screen matched the file exactly. And when the match itself is
-  wrong, **Not the right track?** searches Spotify for whatever you type and lists what it finds,
-  year included, so a remaster can be told from the original. Until this there was no way to
-  correct a bad match except to type all three fields by hand and give up the year, genre and
-  artwork that come with a real one — re-fetching could not do it, because the automatic lookup
-  builds its query from the file's own fields and then refuses any result whose artist disagrees
-  with them, which is precisely the case where the file is what is wrong. The list scrolls by
-  pixel rather than by row, because a wheel notch moved three rows and a row here is three lines
-  of text — most of a screen at a time. A row has no selected state either: nothing on the page
-  acts on "the selected row", so a highlight following the arrow keys was a third kind of emphasis
-  competing with the tick box, which says what Save writes, and the chevron, which says what is
-  open. The panel that opens is a recessed well with its labels above its fields, the shape the
-  rest of the application uses, with the four fields in two columns and what the match found
-  beside them; two earlier versions were laid out as a form instead of as a comparison, and the
-  second one hung its labels in a right-aligned gutter of its own invention and ran eight rows
-  deep. Opening a row by its chevron now fills the search box the way opening it by its title
-  always did — the seeding hung off the title's command, so the control that looks like the way to
-  open a row left the box empty and searching from there asked Spotify for nothing at all. And a
+  and wrong. The page is a list beside an editor: each file is one compact row saying what would
+  be written, and picking a row fills a pane on the right with its fields. A library is a hundred
+  files of which three are wrong, and a row marked **Will change** is how the three are found
+  without reading the other ninety-seven. A **Filter** box narrows the list by title, artist,
+  album or file name for libraries too long to scroll — it changes what is drawn and nothing else,
+  so Save still writes every ticked row it is hiding. Under the editable fields, **Also from the
+  match** shows the year, genre and artwork a lookup found: Save writes all three and they
+  appeared nowhere, so a row could announce that it would change while every field on screen
+  matched the file exactly. And when the match itself is wrong, **Not the right track?** searches
+  Spotify for whatever you type and lists what it finds, year included, so a remaster can be told
+  from the original; it is pinned to the foot of the pane, so the results arrive where the user is
+  already looking rather than below a fold. Until this there was no way to correct a bad match
+  except to type all three fields by hand and give up the year, genre and artwork that come with a
+  real one — re-fetching could not do it, because the automatic lookup builds its query from the
+  file's own fields and then refuses any result whose artist disagrees with them, which is
+  precisely the case where the file is what is wrong. The list scrolls by pixel rather than by
+  row, because a wheel notch moved three rows and a row here is three lines of text — most of a
+  screen at a time. Picking a row fills its search box from what the row says at that moment, so a
+  search asks for the track as it has been corrected rather than as it was scanned. And a
   lookup that has no genre for a track no longer offers to remove the one the file has: every
   provider assigns genre and year unconditionally, which is right where they were written, tagging
   a recording that starts with nothing, and wrong here, where the track starts as the file's own
