@@ -61,13 +61,38 @@ These are load-bearing; violating them breaks the app in ways that are not obvio
   for most of its catalogue since late 2024 and Last.fm returns none for an artist nobody has
   tagged, so without this a lookup blanks a genre the user curated. Nothing ever reaches the file —
   `TagLibTagStore` writes a genre only when there is one — but the row reports a change Save will
-  not make, and the editor spells it out as an offer to erase. It lives in **two** places, and
-  both are load-bearing. `MetadataViewModel.FetchOneAsync` is the call site every automatic lookup
-  passes through, so the rule holds there for whichever provider in the chain answers and for any
-  provider added later — it was fixed once inside the Spotify path alone and the Last.fm fallback
-  still had the hole. `SpotifyCatalogEnricher` keeps its own copy because the manual-match path
-  (**Use this**, via `SpotifyMatchSearch.ApplyAsync`) reaches the enricher without going through
-  `FetchOneAsync`. Deleting either one restores the bug on one of the two paths.
+  not make, and the editor spells it out as an offer to erase. The rule is written once, in
+  `LibraryLookup.Snapshot` / `KeepWhatWasThere`, and covers every field a lookup can leave empty
+  — not just genre and year. It has **two** call sites and both are load-bearing.
+  `MetadataViewModel.FetchOneAsync` is the one every automatic lookup passes through, so the rule
+  holds there for whichever provider in the chain answers and for any provider added later — it
+  was fixed once inside the Spotify path alone and the Last.fm fallback still had the hole.
+  `SpotifyCatalogEnricher` calls it separately because the manual-match path (**Use this**, via
+  `SpotifyMatchSearch.ApplyAsync`) reaches the enricher without going through `FetchOneAsync`.
+  Deleting either call restores the bug on one of the two paths. Add a new field to the helper,
+  never to a call site — the original bug survived its first fix precisely because the rule
+  existed twice.
+- **The Metadata page edits exactly the tags the recorder writes, and a name is not a
+  comma-separated list** (decided 2026-08-31). The editable set is title, artist, album artist,
+  album, genre, year, track, tracks-on-album, disc and copyright, which is
+  `FFmpegArguments.MetadataArguments` — a tag Offstream writes while recording and cannot repair
+  afterwards is a tag nobody can fix at all. Composer, comment and BPM are in neither list, and
+  leaving them out is what keeps this from becoming a general-purpose tag editor. Two rules for
+  the fields that hold several values. **Genres split on commas; artist and album artist do
+  not** — `Earth, Wind & Fire` is one band, and splitting it is a worse corruption than the
+  multi-value tag the box was added to expose, so those boxes keep the array they were filled
+  from while the text still matches it and take the whole line as one value when it does not.
+  And **an artist tag can hold more than one name behind a single box**: ID3v2.3 separates
+  artists with a slash, so a file recorded as `AC/DC` reads back as the two values `AC` and `DC`.
+  `TagLibTagStore.Write` writes `track.Performers` back verbatim when its first entry still
+  equals `track.Artist` (`KeepsEveryPerformer`), because that first entry is where the box was
+  filled from. Writing `[track.Artist]` unconditionally is what it used to do, and it narrowed
+  the tag on the page whose whole purpose is repairing tags.
+- **`LibraryTrack.HasChanges` means "saving would alter the file", not "these differ"**
+  (decided 2026-08-31). `TagLibTagStore.Write` never writes a blank over a value, so a plain
+  inequality made an emptied box light the **Will change** badge and then save nothing. Any field
+  added to the editor has to go through `Replaces`, which asks whether there is a new value at
+  all before asking whether it differs.
 - **Use `ProcessStartInfo.ArgumentList`, never a command string.** Track metadata comes from Spotify window titles and is untrusted. The argv array prevents argument injection structurally; the old app needed hand-written `CommandLineToArgvW` escaping because .NET Framework lacked `ArgumentList`.
 
 ## Spotify Web API rules

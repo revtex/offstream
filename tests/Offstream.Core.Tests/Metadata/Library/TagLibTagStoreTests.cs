@@ -27,6 +27,11 @@ public sealed class TagLibTagStoreTests : IDisposable
     public void Dispose() => _workspace.Dispose();
 
     /// <summary>What is written comes back.</summary>
+    /// <remarks>
+    /// Every tag the recording path writes, because the page's promise is that a tag Offstream
+    /// puts into a file it can also put right. A field that reads back as null here is one the
+    /// user can type into a box and lose on the next scan.
+    /// </remarks>
     [Fact]
     public async Task Write_ThenRead_RoundTripsEveryField()
     {
@@ -37,8 +42,13 @@ public sealed class TagLibTagStoreTests : IDisposable
             Title = "The Mother We Share",
             Artist = "Chvrches",
             Album = "The Bones of What You Believe",
+            AlbumArtists = ["Chvrches"],
             Year = 2013,
             Genres = ["synthpop"],
+            AlbumPosition = 2,
+            AlbumTrackCount = 12,
+            Disc = 1,
+            Copyright = "2013 Goodbye Records",
         }, coverArt: null);
 
         var read = _store.Read(path);
@@ -46,8 +56,124 @@ public sealed class TagLibTagStoreTests : IDisposable
         Assert.Equal("The Mother We Share", read.Title);
         Assert.Equal("Chvrches", read.Artist);
         Assert.Equal("The Bones of What You Believe", read.Album);
+        Assert.Equal(["Chvrches"], read.AlbumArtists!);
         Assert.Equal(2013, read.Year);
         Assert.Equal(["synthpop"], read.Genres!);
+        Assert.Equal(2, read.AlbumPosition);
+        Assert.Equal(12, read.AlbumTrackCount);
+        Assert.Equal(1, read.Disc);
+        Assert.Equal("2013 Goodbye Records", read.Copyright);
+    }
+
+    /// <summary>
+    /// The numbers survive in every container the page will open.
+    /// </summary>
+    /// <remarks>
+    /// Copyright is the field worth checking per container rather than once: it is the thinnest
+    /// support of the set, stored in a different place by each of ID3, Vorbis comments and the
+    /// MPEG-4 atom tree. A container that dropped it would give the user a box that accepts a
+    /// value, reports it saved and shows it gone on the next scan.
+    /// </remarks>
+    [Theory]
+    [InlineData(MediaFormat.Mp3)]
+    [InlineData(MediaFormat.Flac)]
+    [InlineData(MediaFormat.Aac)]
+    [InlineData(MediaFormat.Opus)]
+    public async Task Write_ThenRead_KeepsTheNumbersInEveryContainer(MediaFormat format)
+    {
+        var path = await EncodeAsync(format);
+
+        _store.Write(path, new Track
+        {
+            Title = "Recover",
+            Artist = "Chvrches",
+            AlbumPosition = 4,
+            AlbumTrackCount = 12,
+            Disc = 2,
+            Copyright = "2013 Goodbye Records",
+        }, coverArt: null);
+
+        var read = _store.Read(path);
+
+        Assert.Equal(4, read.AlbumPosition);
+        Assert.Equal(12, read.AlbumTrackCount);
+        Assert.Equal(2, read.Disc);
+        Assert.Equal("2013 Goodbye Records", read.Copyright);
+    }
+
+    /// <summary>
+    /// An album artist the user typed outranks the one derived from the artist.
+    /// </summary>
+    /// <remarks>
+    /// The writer fills the album artist in from the artist when the file has none, which is what
+    /// stops a corrected track being filed under the old name. That fallback runs after the
+    /// explicit write on purpose — the other order let it win, and a compilation retagged with
+    /// "Various Artists" came back credited to whoever performed the track.
+    /// </remarks>
+    [Fact]
+    public async Task Write_KeepsAnAlbumArtistThatDisagreesWithTheArtist()
+    {
+        var path = await EncodeAsync(MediaFormat.Mp3);
+
+        _store.Write(path, new Track
+        {
+            Title = "Sabotage",
+            Artist = "Beastie Boys",
+            AlbumArtists = ["Various Artists"],
+        }, coverArt: null);
+
+        var read = _store.Read(path);
+
+        Assert.Equal("Beastie Boys", read.Artist);
+        Assert.Equal(["Various Artists"], read.AlbumArtists!);
+    }
+
+    /// <summary>
+    /// A scan and a save with nothing edited must give the file back exactly the artist it had,
+    /// however many values that tag holds.
+    /// </summary>
+    /// <remarks>
+    /// ID3v2.3 separates artists with a slash, so a file recorded as "AC/DC" comes back as the
+    /// two values "AC" and "DC". The page has one artist box, it is filled from the first of
+    /// them, and writing that box alone used to narrow the tag to "AC" — the repair page
+    /// destroying the tag it was opened to repair.
+    /// </remarks>
+    [Fact]
+    public async Task Write_KeepsEveryArtistOnATagThatHoldsMoreThanOne()
+    {
+        var path = await EncodeAsync(MediaFormat.Mp3);
+
+        _store.Write(path, new Track { Title = "Who Made Who", Artist = "AC", Performers = ["AC", "DC"] }, coverArt: null);
+
+        var read = _store.Read(path);
+
+        Assert.Equal(["AC", "DC"], read.Performers!);
+        Assert.Equal("AC", read.Artist);
+    }
+
+    /// <summary>Typing over the box is the one thing that does collapse the list.</summary>
+    [Fact]
+    public async Task Write_ReplacesEveryArtistWhenTheArtistWasEdited()
+    {
+        var path = await EncodeAsync(MediaFormat.Mp3);
+
+        _store.Write(path, new Track { Title = "Who Made Who", Artist = "Acca Dacca", Performers = ["AC", "DC"] }, coverArt: null);
+
+        var read = _store.Read(path);
+
+        Assert.Equal(["Acca Dacca"], read.Performers!);
+    }
+
+    /// <summary>An empty value leaves the file's own alone rather than erasing it.</summary>
+    [Fact]
+    public async Task Write_DoesNotClearATagItHasNothingToSayAbout()
+    {
+        var path = await EncodeAsync(MediaFormat.Mp3);
+
+        _store.Write(path, new Track { Title = "Gun", Artist = "Chvrches", Disc = 3 }, coverArt: null);
+        _store.Write(path, new Track { Title = "Gun", Artist = "Chvrches" }, coverArt: null);
+
+        Assert.Equal(3, _store.Read(path).Disc);
     }
 
     /// <summary>

@@ -212,8 +212,37 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <StackPanel Grid.Column="0">
-                            <StackPanel Style="{StaticResource MetadataFieldStyle}">
+                        <!--
+                            Two columns, not ten stacked boxes. Measured at the shell's minimum
+                            window the pane is 444 DIP wide and its scrolling region 347 DIP tall,
+                            while a field costs 65 DIP of height and reads perfectly well at half
+                            that width — the numeric boxes are 216 DIP and nobody has trouble with
+                            them. Stacked, the ten fields came to 650 DIP and put seven of them
+                            below the fold, where a scroll bar is the only evidence they exist.
+                            Paired, they come to 390 DIP: one row over at the smallest window
+                            Offstream allows, and all of it visible at any size anybody uses.
+
+                            Title and copyright span both columns because neither is a short value
+                            — one is what the row is named after, and the other is a sentence.
+                        -->
+                        <Grid Grid.Column="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0" Grid.ColumnSpan="3" Grid.Column="0" Style="{StaticResource MetadataFieldStyle}">
                                 <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.MetadataFieldTitle}" />
 
                                 <TextBox x:Name="TitleBox"
@@ -222,6 +251,8 @@
                                          Text="{Binding Title, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" />
 
                                 <TextBlock Style="{StaticResource MetadataWasStyle}"
+                                           TextTrimming="CharacterEllipsis"
+                                           TextWrapping="NoWrap"
                                            Visibility="{Binding HasTitleChange, Converter={StaticResource BooleanToVisibility}}">
                                     <Run Text="{x:Static res:Strings.MetadataWasLabel}" />
                                     <Run Text="{Binding CurrentTitle, Mode=OneTime}" />
@@ -230,7 +261,7 @@
                                 <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=TitleBox, Path=(Validation.Errors)/ErrorContent}" />
                             </StackPanel>
 
-                            <StackPanel Style="{StaticResource MetadataFieldStyle}">
+                            <StackPanel Grid.Row="1" Grid.Column="0" Style="{StaticResource MetadataFieldStyle}">
                                 <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.MetadataFieldArtist}" />
 
                                 <TextBox x:Name="ArtistBox"
@@ -239,6 +270,8 @@
                                          Text="{Binding Artist, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" />
 
                                 <TextBlock Style="{StaticResource MetadataWasStyle}"
+                                           TextTrimming="CharacterEllipsis"
+                                           TextWrapping="NoWrap"
                                            Visibility="{Binding HasArtistChange, Converter={StaticResource BooleanToVisibility}}">
                                     <Run Text="{x:Static res:Strings.MetadataWasLabel}" />
                                     <Run Text="{Binding CurrentArtist, Mode=OneTime}" />
@@ -247,51 +280,168 @@
                                 <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=ArtistBox, Path=(Validation.Errors)/ErrorContent}" />
                             </StackPanel>
 
-                            <StackPanel Style="{StaticResource MetadataFieldStyle}">
+                            <StackPanel Grid.Row="1" Grid.Column="2" Style="{StaticResource MetadataFieldStyle}">
+                                <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.MetadataFieldAlbumArtist}" />
+
+                                <TextBox x:Name="AlbumArtistBox"
+                                         AutomationProperties.HelpText="{x:Static res:Strings.MetadataListHint}"
+                                         AutomationProperties.Name="{x:Static res:Strings.MetadataFieldAlbumArtist}"
+                                                                     ToolTip="{x:Static res:Strings.MetadataListHint}"
+                                         Text="{Binding AlbumArtist, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Style="{StaticResource MetadataWasStyle}"
+                                           TextTrimming="CharacterEllipsis"
+                                           TextWrapping="NoWrap"
+                                           Visibility="{Binding HasAlbumArtistChange, Converter={StaticResource BooleanToVisibility}}">
+                                    <Run Text="{x:Static res:Strings.MetadataWasLabel}" />
+                                    <Run Text="{Binding CurrentAlbumArtist, Mode=OneTime}" />
+                                </TextBlock>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="2" Grid.Column="0" Style="{StaticResource MetadataFieldStyle}">
                                 <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.MetadataFieldAlbum}" />
 
-                                <TextBox AutomationProperties.HelpText="{x:Static res:Strings.MetadataFieldAlbum}"
+                                <TextBox x:Name="AlbumBox"
+                                         AutomationProperties.HelpText="{x:Static res:Strings.MetadataFieldAlbum}"
                                          AutomationProperties.Name="{x:Static res:Strings.MetadataFieldAlbum}"
                                          Text="{Binding Album, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
                                 <TextBlock Style="{StaticResource MetadataWasStyle}"
+                                           TextTrimming="CharacterEllipsis"
+                                           TextWrapping="NoWrap"
                                            Visibility="{Binding HasAlbumChange, Converter={StaticResource BooleanToVisibility}}">
                                     <Run Text="{x:Static res:Strings.MetadataWasLabel}" />
                                     <Run Text="{Binding CurrentAlbum, Mode=OneTime}" />
                                 </TextBlock>
                             </StackPanel>
 
-                            <!--
-                                Year, genre and artwork are written by Save and had no
-                                representation anywhere, so a row could say "will change" with all
-                                three boxes beside it matching the file exactly. Read-only on
-                                purpose: they come from the match or they do not come at all, and
-                                a box for a genre invites typing one Spotify has never heard of.
-                            -->
-                            <StackPanel Style="{StaticResource MetadataFieldStyle}" Visibility="{Binding HasMatchDetails, Converter={StaticResource BooleanToVisibility}}">
-                                <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.MetadataMatchHeading}" />
+                            <StackPanel Grid.Row="2" Grid.Column="2" Style="{StaticResource MetadataFieldStyle}">
+                                <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.MetadataFieldGenre}" />
 
-                                <TextBlock Style="{StaticResource MetadataValueStyle}"
+                                <TextBox x:Name="GenresBox"
+                                         AutomationProperties.HelpText="{x:Static res:Strings.MetadataListHint}"
+                                         AutomationProperties.Name="{x:Static res:Strings.MetadataFieldGenre}"
+                                                                     ToolTip="{x:Static res:Strings.MetadataListHint}"
+                                         Text="{Binding Genres, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Style="{StaticResource MetadataWasStyle}"
+                                           TextTrimming="CharacterEllipsis"
+                                           TextWrapping="NoWrap"
+                                           Visibility="{Binding HasGenreChange, Converter={StaticResource BooleanToVisibility}}">
+                                    <Run Text="{x:Static res:Strings.MetadataWasLabel}" />
+                                    <Run Text="{Binding CurrentGenres, Mode=OneTime}" />
+                                </TextBlock>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="3" Grid.Column="0" Style="{StaticResource MetadataFieldStyle}">
+                                <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.MetadataFieldYear}" />
+
+                                <TextBox x:Name="YearBox"
+                                         AutomationProperties.HelpText="{x:Static res:Strings.MetadataFieldYear}"
+                                         AutomationProperties.Name="{x:Static res:Strings.MetadataFieldYear}"
+                                         Text="{Binding Year, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" />
+
+                                <TextBlock Style="{StaticResource MetadataWasStyle}"
+                                           TextTrimming="CharacterEllipsis"
+                                           TextWrapping="NoWrap"
                                            Visibility="{Binding HasYearChange, Converter={StaticResource BooleanToVisibility}}">
-                                    <Run Text="{x:Static res:Strings.MetadataFieldYear}" />
-                                    <Run FontWeight="SemiBold" Text="{Binding SuggestedYear, Mode=OneWay}" />
                                     <Run Text="{x:Static res:Strings.MetadataWasLabel}" />
                                     <Run Text="{Binding CurrentYear, Mode=OneTime}" />
                                 </TextBlock>
 
-                                <TextBlock Style="{StaticResource MetadataValueStyle}"
+                                <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=YearBox, Path=(Validation.Errors)/ErrorContent}" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="3" Grid.Column="2" Style="{StaticResource MetadataFieldStyle}">
+                                <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.MetadataFieldDisc}" />
+
+                                <TextBox x:Name="DiscBox"
+                                         AutomationProperties.HelpText="{x:Static res:Strings.MetadataFieldDisc}"
+                                         AutomationProperties.Name="{x:Static res:Strings.MetadataFieldDisc}"
+                                         Text="{Binding Disc, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" />
+
+                                <TextBlock Style="{StaticResource MetadataWasStyle}"
                                            TextTrimming="CharacterEllipsis"
                                            TextWrapping="NoWrap"
-                                           Visibility="{Binding HasGenreChange, Converter={StaticResource BooleanToVisibility}}">
-                                    <Run Text="{x:Static res:Strings.MetadataFieldGenre}" />
-                                    <Run FontWeight="SemiBold" Text="{Binding SuggestedGenres, Mode=OneWay}" />
+                                           Visibility="{Binding HasDiscChange, Converter={StaticResource BooleanToVisibility}}">
                                     <Run Text="{x:Static res:Strings.MetadataWasLabel}" />
-                                    <Run Text="{Binding CurrentGenres, Mode=OneTime}" />
+                                    <Run Text="{Binding CurrentDisc, Mode=OneTime}" />
                                 </TextBlock>
 
-                                <StackPanel Margin="0,8,0,0"
-                                            Orientation="Horizontal"
-                                            Visibility="{Binding HasCoverArtChange, Converter={StaticResource BooleanToVisibility}}">
+                                <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=DiscBox, Path=(Validation.Errors)/ErrorContent}" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="4" Grid.Column="0" Style="{StaticResource MetadataFieldStyle}">
+                                <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.MetadataFieldTrackNumber}" />
+
+                                <TextBox x:Name="TrackNumberBox"
+                                         AutomationProperties.HelpText="{x:Static res:Strings.MetadataFieldTrackNumber}"
+                                         AutomationProperties.Name="{x:Static res:Strings.MetadataFieldTrackNumber}"
+                                         Text="{Binding TrackNumber, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" />
+
+                                <TextBlock Style="{StaticResource MetadataWasStyle}"
+                                           TextTrimming="CharacterEllipsis"
+                                           TextWrapping="NoWrap"
+                                           Visibility="{Binding HasTrackNumberChange, Converter={StaticResource BooleanToVisibility}}">
+                                    <Run Text="{x:Static res:Strings.MetadataWasLabel}" />
+                                    <Run Text="{Binding CurrentTrackNumber, Mode=OneTime}" />
+                                </TextBlock>
+
+                                <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=TrackNumberBox, Path=(Validation.Errors)/ErrorContent}" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="4" Grid.Column="2" Style="{StaticResource MetadataFieldStyle}">
+                                <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.MetadataFieldTrackCount}" />
+
+                                <TextBox x:Name="TrackCountBox"
+                                         AutomationProperties.HelpText="{x:Static res:Strings.MetadataFieldTrackCount}"
+                                         AutomationProperties.Name="{x:Static res:Strings.MetadataFieldTrackCount}"
+                                         Text="{Binding TrackCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" />
+
+                                <TextBlock Style="{StaticResource MetadataWasStyle}"
+                                           TextTrimming="CharacterEllipsis"
+                                           TextWrapping="NoWrap"
+                                           Visibility="{Binding HasTrackCountChange, Converter={StaticResource BooleanToVisibility}}">
+                                    <Run Text="{x:Static res:Strings.MetadataWasLabel}" />
+                                    <Run Text="{Binding CurrentTrackCount, Mode=OneTime}" />
+                                </TextBlock>
+
+                                <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=TrackCountBox, Path=(Validation.Errors)/ErrorContent}" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="5" Grid.ColumnSpan="3" Grid.Column="0" Style="{StaticResource MetadataFieldStyle}">
+                                <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.MetadataFieldCopyright}" />
+
+                                <TextBox x:Name="CopyrightBox"
+                                         AutomationProperties.HelpText="{x:Static res:Strings.MetadataFieldCopyright}"
+                                         AutomationProperties.Name="{x:Static res:Strings.MetadataFieldCopyright}"
+                                         Text="{Binding Copyright, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Style="{StaticResource MetadataWasStyle}"
+                                           TextTrimming="CharacterEllipsis"
+                                           TextWrapping="NoWrap"
+                                           Visibility="{Binding HasCopyrightChange, Converter={StaticResource BooleanToVisibility}}">
+                                    <Run Text="{x:Static res:Strings.MetadataWasLabel}" />
+                                    <Run Text="{Binding CurrentCopyright, Mode=OneTime}" />
+                                </TextBlock>
+                            </StackPanel>
+
+                            <!--
+                                Artwork is the one tag with no box, because a picture is not
+                                something to type. It is still written by Save, so a row can say
+                                "will change" with every field beside it matching the file — and a
+                                badge with no visible cause reads as a bug rather than as
+                                information. Before and after, side by side, is the only way a
+                                changed picture is visible at all.
+                            -->
+                            <StackPanel Grid.Row="6"
+                                        Grid.ColumnSpan="3"
+                                        Grid.Column="0"
+                                        Style="{StaticResource MetadataFieldStyle}"
+                                        Visibility="{Binding HasCoverArtChange, Converter={StaticResource BooleanToVisibility}}">
+                                <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.MetadataFieldArtwork}" />
+
+                                <StackPanel Margin="0,8,0,0" Orientation="Horizontal">
                                     <StackPanel Margin="0,0,14,0">
                                         <Image Width="44"
                                                Height="44"
@@ -311,8 +461,7 @@
                                     </StackPanel>
                                 </StackPanel>
                             </StackPanel>
-
-                        </StackPanel>
+                        </Grid>
                     </Grid>
                 </ScrollViewer>
 
