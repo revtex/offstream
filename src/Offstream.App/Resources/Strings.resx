@@ -692,11 +692,11 @@
     <value>was</value>
     <comment>Precedes the value a file carried before, shown only under a field that changed.</comment>
   </data>
-  <data name="MetadataExpand" xml:space="preserve">
-    <value>Show tag fields</value>
+  <data name="MetadataNoSelection" xml:space="preserve">
+    <value>Choose a track on the left to review and edit its tags.</value>
   </data>
-  <data name="MetadataCollapse" xml:space="preserve">
-    <value>Hide tag fields</value>
+  <data name="MetadataEditorHeading" xml:space="preserve">
+    <value>Tags to write</value>
   </data>
   <data name="MetadataWillChange" xml:space="preserve">
     <value>Will change</value>

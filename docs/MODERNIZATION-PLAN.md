@@ -971,6 +971,33 @@ And a fourth member of the genre false-positive family, which the earlier fix ha
 
 One process note, because it cost a wrong diagnosis. Restoring a file with `mv` from a `.bak` preserves the backup's **mtime**, which can be older than the compiled output — so MSBuild considers the project up to date and the next test run silently exercises the previous build. A test that passed, then failed with the fix visibly present in the source, was that and nothing else. `touch` the file after any restore of this kind.
 
+### Finding: an editor that opens inside a list row has to fit inside a list row, and this one never could (2026-08-31)
+
+The row editor was rebuilt twice and tightened once, and every version was judged by looking at it. Measuring it instead settled the question in one reading. At the shell's minimum window of 1024×700, with UIAutomation reporting `BoundingRectangle` in physical pixels against a 150% scale factor:
+
+| | DIP |
+| --- | --- |
+| Window | 700 |
+| Page chrome above the list | 542 |
+| **Track list viewport** | **347** |
+| **One expanded row** | **539** |
+
+An editor 1.55× the height of the container it opens in is not a spacing problem, and no amount of trimming reaches it. The page owns only about 130 DIP of that chrome — the intro paragraph and the folder, button and filter rows; the rest is the shell's title bar and nav strip and is not this page's to reclaim — so spending **all** of it still leaves a deficit, and the best case is a list showing exactly one file. The cheaper variant that was costed and rejected, moving the search and its results into a popover, lands an opened row at 347 DIP: precisely the viewport, which is the same failure at one decimal place.
+
+So the editor became a pane beside the list rather than inside it. The list holds 5 rows at the minimum window and 11 maximized, the pane is the same size and in the same place whatever is picked, and choosing a different track reflows nothing — measured before and after a search that returned ten candidates, the list viewport read 373 DIP both times.
+
+**The general rule is worth more than the fix: an expander is usable only when the thing it opens is smaller than the space it opens into.** That is a measurement, and it is available before the layout is written. Reach for master–detail when it is not, and reach for it early — two rebuilds of the panel went into making a shape work that could not have worked at any spacing.
+
+Three second-order notes from doing it:
+
+- **Selection had to come back, and removing it had been right on its own terms.** A highlight following the arrow keys while nothing acted on the selected row was noise. In a split view the selection is the pane's input, so the row has to say which one is showing — a tinted background and a narrow accent edge, not the themed container's saturated fill. "Nothing acts on the selection" was a fact about the layout, not about the control, and it stopped being true the moment the layout changed.
+
+- **Re-filtering nulls the list's `SelectedItem`.** `ApplyFilter` clears and refills `VisibleTracks`, and the clear travels out through the two-way binding — so without capturing the pick and putting it back, the editor emptied on every keystroke in the filter box, including the keystrokes narrowing the list towards the row being edited.
+
+- **One scroll region was the wrong instinct.** Letting the whole pane scroll put ten search results below the fold, and the only evidence the search had worked was the scroll bar getting shorter. The fields scroll and the search box and its results are pinned to the foot of the pane instead: the results are what the user just asked for, and the fields are what they will scroll back to, having already read them.
+
+Commands bound from inside the pane reach the page with `RelativeSource={RelativeSource AncestorType=UserControl}`; the row template's old `AncestorType=ListBox` has no such ancestor once the editor is out of the list.
+
 ---
 
 ## 12. Risks

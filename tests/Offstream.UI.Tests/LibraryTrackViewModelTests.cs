@@ -9,32 +9,11 @@ namespace Offstream.UI.Tests;
 /// What one row of the Metadata page shows before anyone opens it.
 /// </summary>
 /// <remarks>
-/// The collapsed row is the only thing most files will ever show, so what it says has to be
-/// enough to approve a save without opening anything. These are the properties that say it.
+/// A row in the list is the only thing most files will ever show, so what it says has to be
+/// enough to approve a save without picking it. These are the properties that say it.
 /// </remarks>
 public sealed class LibraryTrackViewModelTests
 {
-    /// <summary>A row starts closed.</summary>
-    /// <remarks>
-    /// The layout this replaced kept every row's fields open and fitted three files of a hundred
-    /// and twenty-seven on screen. Density is the feature, so the default matters.
-    /// </remarks>
-    [Fact]
-    public void ARow_StartsCollapsed() => Assert.False(Row().IsExpanded);
-
-    /// <summary>The chevron opens and closes it.</summary>
-    [Fact]
-    public void ToggleExpand_OpensAndCloses()
-    {
-        var row = Row();
-
-        row.ToggleExpandCommand.Execute(null);
-        Assert.True(row.IsExpanded);
-
-        row.ToggleExpandCommand.Execute(null);
-        Assert.False(row.IsExpanded);
-    }
-
     /// <summary>The second line reads "artist · album".</summary>
     [Fact]
     public void Summary_JoinsTheArtistAndAlbum() =>
@@ -246,28 +225,27 @@ public sealed class LibraryTrackViewModelTests
 
     /// <summary>Opening a row fills its search box, however the row was opened.</summary>
     /// <remarks>
-    /// The seeding used to hang off the toggle command, which only the title runs. A row opened
-    /// by its chevron — the control that looks like the way to open one — got an empty box, and
-    /// searching from there asked Spotify for nothing at all.
+    /// The query is built from the row as it stands now, not as the file was scanned, so a fetch
+    /// or an edit in between is what gets searched for.
     /// </remarks>
     [Fact]
-    public void Expanding_SeedsTheSearchBoxFromWhatTheRowNowSays()
+    public void Seeding_FillsTheSearchBoxFromWhatTheRowNowSays()
     {
         var row = Row();
 
-        row.IsExpanded = true;
+        row.SeedMatchQuery();
 
         Assert.Equal("Kate Bush Running Up That Hill", row.MatchQuery);
     }
 
-    /// <summary>Reopening a row does not overwrite a query the user typed.</summary>
+    /// <summary>Seeding again does not overwrite a query the user typed.</summary>
     [Fact]
-    public void Expanding_LeavesAQueryTheUserAlreadyTyped()
+    public void Seeding_LeavesAQueryTheUserAlreadyTyped()
     {
         var row = Row();
 
         row.MatchQuery = "cloudbusting";
-        row.IsExpanded = true;
+        row.SeedMatchQuery();
 
         Assert.Equal("cloudbusting", row.MatchQuery);
     }

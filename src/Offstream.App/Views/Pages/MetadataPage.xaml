@@ -22,7 +22,7 @@
 
         <!--  A label above its field, spaced from the field under it — the shape every other page uses.  -->
         <Style x:Key="MetadataFieldStyle" TargetType="StackPanel">
-            <Setter Property="Margin" Value="0,0,0,14" />
+            <Setter Property="Margin" Value="0,0,0,10" />
         </Style>
 
         <!--  A value the match supplied and the user cannot type over, on its own line.  -->
@@ -32,19 +32,19 @@
         </Style>
 
         <!--
-            One scanned file.
+            One scanned file, as it appears in the list.
 
             An ItemsControl row template rather than a DataGrid: nothing else in this application
             uses a DataGrid, WPF-UI does not theme one, and a grid dropped in here would carry its
             own chrome, its own selection model and its own idea of a header into a shell built
             out of cards.
 
-            The row is collapsed by default and shows *what will be written* — title, then artist
-            and album, then the file it came from. The editable fields open underneath on demand,
-            because a library is a hundred files of which three are wrong, and keeping every row's
-            boxes open costs the other ninety-seven their share of the window. The first version
-            of this page did exactly that and fitted three files of a hundred and twenty-seven on
-            screen at once.
+            The row shows *what will be written* — title, then artist and album, then the file it
+            came from — and nothing else. It used to open an editor underneath itself, and the
+            editor never fitted: measured, an opened row was 539 device-independent pixels inside
+            a viewport of 347, so picking a track hid the library it was picked from and pushed
+            the search results off the bottom edge. The editor is now a pane of its own to the
+            right, and picking a row moves nothing.
 
             Every text column trims rather than wraps, and the list below disables horizontal
             scrolling. That combination is load-bearing: a ScrollViewer that permits horizontal
@@ -56,93 +56,86 @@
             <!--
                 The right-hand padding is for the scroll bar. WPF-UI draws it as an overlay: it
                 is painted over the viewport rather than taking width from it, so the rows are
-                measured as though it were not there and it lands on top of the chevron of every
-                row it covers. Nothing in the layout can discover that, so the room is reserved.
+                measured as though it were not there and it lands on top of the last column of
+                every row it covers. Nothing in the layout can discover that, so the room is
+                reserved.
             -->
             <Border Padding="8,10,20,10"
                     BorderBrush="{StaticResource OffstreamRowSeparatorBrush}"
-                    BorderThickness="0,0,0,1">
+                    BorderThickness="0,0,0,1"
+                    ToolTip="{Binding Path, Mode=OneTime}">
                 <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
 
-                    <Grid Grid.Row="0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
+                    <CheckBox Grid.Column="0"
+                              Margin="0,0,4,0"
+                              VerticalAlignment="Center"
+                              AutomationProperties.HelpText="{x:Static res:Strings.MetadataSaveHelp}"
+                              AutomationProperties.Name="{Binding FileName, Mode=OneTime}"
+                              IsChecked="{Binding IsSelected, Mode=TwoWay}" />
 
-                        <CheckBox Grid.Column="0"
-                                  Margin="0,0,4,0"
-                                  VerticalAlignment="Center"
-                                  AutomationProperties.HelpText="{x:Static res:Strings.MetadataSaveHelp}"
-                                  AutomationProperties.Name="{Binding FileName, Mode=OneTime}"
-                                  IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                    <Border Grid.Column="1"
+                            Width="40"
+                            Height="40"
+                            Margin="0,0,12,0"
+                            VerticalAlignment="Center"
+                            Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                            CornerRadius="4">
+                        <Image Source="{Binding SuggestedCoverArtSource, Mode=OneWay}" Stretch="UniformToFill" />
+                    </Border>
 
-                        <Border Grid.Column="1"
-                                Width="40"
-                                Height="40"
-                                Margin="0,0,12,0"
-                                VerticalAlignment="Center"
-                                Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                                CornerRadius="4">
-                            <Image Source="{Binding SuggestedCoverArtSource, Mode=OneWay}" Stretch="UniformToFill" />
-                        </Border>
+                    <StackPanel Grid.Column="2"
+                                Margin="0,0,8,0"
+                                VerticalAlignment="Center">
+                        <TextBlock FontWeight="SemiBold"
+                                   Text="{Binding Title, Mode=OneWay}"
+                                   TextTrimming="CharacterEllipsis"
+                                   TextWrapping="NoWrap" />
+
+                        <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Text="{Binding Summary, Mode=OneWay}"
+                                   TextTrimming="CharacterEllipsis"
+                                   TextWrapping="NoWrap" />
+
+                        <TextBlock Style="{StaticResource OffstreamHintStyle}"
+                                   Text="{Binding FileName, Mode=OneTime}"
+                                   TextTrimming="CharacterEllipsis"
+                                   TextWrapping="NoWrap" />
 
                         <!--
-                            Clicking the text opens the row as well as the chevron does. The
-                            binding sits here rather than on the whole row so that it cannot fight
-                            the check box or, once the row is open, the text boxes underneath.
+                            The reason a row failed, wrapped rather than trimmed. It is the one
+                            piece of text on the page the user can act on — a locked file, an
+                            expired sign-in, a throttle that has not cleared — and half of it is
+                            no use at all. It sits in the list rather than in the editor because
+                            a failure the user has to go looking for is one they will not find.
                         -->
-                        <StackPanel Grid.Column="2"
-                                    Margin="0,0,12,0"
-                                    VerticalAlignment="Center"
-                                    Background="Transparent"
-                                    ToolTip="{Binding Path, Mode=OneTime}">
-                            <StackPanel.InputBindings>
-                                <MouseBinding Command="{Binding ToggleExpandCommand}" MouseAction="LeftClick" />
-                            </StackPanel.InputBindings>
+                        <TextBlock Margin="0,4,0,0"
+                                   Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                                   Text="{Binding FailureReason, Mode=OneWay}"
+                                   TextWrapping="Wrap"
+                                   Visibility="{Binding HasFailed, Converter={StaticResource BooleanToVisibility}}" />
+                    </StackPanel>
 
-                            <TextBlock FontWeight="SemiBold"
-                                       Text="{Binding Title, Mode=OneWay}"
-                                       TextTrimming="CharacterEllipsis"
-                                       TextWrapping="NoWrap" />
+                    <!--
+                        Which rows Save would touch, and where each one got to. Stacked rather
+                        than set side by side: the list column is now half the page, and two
+                        columns of status text left the title with nothing.
+                    -->
+                    <StackPanel Grid.Column="3" VerticalAlignment="Center">
+                        <TextBlock HorizontalAlignment="Right"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Text="{Binding StatusText, Mode=OneWay}"
+                                   TextTrimming="CharacterEllipsis"
+                                   TextWrapping="NoWrap" />
 
-                            <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                       Text="{Binding Summary, Mode=OneWay}"
-                                       TextTrimming="CharacterEllipsis"
-                                       TextWrapping="NoWrap" />
-
-                            <TextBlock Style="{StaticResource OffstreamHintStyle}"
-                                       Text="{Binding FileName, Mode=OneTime}"
-                                       TextTrimming="CharacterEllipsis"
-                                       TextWrapping="NoWrap" />
-
-                            <!--
-                                The reason a row failed, wrapped rather than trimmed. It is the
-                                one piece of text on the page the user can act on — a locked file,
-                                an expired sign-in, a throttle that has not cleared — and half of
-                                it is no use at all. It sits in the collapsed row because a
-                                failure the user has to go looking for is one they will not find.
-                            -->
-                            <TextBlock Margin="0,4,0,0"
-                                       Foreground="{DynamicResource SystemFillColorCautionBrush}"
-                                       Text="{Binding FailureReason, Mode=OneWay}"
-                                       TextWrapping="Wrap"
-                                       Visibility="{Binding HasFailed, Converter={StaticResource BooleanToVisibility}}" />
-                        </StackPanel>
-
-                        <!--  Which rows Save would actually touch, without opening each one.  -->
-                        <Border Grid.Column="3"
-                                Margin="0,0,10,0"
+                        <Border Margin="0,4,0,0"
                                 Padding="7,2"
-                                VerticalAlignment="Center"
+                                HorizontalAlignment="Right"
                                 Background="{DynamicResource ControlFillColorSecondaryBrush}"
                                 BorderBrush="{StaticResource OffstreamAccentBrush}"
                                 BorderThickness="1"
@@ -150,334 +143,304 @@
                                 Visibility="{Binding HasPendingChanges, Converter={StaticResource BooleanToVisibility}}">
                             <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Text="{x:Static res:Strings.MetadataWillChange}" />
                         </Border>
-
-                        <TextBlock Grid.Column="4"
-                                   Width="92"
-                                   Margin="0,0,8,0"
-                                   VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   Text="{Binding StatusText, Mode=OneWay}"
-                                   TextTrimming="CharacterEllipsis"
-                                   TextWrapping="NoWrap" />
-
-                        <ToggleButton Grid.Column="5"
-                                      VerticalAlignment="Center"
-                                      IsChecked="{Binding IsExpanded, Mode=TwoWay}">
-                            <ToggleButton.Style>
-                                <Style BasedOn="{StaticResource {x:Type ToggleButton}}" TargetType="ToggleButton">
-                                    <Setter Property="AutomationProperties.Name" Value="{x:Static res:Strings.MetadataExpand}" />
-                                    <Setter Property="ToolTip" Value="{x:Static res:Strings.MetadataExpand}" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsExpanded, Mode=OneWay}" Value="True">
-                                            <Setter Property="AutomationProperties.Name" Value="{x:Static res:Strings.MetadataCollapse}" />
-                                            <Setter Property="ToolTip" Value="{x:Static res:Strings.MetadataCollapse}" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </ToggleButton.Style>
-
-                            <ui:SymbolIcon>
-                                <ui:SymbolIcon.Style>
-                                    <Style TargetType="ui:SymbolIcon">
-                                        <Setter Property="Symbol" Value="ChevronDown24" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsExpanded, Mode=OneWay}" Value="True">
-                                                <Setter Property="Symbol" Value="ChevronUp24" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ui:SymbolIcon.Style>
-                            </ui:SymbolIcon>
-                        </ToggleButton>
-                    </Grid>
-
-                    <!--
-                        The editor, opened underneath the row it belongs to.
-
-                        Two versions of this have been thrown away and both failed the same way:
-                        they were laid out as a form when the thing being read is a comparison.
-                        The first stacked three unlabelled boxes beside three unlabelled lines of
-                        text and left the reader to pair them off by position. The second labelled
-                        them, but hung the labels in a right-aligned gutter of its own invention,
-                        one field per line — a shape no other page in this application uses, so it
-                        read as a foreign object, and eight stacked rows pushed the answer to "is
-                        this match right?" off the bottom of the list.
-
-                        This one is a well: the recessed panel already used elsewhere for "here is
-                        what was found", with the label above its field the way every other page
-                        writes one, and the four fields paired into two columns so the whole
-                        comparison is visible at once instead of scrolled through.
-                    -->
-                    <Border Grid.Row="1"
-                            Margin="52,4,2,10"
-                            Padding="16,14,16,10"
-                            Background="{StaticResource OffstreamWellBrush}"
-                            BorderBrush="{StaticResource OffstreamRowSeparatorBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8"
-                            Visibility="{Binding IsExpanded, Converter={StaticResource BooleanToVisibility}}">
-                        <!--
-                            Capped rather than filling the window. These fields hold a song title,
-                            not a paragraph, and a box eleven hundred pixels wide for the word
-                            "Renegade" puts the caret an inch from the label that names it.
-
-                            The cap is a star column with a MaxWidth beside an empty Auto one, not
-                            a MaxWidth on the panel itself. A panel aligned Left is arranged at its
-                            *desired* width, and a Grid's desired width is what its content asked
-                            for — so capping it that way collapsed every star column onto its own
-                            text and left four boxes each sized to the word inside it.
-                        -->
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" MaxWidth="820" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-
-                            <StackPanel Grid.Column="0">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="24" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-
-                                    <StackPanel Grid.Row="0"
-                                                Grid.Column="0"
-                                                Style="{StaticResource MetadataFieldStyle}">
-                                        <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.MetadataFieldTitle}" />
-
-                                        <TextBox x:Name="TitleBox"
-                                                 AutomationProperties.HelpText="{x:Static res:Strings.MetadataFieldTitle}"
-                                                 AutomationProperties.Name="{x:Static res:Strings.MetadataFieldTitle}"
-                                                 Text="{Binding Title, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" />
-
-                                        <TextBlock Style="{StaticResource MetadataWasStyle}"
-                                                   Visibility="{Binding HasTitleChange, Converter={StaticResource BooleanToVisibility}}">
-                                            <Run Text="{x:Static res:Strings.MetadataWasLabel}" />
-                                            <Run Text="{Binding CurrentTitle, Mode=OneTime}" />
-                                        </TextBlock>
-
-                                        <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=TitleBox, Path=(Validation.Errors)/ErrorContent}" />
-                                    </StackPanel>
-
-                                    <StackPanel Grid.Row="0"
-                                                Grid.Column="2"
-                                                Style="{StaticResource MetadataFieldStyle}">
-                                        <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.MetadataFieldArtist}" />
-
-                                        <TextBox x:Name="ArtistBox"
-                                                 AutomationProperties.HelpText="{x:Static res:Strings.MetadataFieldArtist}"
-                                                 AutomationProperties.Name="{x:Static res:Strings.MetadataFieldArtist}"
-                                                 Text="{Binding Artist, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" />
-
-                                        <TextBlock Style="{StaticResource MetadataWasStyle}"
-                                                   Visibility="{Binding HasArtistChange, Converter={StaticResource BooleanToVisibility}}">
-                                            <Run Text="{x:Static res:Strings.MetadataWasLabel}" />
-                                            <Run Text="{Binding CurrentArtist, Mode=OneTime}" />
-                                        </TextBlock>
-
-                                        <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=ArtistBox, Path=(Validation.Errors)/ErrorContent}" />
-                                    </StackPanel>
-
-                                    <StackPanel Grid.Row="1"
-                                                Grid.Column="0"
-                                                Style="{StaticResource MetadataFieldStyle}">
-                                        <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.MetadataFieldAlbum}" />
-
-                                        <TextBox AutomationProperties.HelpText="{x:Static res:Strings.MetadataFieldAlbum}"
-                                                 AutomationProperties.Name="{x:Static res:Strings.MetadataFieldAlbum}"
-                                                 Text="{Binding Album, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-
-                                        <TextBlock Style="{StaticResource MetadataWasStyle}"
-                                                   Visibility="{Binding HasAlbumChange, Converter={StaticResource BooleanToVisibility}}">
-                                            <Run Text="{x:Static res:Strings.MetadataWasLabel}" />
-                                            <Run Text="{Binding CurrentAlbum, Mode=OneTime}" />
-                                        </TextBlock>
-                                    </StackPanel>
-
-                                    <!--
-                                        Year, genre and artwork are written by Save and had no
-                                        representation anywhere, so a row could say "will change" with
-                                        all three boxes beside it matching the file exactly. Read-only
-                                        on purpose: they come from the match or they do not come at
-                                        all, and a box for a genre invites typing one Spotify has never
-                                        heard of. They sit in the second column rather than in a
-                                        section of their own, because a heading and three indented
-                                        sub-rows for two words and a thumbnail was most of the height
-                                        of the panel.
-                                    -->
-                                    <StackPanel Grid.Row="1"
-                                                Grid.Column="2"
-                                                Style="{StaticResource MetadataFieldStyle}"
-                                                Visibility="{Binding HasMatchDetails, Converter={StaticResource BooleanToVisibility}}">
-                                        <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.MetadataMatchHeading}" />
-
-                                        <TextBlock Style="{StaticResource MetadataValueStyle}"
-                                                   Visibility="{Binding HasYearChange, Converter={StaticResource BooleanToVisibility}}">
-                                            <Run Text="{x:Static res:Strings.MetadataFieldYear}" />
-                                            <Run FontWeight="SemiBold" Text="{Binding SuggestedYear, Mode=OneWay}" />
-                                            <Run Text="{x:Static res:Strings.MetadataWasLabel}" />
-                                            <Run Text="{Binding CurrentYear, Mode=OneTime}" />
-                                        </TextBlock>
-
-                                        <TextBlock Style="{StaticResource MetadataValueStyle}"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   TextWrapping="NoWrap"
-                                                   Visibility="{Binding HasGenreChange, Converter={StaticResource BooleanToVisibility}}">
-                                            <Run Text="{x:Static res:Strings.MetadataFieldGenre}" />
-                                            <Run FontWeight="SemiBold" Text="{Binding SuggestedGenres, Mode=OneWay}" />
-                                            <Run Text="{x:Static res:Strings.MetadataWasLabel}" />
-                                            <Run Text="{Binding CurrentGenres, Mode=OneTime}" />
-                                        </TextBlock>
-
-                                        <StackPanel Margin="0,8,0,0"
-                                                    Orientation="Horizontal"
-                                                    Visibility="{Binding HasCoverArtChange, Converter={StaticResource BooleanToVisibility}}">
-                                            <StackPanel Margin="0,0,14,0">
-                                                <Image Width="52"
-                                                       Height="52"
-                                                       Source="{Binding ExistingCoverArt, Mode=OneTime}"
-                                                       Stretch="UniformToFill" />
-
-                                                <TextBlock Style="{StaticResource MetadataWasStyle}" Text="{x:Static res:Strings.MetadataCoverBefore}" />
-                                            </StackPanel>
-
-                                            <StackPanel>
-                                                <Image Width="52"
-                                                       Height="52"
-                                                       Source="{Binding SuggestedCoverArtSource, Mode=OneWay}"
-                                                       Stretch="UniformToFill" />
-
-                                                <TextBlock Style="{StaticResource MetadataWasStyle}" Text="{x:Static res:Strings.MetadataCoverAfter}" />
-                                            </StackPanel>
-                                        </StackPanel>
-                                    </StackPanel>
-                                </Grid>
-
-                                <Border Margin="0,2,0,12"
-                                        BorderBrush="{StaticResource OffstreamRowSeparatorBrush}"
-                                        BorderThickness="0,1,0,0" />
-
-                                <!--
-                                    The answer to a wrong match, and the reason it needs its own search
-                                    rather than another Re-fetch: the automatic lookup builds its query
-                                    from the file and then rejects any result whose artist disagrees
-                                    with it, so the one case it cannot help with is a file whose artist
-                                    is wrong. Asking it again returns the same answer. This asks
-                                    Spotify what the user typed and shows everything it says.
-
-                                    Both buttons sit on the line with the box because they are two
-                                    ways of asking the same question, and neither is worth a row of
-                                    its own.
-                                -->
-                                <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.MetadataWrongMatchHeading}" />
-
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <ui:TextBox Grid.Column="0"
-                                                Margin="0,0,8,0"
-                                                VerticalAlignment="Center"
-                                                AutomationProperties.HelpText="{x:Static res:Strings.MetadataSearchHelp}"
-                                                AutomationProperties.Name="{x:Static res:Strings.MetadataSearchLabel}"
-                                                PlaceholderText="{x:Static res:Strings.MetadataSearchLabel}"
-                                                Text="{Binding MatchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                ToolTip="{x:Static res:Strings.MetadataSearchHelp}" />
-
-                                    <ui:Button Grid.Column="1"
-                                               Margin="0,0,8,0"
-                                               VerticalAlignment="Center"
-                                               Command="{Binding DataContext.SearchMatchesCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                               CommandParameter="{Binding}"
-                                               Content="{x:Static res:Strings.MetadataSearchAction}"
-                                               IsEnabled="{Binding IsNotSearching, Mode=OneWay}"
-                                               ToolTip="{x:Static res:Strings.MetadataSearchHelp}" />
-
-                                    <ui:Button Grid.Column="2"
-                                               VerticalAlignment="Center"
-                                               AutomationProperties.HelpText="{x:Static res:Strings.MetadataRefetchHelp}"
-                                               Command="{Binding DataContext.RefetchCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                               CommandParameter="{Binding}"
-                                               Content="{x:Static res:Strings.MetadataRefetch}"
-                                               ToolTip="{x:Static res:Strings.MetadataRefetchHelp}" />
-                                </Grid>
-
-                                <TextBlock Margin="0,6,0,0"
-                                           AutomationProperties.LiveSetting="Polite"
-                                           Style="{StaticResource MetadataWasStyle}"
-                                           Text="{x:Static res:Strings.MetadataSearching}"
-                                           Visibility="{Binding IsSearching, Converter={StaticResource BooleanToVisibility}}" />
-
-                                <TextBlock Margin="0,6,0,0"
-                                           AutomationProperties.LiveSetting="Polite"
-                                           Style="{StaticResource MetadataWasStyle}"
-                                           Text="{Binding SearchMessage, Mode=OneWay}"
-                                           TextWrapping="Wrap" />
-
-                                <!--
-                                    Capped and scrollable. Five results on a row near the bottom of the
-                                    list run off the end of the page, and the fix is not fewer results
-                                    — the whole point of this box is that the user sees what Spotify
-                                    actually returned rather than the one answer the matcher liked.
-                                -->
-                                <ScrollViewer MaxHeight="184"
-                                              Margin="0,8,0,0"
-                                              Padding="0,0,12,0"
-                                              VerticalScrollBarVisibility="Auto"
-                                              Visibility="{Binding HasCandidates, Converter={StaticResource BooleanToVisibility}}">
-                                    <ItemsControl ItemsSource="{Binding Candidates, Mode=OneWay}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate DataType="{x:Type vm:LibraryMatchViewModel}">
-                                                <Border Margin="0,0,0,6"
-                                                        Padding="10,7"
-                                                        Background="{StaticResource OffstreamSurfaceBrush}"
-                                                        CornerRadius="6">
-                                                    <Grid>
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="*" />
-                                                            <ColumnDefinition Width="Auto" />
-                                                        </Grid.ColumnDefinitions>
-
-                                                        <StackPanel Grid.Column="0"
-                                                                    Margin="0,0,10,0"
-                                                                    VerticalAlignment="Center">
-                                                            <TextBlock Text="{Binding Title, Mode=OneTime}"
-                                                                       TextTrimming="CharacterEllipsis"
-                                                                       TextWrapping="NoWrap" />
-
-                                                            <TextBlock Style="{StaticResource MetadataWasStyle}"
-                                                                       Text="{Binding Summary, Mode=OneTime}"
-                                                                       TextTrimming="CharacterEllipsis"
-                                                                       TextWrapping="NoWrap" />
-                                                        </StackPanel>
-
-                                                        <ui:Button Grid.Column="1"
-                                                                   VerticalAlignment="Center"
-                                                                   AutomationProperties.HelpText="{x:Static res:Strings.MetadataUseMatchHelp}"
-                                                                   Command="{Binding DataContext.UseMatchCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                                                   CommandParameter="{Binding}"
-                                                                   Content="{x:Static res:Strings.MetadataUseMatch}"
-                                                                   ToolTip="{x:Static res:Strings.MetadataUseMatchHelp}" />
-                                                    </Grid>
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </ScrollViewer>
-                            </StackPanel>
-                        </Grid>
-                    </Border>
+                    </StackPanel>
                 </Grid>
             </Border>
+        </DataTemplate>
+
+        <!--
+            The editor for whichever row is picked.
+
+            Two versions of this lived inside the row and both failed the same way: the panel was
+            larger than the box it opened in. The third failure was measured rather than argued
+            about — 539 device-independent pixels of editor inside a 347-pixel viewport — which is
+            a deficit no amount of tightening closes, because even a perfect fit leaves the list
+            showing exactly one file.
+
+            So it is a pane instead. It is always the same height, always in the same place, and
+            changing the pick swaps its contents without moving anything else on the page. That
+            also gives the list's selected row a job, which is why the highlight removed from it a
+            change ago is back: it now marks the row this pane is editing rather than following
+            the arrow keys around meaning nothing.
+
+            One scroll region, not two. The fields and the search box fit without scrolling; the
+            results push past the bottom only once a search has returned some, and then the whole
+            pane scrolls rather than a box nested inside it.
+        -->
+        <DataTemplate x:Key="LibraryEditorTemplate" DataType="{x:Type vm:LibraryTrackViewModel}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                    <TextBlock FontWeight="SemiBold"
+                               Text="{Binding Title, Mode=OneWay}"
+                               TextTrimming="CharacterEllipsis"
+                               TextWrapping="NoWrap" />
+
+                    <TextBlock Style="{StaticResource OffstreamHintStyle}"
+                               Text="{Binding FileName, Mode=OneTime}"
+                               TextTrimming="CharacterEllipsis"
+                               TextWrapping="NoWrap"
+                               ToolTip="{Binding Path, Mode=OneTime}" />
+
+                    <Border Margin="0,8,0,0"
+                            BorderBrush="{StaticResource OffstreamRowSeparatorBrush}"
+                            BorderThickness="0,1,0,0" />
+                </StackPanel>
+
+                <ScrollViewer Grid.Row="1"
+                              Padding="0,0,12,0"
+                              VerticalScrollBarVisibility="Auto">
+                    <!--
+                        Capped rather than filling the pane. These fields hold a song title, not a
+                        paragraph, and a box eight hundred pixels wide for the word "Renegade"
+                        puts the caret an inch from the label that names it.
+
+                        The cap is a star column with a MaxWidth beside an empty Auto one, not a
+                        MaxWidth on the panel itself. A panel aligned Left is arranged at its
+                        *desired* width, and a Grid's desired width is what its content asked for
+                        — so capping it that way collapsed every star column onto its own text and
+                        left four boxes each sized to the word inside it.
+                    -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" MaxWidth="620" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <StackPanel Style="{StaticResource MetadataFieldStyle}">
+                                <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.MetadataFieldTitle}" />
+
+                                <TextBox x:Name="TitleBox"
+                                         AutomationProperties.HelpText="{x:Static res:Strings.MetadataFieldTitle}"
+                                         AutomationProperties.Name="{x:Static res:Strings.MetadataFieldTitle}"
+                                         Text="{Binding Title, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" />
+
+                                <TextBlock Style="{StaticResource MetadataWasStyle}"
+                                           Visibility="{Binding HasTitleChange, Converter={StaticResource BooleanToVisibility}}">
+                                    <Run Text="{x:Static res:Strings.MetadataWasLabel}" />
+                                    <Run Text="{Binding CurrentTitle, Mode=OneTime}" />
+                                </TextBlock>
+
+                                <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=TitleBox, Path=(Validation.Errors)/ErrorContent}" />
+                            </StackPanel>
+
+                            <StackPanel Style="{StaticResource MetadataFieldStyle}">
+                                <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.MetadataFieldArtist}" />
+
+                                <TextBox x:Name="ArtistBox"
+                                         AutomationProperties.HelpText="{x:Static res:Strings.MetadataFieldArtist}"
+                                         AutomationProperties.Name="{x:Static res:Strings.MetadataFieldArtist}"
+                                         Text="{Binding Artist, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" />
+
+                                <TextBlock Style="{StaticResource MetadataWasStyle}"
+                                           Visibility="{Binding HasArtistChange, Converter={StaticResource BooleanToVisibility}}">
+                                    <Run Text="{x:Static res:Strings.MetadataWasLabel}" />
+                                    <Run Text="{Binding CurrentArtist, Mode=OneTime}" />
+                                </TextBlock>
+
+                                <TextBlock Style="{StaticResource OffstreamValidationMessageStyle}" Text="{Binding ElementName=ArtistBox, Path=(Validation.Errors)/ErrorContent}" />
+                            </StackPanel>
+
+                            <StackPanel Style="{StaticResource MetadataFieldStyle}">
+                                <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.MetadataFieldAlbum}" />
+
+                                <TextBox AutomationProperties.HelpText="{x:Static res:Strings.MetadataFieldAlbum}"
+                                         AutomationProperties.Name="{x:Static res:Strings.MetadataFieldAlbum}"
+                                         Text="{Binding Album, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Style="{StaticResource MetadataWasStyle}"
+                                           Visibility="{Binding HasAlbumChange, Converter={StaticResource BooleanToVisibility}}">
+                                    <Run Text="{x:Static res:Strings.MetadataWasLabel}" />
+                                    <Run Text="{Binding CurrentAlbum, Mode=OneTime}" />
+                                </TextBlock>
+                            </StackPanel>
+
+                            <!--
+                                Year, genre and artwork are written by Save and had no
+                                representation anywhere, so a row could say "will change" with all
+                                three boxes beside it matching the file exactly. Read-only on
+                                purpose: they come from the match or they do not come at all, and
+                                a box for a genre invites typing one Spotify has never heard of.
+                            -->
+                            <StackPanel Style="{StaticResource MetadataFieldStyle}" Visibility="{Binding HasMatchDetails, Converter={StaticResource BooleanToVisibility}}">
+                                <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.MetadataMatchHeading}" />
+
+                                <TextBlock Style="{StaticResource MetadataValueStyle}"
+                                           Visibility="{Binding HasYearChange, Converter={StaticResource BooleanToVisibility}}">
+                                    <Run Text="{x:Static res:Strings.MetadataFieldYear}" />
+                                    <Run FontWeight="SemiBold" Text="{Binding SuggestedYear, Mode=OneWay}" />
+                                    <Run Text="{x:Static res:Strings.MetadataWasLabel}" />
+                                    <Run Text="{Binding CurrentYear, Mode=OneTime}" />
+                                </TextBlock>
+
+                                <TextBlock Style="{StaticResource MetadataValueStyle}"
+                                           TextTrimming="CharacterEllipsis"
+                                           TextWrapping="NoWrap"
+                                           Visibility="{Binding HasGenreChange, Converter={StaticResource BooleanToVisibility}}">
+                                    <Run Text="{x:Static res:Strings.MetadataFieldGenre}" />
+                                    <Run FontWeight="SemiBold" Text="{Binding SuggestedGenres, Mode=OneWay}" />
+                                    <Run Text="{x:Static res:Strings.MetadataWasLabel}" />
+                                    <Run Text="{Binding CurrentGenres, Mode=OneTime}" />
+                                </TextBlock>
+
+                                <StackPanel Margin="0,8,0,0"
+                                            Orientation="Horizontal"
+                                            Visibility="{Binding HasCoverArtChange, Converter={StaticResource BooleanToVisibility}}">
+                                    <StackPanel Margin="0,0,14,0">
+                                        <Image Width="44"
+                                               Height="44"
+                                               Source="{Binding ExistingCoverArt, Mode=OneTime}"
+                                               Stretch="UniformToFill" />
+
+                                        <TextBlock Style="{StaticResource MetadataWasStyle}" Text="{x:Static res:Strings.MetadataCoverBefore}" />
+                                    </StackPanel>
+
+                                    <StackPanel>
+                                        <Image Width="44"
+                                               Height="44"
+                                               Source="{Binding SuggestedCoverArtSource, Mode=OneWay}"
+                                               Stretch="UniformToFill" />
+
+                                        <TextBlock Style="{StaticResource MetadataWasStyle}" Text="{x:Static res:Strings.MetadataCoverAfter}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+
+                        </StackPanel>
+                    </Grid>
+                </ScrollViewer>
+
+                <!--
+                    The answer to a wrong match, pinned to the bottom of the pane rather than left
+                    to follow the fields down.
+
+                    It needs its own search rather than another Re-fetch because the automatic
+                    lookup builds its query from the file and then rejects any result whose artist
+                    disagrees with it — so the one case it cannot help with is a file whose artist
+                    is wrong, and asking it again returns the same answer. This asks Spotify what
+                    the user typed and shows everything it says.
+
+                    Pinned because the results are the thing the user just asked for. With the
+                    whole pane scrolling as one, ten results appeared below the fold behind a
+                    scroll bar, and the only sign that the search had worked at all was that the
+                    bar got smaller. The fields scroll in the space above instead: they are what
+                    the user is willing to go looking for, having already read them.
+                -->
+                <StackPanel Grid.Row="2">
+                    <Border Margin="0,8,0,10"
+                            BorderBrush="{StaticResource OffstreamRowSeparatorBrush}"
+                            BorderThickness="0,1,0,0" />
+
+                    <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.MetadataWrongMatchHeading}" />
+
+                    <!--
+                        Both buttons sit on the line with the box because they are two ways of
+                        asking the same question, and neither is worth a row of its own.
+                    -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ui:TextBox Grid.Column="0"
+                                    Margin="0,0,8,0"
+                                    VerticalAlignment="Center"
+                                    AutomationProperties.HelpText="{x:Static res:Strings.MetadataSearchHelp}"
+                                    AutomationProperties.Name="{x:Static res:Strings.MetadataSearchLabel}"
+                                    PlaceholderText="{x:Static res:Strings.MetadataSearchLabel}"
+                                    Text="{Binding MatchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                    ToolTip="{x:Static res:Strings.MetadataSearchHelp}" />
+
+                        <ui:Button Grid.Column="1"
+                                   Margin="0,0,8,0"
+                                   VerticalAlignment="Center"
+                                   Command="{Binding DataContext.SearchMatchesCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   CommandParameter="{Binding}"
+                                   Content="{x:Static res:Strings.MetadataSearchAction}"
+                                   IsEnabled="{Binding IsNotSearching, Mode=OneWay}"
+                                   ToolTip="{x:Static res:Strings.MetadataSearchHelp}" />
+
+                        <ui:Button Grid.Column="2"
+                                   VerticalAlignment="Center"
+                                   AutomationProperties.HelpText="{x:Static res:Strings.MetadataRefetchHelp}"
+                                   Command="{Binding DataContext.RefetchCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   CommandParameter="{Binding}"
+                                   Content="{x:Static res:Strings.MetadataRefetch}"
+                                   ToolTip="{x:Static res:Strings.MetadataRefetchHelp}" />
+                    </Grid>
+
+                    <TextBlock Margin="0,6,0,0"
+                               AutomationProperties.LiveSetting="Polite"
+                               Style="{StaticResource MetadataWasStyle}"
+                               Text="{x:Static res:Strings.MetadataSearching}"
+                               Visibility="{Binding IsSearching, Converter={StaticResource BooleanToVisibility}}" />
+
+                    <TextBlock Margin="0,6,0,0"
+                               AutomationProperties.LiveSetting="Polite"
+                               Style="{StaticResource MetadataWasStyle}"
+                               Text="{Binding SearchMessage, Mode=OneWay}"
+                               TextWrapping="Wrap" />
+
+                    <!--
+                        Capped and scrollable. Ten results is a normal answer from Spotify and
+                        they cannot all be shown — but the cap is on the box, not on the search:
+                        the whole point of this list is that the user sees what Spotify actually
+                        returned rather than the one answer the matcher liked.
+                    -->
+                    <ScrollViewer MaxHeight="132"
+                                  Margin="0,8,0,0"
+                                  Padding="0,0,12,0"
+                                  VerticalScrollBarVisibility="Auto"
+                                  Visibility="{Binding HasCandidates, Converter={StaticResource BooleanToVisibility}}">
+                        <ItemsControl ItemsSource="{Binding Candidates, Mode=OneWay}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:LibraryMatchViewModel}">
+                                    <Border Margin="0,0,0,6"
+                                            Padding="10,7"
+                                            Background="{StaticResource OffstreamSurfaceBrush}"
+                                            CornerRadius="6">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel Grid.Column="0"
+                                                        Margin="0,0,10,0"
+                                                        VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Title, Mode=OneTime}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           TextWrapping="NoWrap" />
+
+                                                <TextBlock Style="{StaticResource MetadataWasStyle}"
+                                                           Text="{Binding Summary, Mode=OneTime}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           TextWrapping="NoWrap" />
+                                            </StackPanel>
+
+                                            <ui:Button Grid.Column="1"
+                                                       VerticalAlignment="Center"
+                                                       AutomationProperties.HelpText="{x:Static res:Strings.MetadataUseMatchHelp}"
+                                                       Command="{Binding DataContext.UseMatchCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                       CommandParameter="{Binding}"
+                                                       Content="{x:Static res:Strings.MetadataUseMatch}"
+                                                       ToolTip="{x:Static res:Strings.MetadataUseMatchHelp}" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </StackPanel>
+            </Grid>
         </DataTemplate>
     </UserControl.Resources>
 
@@ -488,6 +451,10 @@
         proposes, save commits. Keeping them as three buttons rather than one "fix my library"
         action is deliberate — an automatic match is wrong often enough that the review step is
         the feature, not friction in front of it.
+
+        Below the buttons it is a list beside an editor. That split is what makes the review step
+        usable: the library stays on screen while one of its files is being corrected, and the
+        pane holding the correction never changes size or position as the pick moves through it.
     -->
     <Border Padding="12" Style="{StaticResource OffstreamCardStyle}">
         <Grid>
@@ -495,21 +462,21 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
+            <!--
+                What the page is for is a tooltip on its heading rather than a paragraph under it,
+                the same trade the Advanced page makes for its settings: a line of prose costs
+                every row below it a share of a window that has none to give, and this one cost
+                the list forty pixels it needed more.
+            -->
             <ContentControl Grid.Row="0"
                             Content="{x:Static res:Strings.MetadataHeading}"
-                            Style="{StaticResource OffstreamGroupHeaderStyle}" />
+                            Style="{StaticResource OffstreamGroupHeaderStyle}"
+                            ToolTip="{x:Static res:Strings.MetadataIntro}" />
 
-            <TextBlock Grid.Row="1"
-                       Margin="0,0,0,10"
-                       Style="{StaticResource OffstreamHintStyle}"
-                       Text="{x:Static res:Strings.MetadataIntro}"
-                       TextWrapping="Wrap" />
-
-            <Grid Grid.Row="2" Margin="0,0,0,10">
+            <Grid Grid.Row="1" Margin="0,0,0,10">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
@@ -538,7 +505,7 @@
                            IsEnabled="{Binding IsIdle, Mode=OneWay}" />
             </Grid>
 
-            <Grid Grid.Row="3" Margin="0,0,0,10">
+            <Grid Grid.Row="2" Margin="0,0,0,10">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
@@ -579,128 +546,177 @@
                            TextTrimming="CharacterEllipsis" />
             </Grid>
 
-            <Grid Grid.Row="4">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
+            <Grid Grid.Row="3">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MinWidth="300" />
+                    <ColumnDefinition Width="12" />
+                    <ColumnDefinition Width="1.1*" MinWidth="340" />
+                </Grid.ColumnDefinitions>
 
-                <!--
-                    The filter narrows what is drawn and nothing else. It is placed over the list
-                    rather than beside the buttons because it belongs to the list: the buttons act
-                    on the whole library whatever is typed here, and putting it in their row would
-                    suggest otherwise.
-                -->
-                <Grid Grid.Row="0"
-                      Margin="0,0,0,8"
-                      Visibility="{Binding HasTracks, Converter={StaticResource BooleanToVisibility}}">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" MaxWidth="420" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
+                <Grid Grid.Column="0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Column="0"
-                               Margin="0,0,8,0"
-                               VerticalAlignment="Center"
-                               Style="{StaticResource OffstreamFieldLabelStyle}"
-                               Text="{x:Static res:Strings.MetadataFilterLabel}" />
+                    <!--
+                        The filter narrows what is drawn and nothing else. It sits over the list
+                        rather than beside the buttons because it belongs to the list: the buttons
+                        act on the whole library whatever is typed here, and putting it in their
+                        row would suggest otherwise.
+                    -->
+                    <Grid Grid.Row="0"
+                          Margin="0,0,0,8"
+                          Visibility="{Binding HasTracks, Converter={StaticResource BooleanToVisibility}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
 
-                    <ui:TextBox Grid.Column="1"
-                                VerticalAlignment="Center"
-                                AutomationProperties.AutomationId="MetadataFilter"
-                                AutomationProperties.HelpText="{x:Static res:Strings.MetadataFilterHelp}"
-                                AutomationProperties.Name="{x:Static res:Strings.MetadataFilterLabel}"
-                                PlaceholderText="{x:Static res:Strings.MetadataFilterPlaceholder}"
-                                Text="{Binding Filter, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                ToolTip="{x:Static res:Strings.MetadataFilterHelp}" />
+                        <ui:TextBox Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    AutomationProperties.AutomationId="MetadataFilter"
+                                    AutomationProperties.HelpText="{x:Static res:Strings.MetadataFilterHelp}"
+                                    AutomationProperties.Name="{x:Static res:Strings.MetadataFilterLabel}"
+                                    PlaceholderText="{x:Static res:Strings.MetadataFilterPlaceholder}"
+                                    Text="{Binding Filter, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                    ToolTip="{x:Static res:Strings.MetadataFilterHelp}" />
 
-                    <TextBlock Grid.Column="2"
-                               Margin="12,0,0,0"
-                               VerticalAlignment="Center"
+                        <TextBlock Grid.Column="1"
+                                   Margin="10,0,0,0"
+                                   VerticalAlignment="Center"
+                                   AutomationProperties.LiveSetting="Polite"
+                                   Style="{StaticResource OffstreamHintStyle}"
+                                   Text="{Binding FilterSummary, Mode=OneWay}"
+                                   Visibility="{Binding IsFiltered, Converter={StaticResource BooleanToVisibility}}" />
+                    </Grid>
+
+                    <TextBlock Grid.Row="1"
+                               Margin="4,12,0,0"
+                               VerticalAlignment="Top"
+                               Text="{x:Static res:Strings.MetadataEmpty}"
+                               TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style BasedOn="{StaticResource OffstreamHintStyle}" TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasTracks, Mode=OneWay}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <TextBlock Grid.Row="1"
+                               Margin="4,12,0,0"
+                               VerticalAlignment="Top"
                                AutomationProperties.LiveSetting="Polite"
                                Style="{StaticResource OffstreamHintStyle}"
-                               Text="{Binding FilterSummary, Mode=OneWay}"
-                               Visibility="{Binding IsFiltered, Converter={StaticResource BooleanToVisibility}}" />
+                               Text="{x:Static res:Strings.MetadataNoMatches}"
+                               TextWrapping="Wrap"
+                               Visibility="{Binding HasNoMatches, Converter={StaticResource BooleanToVisibility}}" />
+
+                    <!--
+                        Virtualised: a music folder is thousands of files, and each row carries a
+                        decoded thumbnail. Without recycling, scanning a real library builds every
+                        one of them up front and the page stops responding before it finishes
+                        drawing.
+
+                        Horizontal scrolling is disabled rather than automatic, which is what
+                        forces the rows to be measured at the width actually available. See the
+                        row template.
+
+                        Scrolling is by pixel, not by item. A row here is a three-line block, so
+                        the default — three *items* per wheel notch — moved the list most of a
+                        screen at a time and made it unusable with a mouse.
+                    -->
+                    <ListBox Grid.Row="1"
+                             AutomationProperties.AutomationId="MetadataTrackList"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             ItemTemplate="{StaticResource LibraryTrackTemplate}"
+                             ItemsSource="{Binding VisibleTracks, Mode=OneWay}"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             SelectedItem="{Binding SelectedTrack, Mode=TwoWay}"
+                             Visibility="{Binding HasTracks, Converter={StaticResource BooleanToVisibility}}"
+                             VirtualizingPanel.IsVirtualizing="True"
+                             VirtualizingPanel.ScrollUnit="Pixel"
+                             VirtualizingPanel.VirtualizationMode="Recycling">
+                        <!--
+                            The selected row is marked, but quietly. The themed container paints a
+                            saturated fill and an accent bar down the side, which on a list of
+                            three-line rows reads as an alarm rather than a pointer — and it was
+                            worse than useless while nothing acted on the selection at all. Now
+                            the pane on the right is what the selection means, so the row needs to
+                            say which one it is showing: a tinted background and a narrow accent
+                            edge, and no change to the text.
+
+                            The template is replaced rather than the brushes overridden, because
+                            setting the brushes leaves the themed accent bar in place underneath.
+                        -->
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                <Setter Property="Padding" Value="0" />
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="BorderThickness" Value="0" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <Border x:Name="Pick"
+                                                    Background="Transparent"
+                                                    BorderBrush="Transparent"
+                                                    BorderThickness="3,0,0,0">
+                                                <ContentPresenter HorizontalAlignment="Stretch" />
+                                            </Border>
+
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter TargetName="Pick" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                                    <Setter TargetName="Pick" Property="BorderBrush" Value="{StaticResource OffstreamAccentBrush}" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                    </ListBox>
                 </Grid>
 
-                <TextBlock Grid.Row="1"
-                           Margin="4,12,0,0"
-                           VerticalAlignment="Top"
-                           Text="{x:Static res:Strings.MetadataEmpty}"
-                           TextWrapping="Wrap">
-                    <TextBlock.Style>
-                        <Style BasedOn="{StaticResource OffstreamHintStyle}" TargetType="TextBlock">
-                            <Setter Property="Visibility" Value="Visible" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding HasTracks, Mode=OneWay}" Value="True">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
+                <Border Grid.Column="2"
+                        Padding="16,14"
+                        Background="{StaticResource OffstreamWellBrush}"
+                        BorderBrush="{StaticResource OffstreamRowSeparatorBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Visibility="{Binding HasTracks, Converter={StaticResource BooleanToVisibility}}">
+                    <Grid>
+                        <TextBlock VerticalAlignment="Top"
+                                   Text="{x:Static res:Strings.MetadataNoSelection}"
+                                   TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style BasedOn="{StaticResource OffstreamHintStyle}" TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasSelection, Mode=OneWay}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
 
-                <!--
-                    Virtualised: a music folder is thousands of files, and each row carries a
-                    decoded thumbnail. Without recycling, scanning a real library builds every one
-                    of them up front and the page stops responding before it finishes drawing.
-
-                    Horizontal scrolling is disabled rather than automatic, which is what forces
-                    the rows to be measured at the width actually available. See the row template.
-                -->
-                <TextBlock Grid.Row="1"
-                           Margin="4,12,0,0"
-                           VerticalAlignment="Top"
-                           AutomationProperties.LiveSetting="Polite"
-                           Style="{StaticResource OffstreamHintStyle}"
-                           Text="{x:Static res:Strings.MetadataNoMatches}"
-                           TextWrapping="Wrap"
-                           Visibility="{Binding HasNoMatches, Converter={StaticResource BooleanToVisibility}}" />
-
-                <ListBox Grid.Row="1"
-                         AutomationProperties.AutomationId="MetadataTrackList"
-                         Background="Transparent"
-                         BorderThickness="0"
-                         ItemTemplate="{StaticResource LibraryTrackTemplate}"
-                         ItemsSource="{Binding VisibleTracks, Mode=OneWay}"
-                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                         Visibility="{Binding HasTracks, Converter={StaticResource BooleanToVisibility}}"
-                         VirtualizingPanel.IsVirtualizing="True"
-                         VirtualizingPanel.ScrollUnit="Pixel"
-                         VirtualizingPanel.VirtualizationMode="Recycling">
-                    <!--
-                        Two deliberate departures from a stock ListBox.
-
-                        Scrolling is by pixel, not by item. A row here is a three-line block and
-                        an opened one is a whole editor, so the default — three *items* per wheel
-                        notch — moved the list most of a screen at a time and made it unusable
-                        with a mouse.
-
-                        And a row has no selected state. Nothing on this page acts on "the
-                        selected row": the tick box says what Save writes and the chevron says
-                        what is open, so a highlight following the arrow keys is a third kind of
-                        emphasis that means nothing, drawn brightly over a row that may be neither
-                        ticked nor open. The template is replaced rather than the brushes
-                        overridden, because the themed one paints its own accent bar as well.
-                        Focus still moves normally — this removes the paint, not the keyboard.
-                    -->
-                    <ListBox.ItemContainerStyle>
-                        <Style TargetType="ListBoxItem">
-                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                            <Setter Property="Padding" Value="0" />
-                            <Setter Property="Background" Value="Transparent" />
-                            <Setter Property="BorderThickness" Value="0" />
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="ListBoxItem">
-                                        <ContentPresenter HorizontalAlignment="Stretch" />
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                        </Style>
-                    </ListBox.ItemContainerStyle>
-                </ListBox>
+                        <ContentControl HorizontalContentAlignment="Stretch"
+                                        VerticalContentAlignment="Stretch"
+                                        AutomationProperties.AutomationId="MetadataEditor"
+                                        AutomationProperties.Name="{x:Static res:Strings.MetadataEditorHeading}"
+                                        Content="{Binding SelectedTrack, Mode=OneWay}"
+                                        ContentTemplate="{StaticResource LibraryEditorTemplate}"
+                                        Visibility="{Binding HasSelection, Converter={StaticResource BooleanToVisibility}}" />
+                    </Grid>
+                </Border>
             </Grid>
         </Grid>
     </Border>
