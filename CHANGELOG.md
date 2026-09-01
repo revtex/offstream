@@ -12,6 +12,15 @@ phase plan these entries follow.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-31
+
+**Upgrading from 0.1.0 resets one setting.** The three advertisement switches
+(`recording.muteAdsEnabled`, `recording.recordEverythingEnabled`, `recording.recordAdsEnabled`)
+are gone, replaced by the single `recording.recordSelection` described below. A settings file
+written by 0.1.0 loads without complaint and comes back at the default — **Record — recognisable
+tracks only** — so anyone who had asked for advertisements to be recorded needs to ask again.
+Nothing else in `settings.json` changes meaning, and no recording already on disk is affected.
+
 ### Changed
 
 - **The three advertisement switches are one dropdown, because between them they only ever had
@@ -43,8 +52,8 @@ phase plan these entries follow.
   combinations, four outcomes: the same arithmetic as the advertisement switches above, and the
   same fix. The choice is now **keep the one on disk**, **keep it and skip to the next track**,
   **replace it**, or **save the new one alongside it**. Its `output.skipAlreadyRecordedTracks` key
-  is gone and its value lives in `output.existingFilePolicy`, so anyone who had asked Offstream to
-  move on will need to say so again. Giving the dropdown the row to itself also fixes the switch
+  is gone and its value lives in `output.existingFilePolicy`. Neither key was ever in a release, so
+  there is nothing to reset. Giving the dropdown the row to itself also fixes the switch
   label, which was clipped at "Also tell Spotify to mov".
 - **A setting's description is a tooltip now.** The sentence under a switch cost a line of height
   on a page that has none to spare — the card at the bottom has been clipped three times — and it
