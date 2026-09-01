@@ -59,19 +59,32 @@ public sealed class LibraryTrack
     /// </remarks>
     public string? FailureReason { get; set; }
 
-    /// <summary>Whether anything about <see cref="Suggested"/> differs from <see cref="Existing"/>.</summary>
+    /// <summary>Whether saving would put something different in the file than it holds now.</summary>
     /// <remarks>
+    /// <para>
     /// What the Save button acts on. A row that came back from a provider saying exactly what the
     /// file already said is not worth rewriting the file for — and rewriting it would re-encode
     /// nothing but would still touch the modified time, which is enough to disturb anything
     /// syncing the folder.
+    /// </para>
+    /// <para>
+    /// <b>An emptied field is not a change,</b> because the writer never writes a blank over a
+    /// value — clearing a box leaves the file's own tag alone. Comparing the two sides plainly
+    /// made a cleared box light the "will change" badge and then save nothing, which is the same
+    /// defect as a lookup offering to erase a genre, arrived at from the other direction.
+    /// </para>
     /// </remarks>
     public bool HasChanges =>
-        !SameText(Existing.Title, Suggested.Title)
-        || !SameText(Existing.Artist, Suggested.Artist)
-        || !SameText(Existing.Album, Suggested.Album)
-        || Existing.Year != Suggested.Year
-        || !SameGenres(Existing.Genres, Suggested.Genres)
+        Replaces(Existing.Title, Suggested.Title)
+        || Replaces(Existing.Artist, Suggested.Artist)
+        || Replaces(Existing.Album, Suggested.Album)
+        || Replaces(Existing.Copyright, Suggested.Copyright)
+        || Replaces(Existing.Year, Suggested.Year)
+        || Replaces(Existing.AlbumPosition, Suggested.AlbumPosition)
+        || Replaces(Existing.AlbumTrackCount, Suggested.AlbumTrackCount)
+        || Replaces(Existing.Disc, Suggested.Disc)
+        || Replaces(Existing.Genres, Suggested.Genres)
+        || Replaces(Existing.AlbumArtists, Suggested.AlbumArtists)
         || CoverArtWouldChange;
 
     /// <summary>Whether saving would put a different picture in the file than the one it has.</summary>
@@ -112,11 +125,19 @@ public sealed class LibraryTrack
         && !string.IsNullOrWhiteSpace(track.Artist)
         && !string.IsNullOrWhiteSpace(track.Album);
 
-    private static bool SameText(string? left, string? right) =>
-        string.Equals(left ?? string.Empty, right ?? string.Empty, StringComparison.Ordinal);
+    /// <summary>Whether the suggestion says something the writer would actually put in the file.</summary>
+    private static bool Replaces(string? existing, string? suggested) =>
+        !string.IsNullOrWhiteSpace(suggested)
+        && !string.Equals(existing ?? string.Empty, suggested, StringComparison.Ordinal);
 
-    private static bool SameGenres(string[]? left, string[]? right) =>
-        (left ?? []).SequenceEqual(right ?? [], StringComparer.Ordinal);
+    /// <inheritdoc cref="Replaces(string?, string?)" />
+    private static bool Replaces(int? existing, int? suggested) =>
+        suggested is > 0 && existing != suggested;
+
+    /// <inheritdoc cref="Replaces(string?, string?)" />
+    private static bool Replaces(string[]? existing, string[]? suggested) =>
+        suggested is { Length: > 0 }
+        && !(existing ?? []).SequenceEqual(suggested, StringComparer.Ordinal);
 
     /// <summary>Whether two pictures are the same one.</summary>
     /// <remarks>

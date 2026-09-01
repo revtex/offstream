@@ -9,32 +9,11 @@ namespace Offstream.UI.Tests;
 /// What one row of the Metadata page shows before anyone opens it.
 /// </summary>
 /// <remarks>
-/// The collapsed row is the only thing most files will ever show, so what it says has to be
-/// enough to approve a save without opening anything. These are the properties that say it.
+/// A row in the list is the only thing most files will ever show, so what it says has to be
+/// enough to approve a save without picking it. These are the properties that say it.
 /// </remarks>
 public sealed class LibraryTrackViewModelTests
 {
-    /// <summary>A row starts closed.</summary>
-    /// <remarks>
-    /// The layout this replaced kept every row's fields open and fitted three files of a hundred
-    /// and twenty-seven on screen. Density is the feature, so the default matters.
-    /// </remarks>
-    [Fact]
-    public void ARow_StartsCollapsed() => Assert.False(Row().IsExpanded);
-
-    /// <summary>The chevron opens and closes it.</summary>
-    [Fact]
-    public void ToggleExpand_OpensAndCloses()
-    {
-        var row = Row();
-
-        row.ToggleExpandCommand.Execute(null);
-        Assert.True(row.IsExpanded);
-
-        row.ToggleExpandCommand.Execute(null);
-        Assert.False(row.IsExpanded);
-    }
-
     /// <summary>The second line reads "artist · album".</summary>
     [Fact]
     public void Summary_JoinsTheArtistAndAlbum() =>
@@ -148,25 +127,14 @@ public sealed class LibraryTrackViewModelTests
     public void WasLine_IsHiddenWhenTheFileAndTheBoxAreBothEmpty() =>
         Assert.False(Row(album: null).HasAlbumChange);
 
-    /// <summary>A row whose match changed nothing outside the three boxes shows no extra block.</summary>
-    [Fact]
-    public void MatchDetails_AreHiddenWhenTheBoxesSayItAll()
-    {
-        var row = Row();
-
-        row.Title = "Something Else";
-
-        Assert.False(row.HasMatchDetails);
-    }
-
-    /// <summary>A year the file did not have is a change the boxes cannot show.</summary>
+    /// <summary>A year a match brought lands in the year box, not in a read-only line.</summary>
     /// <remarks>
-    /// This is the complaint the block answers. Before it, a row could say "will change" with
-    /// title, artist and album all identical to the file and nothing on screen saying why —
-    /// the match had brought a year, a genre or artwork, and Save writes all three.
+    /// Year and genre were shown beside the three editable boxes and could not be corrected,
+    /// which made a wrong match's year unfixable without an outside tag editor. Every tag the
+    /// recorder writes now has a box, so the check is that a fetched value reaches it.
     /// </remarks>
     [Fact]
-    public void MatchDetails_ShowTheYearAMatchBrought()
+    public void AFetchedYear_LandsInTheYearBox()
     {
         var track = new LibraryTrack(
             @"C:\Music\01 Cloudbusting.mp3",
@@ -177,15 +145,14 @@ public sealed class LibraryTrackViewModelTests
         track.Suggested.Year = 1985;
         row.RefreshFromSuggestion();
 
+        Assert.Equal("1985", row.Year);
         Assert.True(row.HasYearChange);
-        Assert.True(row.HasMatchDetails);
-        Assert.Equal("1985", row.SuggestedYear);
         Assert.True(row.HasPendingChanges);
     }
 
-    /// <summary>Genres are shown the same way, joined for reading.</summary>
+    /// <summary>Genres come back as one line, because that is what the box holds.</summary>
     [Fact]
-    public void MatchDetails_ShowTheGenresAMatchBrought()
+    public void FetchedGenres_ArriveCommaSeparated()
     {
         var track = new LibraryTrack(
             @"C:\Music\01 Cloudbusting.mp3",
@@ -196,13 +163,13 @@ public sealed class LibraryTrackViewModelTests
         track.Suggested.Genres = ["art pop", "art rock"];
         row.RefreshFromSuggestion();
 
+        Assert.Equal("art pop, art rock", row.Genres);
         Assert.True(row.HasGenreChange);
-        Assert.Equal("art pop, art rock", row.SuggestedGenres);
     }
 
     /// <summary>Artwork the file already has is not a change, so no before-and-after appears.</summary>
     [Fact]
-    public void MatchDetails_IgnoreArtworkTheFileAlreadyHas()
+    public void Artwork_TheFileAlreadyHasIsNotAChange()
     {
         var picture = new byte[] { 1, 2, 3, 4 };
 
@@ -217,7 +184,170 @@ public sealed class LibraryTrackViewModelTests
             }));
 
         Assert.False(row.HasCoverArtChange);
-        Assert.False(row.HasMatchDetails);
+    }
+
+    /// <summary>An edit to a number the page never used to show still counts as a change.</summary>
+    /// <remarks>
+    /// The one that would go wrong quietly. <c>LibraryTrack.HasChanges</c> compared five fields,
+    /// so a row where the user corrected only the disc number reported nothing to save and Save
+    /// skipped it — the edit was accepted by the box and then dropped without a word.
+    /// </remarks>
+    [Fact]
+    public void EditingOnlyTheDiscNumber_StillNeedsSaving()
+    {
+        var row = Row();
+
+        Assert.False(row.HasPendingChanges);
+
+        row.Disc = "2";
+
+        Assert.True(row.HasDiscChange);
+        Assert.True(row.HasPendingChanges);
+    }
+
+    /// <summary>Numbers are validated in the box rather than thrown away at the point of writing.</summary>
+    [Theory]
+    [InlineData("1985", false)]
+    [InlineData("", false)]
+    [InlineData("85", true)]
+    [InlineData("-1", true)]
+    [InlineData("nineteen", true)]
+    public void AYear_MustBeFourDigitsOrNothing(string typed, bool expectedError)
+    {
+        var row = Row();
+
+        row.Year = typed;
+
+        Assert.Equal(expectedError, row.GetErrors(nameof(row.Year)).Cast<object>().Any());
+    }
+
+    /// <summary>
+    /// A half-typed number leaves the tag alone rather than clearing it.
+    /// </summary>
+    /// <remarks>
+    /// The boxes update on every keystroke, so backspacing over "1985" to retype it passes
+    /// through "198", "19", "1" — and then through states that do not parse at all. Nulling the
+    /// tag on those would erase a year while the user was in the middle of correcting it.
+    /// </remarks>
+    [Fact]
+    public void AnUnparseableYear_LeavesTheTagWhereItWas()
+    {
+        var track = new LibraryTrack(
+            @"C:\Music\01 Cloudbusting.mp3",
+            new Track { Title = "Cloudbusting", Artist = "Kate Bush", Year = 1985 });
+
+        var row = new LibraryTrackViewModel(track) { Year = "nineteen" };
+
+        Assert.Equal(1985, track.Suggested.Year);
+    }
+
+    /// <summary>Clearing a box asks for nothing, which is not the same as asking for a blank.</summary>
+    /// <remarks>
+    /// The writer never writes an empty value over a real one, so a cleared box that reported a
+    /// change would light the "will change" badge and then save nothing at all.
+    /// </remarks>
+    [Fact]
+    public void ClearingABox_IsNotAChange()
+    {
+        var track = new LibraryTrack(
+            @"C:\Music\01 Cloudbusting.mp3",
+            new Track { Title = "Cloudbusting", Artist = "Kate Bush", Album = "Hounds of Love" });
+
+        var row = new LibraryTrackViewModel(track) { Album = string.Empty };
+
+        Assert.False(row.HasAlbumChange);
+        Assert.False(row.HasPendingChanges);
+    }
+
+    /// <summary>A comma inside a name is part of the name, not a second name.</summary>
+    /// <remarks>
+    /// The genre box splits on commas because a genre list really is a list. Doing the same to
+    /// the album artist box files "Earth, Wind &amp; Fire" under two acts — a worse corruption
+    /// than the multi-value tag the box was added to expose.
+    /// </remarks>
+    [Fact]
+    public void AnAlbumArtistWithACommaInIt_StaysOneName()
+    {
+        var track = new LibraryTrack(
+            @"C:\Music\01 September.mp3",
+            new Track { Title = "September", Artist = "Earth, Wind & Fire" });
+
+        _ = new LibraryTrackViewModel(track) { AlbumArtist = "Earth, Wind & Fire" };
+
+        Assert.Equal(["Earth, Wind & Fire"], track.Suggested.AlbumArtists!);
+    }
+
+    /// <summary>An album artist list nobody touched goes back the way it came.</summary>
+    [Fact]
+    public void AnUneditedAlbumArtistList_KeepsEveryName()
+    {
+        var track = new LibraryTrack(
+            @"C:\Music\01 Under Pressure.mp3",
+            new Track { Title = "Under Pressure", Artist = "Queen", AlbumArtists = ["Queen", "David Bowie"] });
+
+        var row = new LibraryTrackViewModel(track);
+
+        Assert.Equal("Queen, David Bowie", row.AlbumArtist);
+
+        row.RefreshFromSuggestion();
+
+        Assert.Equal(["Queen", "David Bowie"], track.Suggested.AlbumArtists!);
+
+        // And the row stays quiet: a list that came back the way it went in is not a change, or
+        // every multi-value file in the library would wear the "will change" badge.
+        Assert.False(row.HasAlbumArtistChange);
+        Assert.False(row.HasPendingChanges);
+    }
+
+    /// <summary>The thumbnail follows a match that brought a URL rather than bytes.</summary>
+    /// <remarks>
+    /// A lookup normally returns a link and no picture — the writer downloads it at save time —
+    /// so a thumbnail bound to the decoded image alone showed the artwork the file already had
+    /// while claiming to show what saving would do.
+    /// </remarks>
+    [Fact]
+    public void CoverPreview_FollowsAUrlWhenTheMatchBroughtNoBytes()
+    {
+        var track = new LibraryTrack(
+            @"C:\Music\01 Who Made Who.mp3",
+            new Track { Title = "Who Made Who", Artist = "AC", Album = "Who Made Who" });
+
+        var row = new LibraryTrackViewModel(track);
+
+        track.Suggested.AlbumArtImage = null;
+        track.Suggested.AlbumArtUrl = "https://example.invalid/discovery.jpg";
+        row.RefreshFromSuggestion();
+
+        var source = Assert.IsType<Uri>(row.SuggestedCoverArtSource);
+
+        Assert.Equal("https://example.invalid/discovery.jpg", source.ToString());
+    }
+
+    /// <summary>Opening a row fills its search box, however the row was opened.</summary>
+    /// <remarks>
+    /// The query is built from the row as it stands now, not as the file was scanned, so a fetch
+    /// or an edit in between is what gets searched for.
+    /// </remarks>
+    [Fact]
+    public void Seeding_FillsTheSearchBoxFromWhatTheRowNowSays()
+    {
+        var row = Row();
+
+        row.SeedMatchQuery();
+
+        Assert.Equal("Kate Bush Running Up That Hill", row.MatchQuery);
+    }
+
+    /// <summary>Seeding again does not overwrite a query the user typed.</summary>
+    [Fact]
+    public void Seeding_LeavesAQueryTheUserAlreadyTyped()
+    {
+        var row = Row();
+
+        row.MatchQuery = "cloudbusting";
+        row.SeedMatchQuery();
+
+        Assert.Equal("cloudbusting", row.MatchQuery);
     }
 
     private static LibraryTrackViewModel Row(

@@ -945,6 +945,75 @@ The layout that replaced the table is one compact row per file — title, then a
 
 The lesson is about the order the two were found in. The artwork bug was found by looking at the running app; **this one was found by building the feature that displays the data** — the "Also from the match" block exists because a row could say it would change while all three editable fields matched the file, and the first thing it drew on a real library was `Genre — was Hip-Hop, rap, hip hop`, an offer to erase a tag nobody had asked to erase. A value that is written on Save but rendered nowhere is a value no amount of looking at the page can check, and the suite could not check it either: the fixtures asserted what a lookup *adds*, never what it silently takes away.
 
+### Finding: an automatic matcher cannot be its own escape hatch (2026-08-30)
+
+`SpotifySearchMetadataProvider` builds its query from the file's own artist and title, and then discards any result whose artist disagrees with them. Both halves are right: Spotify always returns *something*, and the top hit for a misparsed filename is routinely a different song, so a strict gate is what stops the page writing a confident wrong answer into a correctly named file.
+
+The consequence is that **the automatic path cannot fix a wrong artist, and Re-fetch is not the escape hatch it was documented as.** A file tagged `AC — Who Made Who` searches for that artist and rejects everything that is not it; pressing Re-fetch again asks the identical question and gets the identical answer. Auto-fetch will not touch the row either, because all three fields are filled in. The only remedy was to type the correct values by hand — which works, and forfeits the year, genre and artwork that come with a real match.
+
+So `ILibraryMatchSearch` is a second, deliberately different shape: **the user's words instead of the file's, several results instead of a verdict, and no filtering on the way out.** A person reading a list can tell a live take from a studio one, and a filter that could hide the right answer is worse here than a list with a few wrong ones in it. Two details are load-bearing. The chosen candidate is fetched again through `/tracks/{id}` rather than tagged from the search result, because a search result is not a full track — the release date is on the album and the genre on the artist — and a hand-picked match arriving thinner than an automatic one would be a strange thing to have built. And it is the one place the "an embedded picture beats a provider's URL" rule is inverted: picking a different song says the file's own cover belongs to the track it used to claim to be, so it is dropped and the new URL is taken.
+
+That last decision then exposed the display bug beneath it. `CoverArt` was bound to decoded bytes, but a lookup normally returns a **URL** and no bytes — the writer downloads it at save time — so the thumbnail showed the artwork the file already had while claiming to show what saving would do. On a hand-picked match it put the replaced track's sleeve on both sides of the before-and-after. The fix is to bind to either a decoded image or a `Uri` and let WPF's `Image.Source` fetch the second, which also keeps the network off the view model and off whatever thread a fetch finished on. **Both times on this page, the thing that made a bug visible was drawing the value rather than testing it.**
+
+### Finding: the row editor was laid out as a form, and three WPF defaults were wrong underneath it (2026-08-30)
+
+Four defects on one page, all of them invisible to the build and to the suite, and all found by running the app and looking at it.
+
+**A star column inside a panel aligned `Left` is a content-sized column.** The editor was capped with `<StackPanel MaxWidth="820" HorizontalAlignment="Left">` around a two-column `Grid`. A `Left`-aligned element is *arranged* at its desired width, a `Grid`'s desired width is the sum of what its columns' content asked for, and a star column contributes its content — not its share of the available space. So every text box shrank to the width of the word inside it: a 130px box for "Thank Me" beside a 270px one for "Able Heart, Qveen Herby". The working idiom is the one already used elsewhere in the file — a star column carrying `MaxWidth` beside an empty `Auto` one, inside a Grid that is allowed to stretch. `MaxWidth` on a `Stretch` element is not the answer either: WPF centres what it cannot stretch, which pushes the whole panel off its own indent.
+
+**`VirtualizingPanel.ScrollUnit` defaults to `Item`, which is wrong for any list whose rows are taller than a line.** Three items per wheel notch is a sensible default for a list of names; here a row is a three-line block and an opened one is a whole editor, so a notch moved most of a screen. `ScrollUnit="Pixel"` is a one-attribute fix and it works with `VirtualizationMode="Recycling"`. Measure it rather than trusting it: with UIAutomation, read a `ListBoxItem`'s `BoundingRectangle.Y`, send one `mouse_event` wheel notch over the list, and read it again. It moved **72 physical pixels** (48 DIP at 150%) against a row height of 115, where the default had been moving three whole rows.
+
+**Removing a selection highlight means replacing the `ListBoxItem` template, not overriding its brushes.** The themed template paints its own accent bar as well as a background, so setters for `Background` and the `IsSelected` triggers leave a band behind. A `ControlTemplate` of a bare `ContentPresenter` removes the paint and keeps everything else: focus still moves, arrow keys still work, and the default focus rectangle still shows where the keyboard is. Worth doing on this page because nothing here acts on "the selected row" — the tick box and the chevron each carry their own meaning, and a third highlight tracking the arrow keys only competes with them.
+
+**A behaviour hung off a `[RelayCommand]` is a behaviour the other route does not get.** The search box was seeded in `ToggleExpandCommand`, which only the row's title runs. Expanding by the chevron sets `IsExpanded` through its `IsChecked` binding and never touches the command, so the affordance that *looks* like the way to open a row left the box empty and a search from there asked Spotify for the empty string. `partial void OnIsExpandedChanged` is the seam that both routes cross. This is a general trap with `[ObservableProperty]` two-way bound to a control: the property is the event, the command is not.
+
+And a fourth member of the genre false-positive family, which the earlier fix had missed because it was made in the wrong place. Putting the file's genre and year back when Spotify offers nothing was done inside `SpotifyCatalogEnricher` — correct for the Spotify path and no help at all when `FallbackMetadataProvider` falls through to Last.fm, whose `EnrichAsync` assigns `track.Genres = await ArtistTagsAsync(...)` just as unconditionally and returns nothing for an artist nobody has tagged. The rule belongs at the call site every library lookup passes through, `MetadataViewModel.FetchOneAsync`, where it holds for whichever provider answers and for any provider added later. The enricher keeps its own copy because the manual-match path does not go through `FetchOneAsync`.
+
+One process note, because it cost a wrong diagnosis. Restoring a file with `mv` from a `.bak` preserves the backup's **mtime**, which can be older than the compiled output — so MSBuild considers the project up to date and the next test run silently exercises the previous build. A test that passed, then failed with the fix visibly present in the source, was that and nothing else. `touch` the file after any restore of this kind.
+
+### Finding: an editor that opens inside a list row has to fit inside a list row, and this one never could (2026-08-31)
+
+The row editor was rebuilt twice and tightened once, and every version was judged by looking at it. Measuring it instead settled the question in one reading. At the shell's minimum window of 1024×700, with UIAutomation reporting `BoundingRectangle` in physical pixels against a 150% scale factor:
+
+| | DIP |
+| --- | --- |
+| Window | 700 |
+| Page chrome above the list | 542 |
+| **Track list viewport** | **347** |
+| **One expanded row** | **539** |
+
+An editor 1.55× the height of the container it opens in is not a spacing problem, and no amount of trimming reaches it. The page owns only about 130 DIP of that chrome — the intro paragraph and the folder, button and filter rows; the rest is the shell's title bar and nav strip and is not this page's to reclaim — so spending **all** of it still leaves a deficit, and the best case is a list showing exactly one file. The cheaper variant that was costed and rejected, moving the search and its results into a popover, lands an opened row at 347 DIP: precisely the viewport, which is the same failure at one decimal place.
+
+So the editor became a pane beside the list rather than inside it. The list holds 5 rows at the minimum window and 11 maximized, the pane is the same size and in the same place whatever is picked, and choosing a different track reflows nothing — measured before and after a search that returned ten candidates, the list viewport read 373 DIP both times.
+
+**The general rule is worth more than the fix: an expander is usable only when the thing it opens is smaller than the space it opens into.** That is a measurement, and it is available before the layout is written. Reach for master–detail when it is not, and reach for it early — two rebuilds of the panel went into making a shape work that could not have worked at any spacing.
+
+Three second-order notes from doing it:
+
+- **Selection had to come back, and removing it had been right on its own terms.** A highlight following the arrow keys while nothing acted on the selected row was noise. In a split view the selection is the pane's input, so the row has to say which one is showing — a tinted background and a narrow accent edge, not the themed container's saturated fill. "Nothing acts on the selection" was a fact about the layout, not about the control, and it stopped being true the moment the layout changed.
+
+- **Re-filtering nulls the list's `SelectedItem`.** `ApplyFilter` clears and refills `VisibleTracks`, and the clear travels out through the two-way binding — so without capturing the pick and putting it back, the editor emptied on every keystroke in the filter box, including the keystrokes narrowing the list towards the row being edited.
+
+- **One scroll region was the wrong instinct.** Letting the whole pane scroll put ten search results below the fold, and the only evidence the search had worked was the scroll bar getting shorter. The fields scroll and the search box and its results are pinned to the foot of the pane instead: the results are what the user just asked for, and the fields are what they will scroll back to, having already read them.
+
+Commands bound from inside the pane reach the page with `RelativeSource={RelativeSource AncestorType=UserControl}`; the row template's old `AncestorType=ListBox` has no such ancestor once the editor is out of the list.
+
+### Finding: a tag the recorder writes and the editor cannot reach is a tag nobody can fix (2026-08-31)
+
+The page shipped with three editable fields — title, artist, album — and showed year, genre and artwork read-only beside them. The scope question "which fields belong here" has an answer that is not a matter of taste: **whatever the recording path writes**. `FFmpegArguments.MetadataArguments` writes title, artist, album, album artist, genre, date, track, disc and copyright, so a recording could carry a wrong disc number that no part of Offstream could correct. Composer, comment and BPM are in neither list, and that is what keeps this from drifting into a general-purpose tag editor.
+
+Filling the gap turned up three defects underneath it, none of which were visible while the fields were absent.
+
+**Ten fields do not stack.** 10 × 65 DIP is 650 in a 347 DIP pane — the same arithmetic as the finding above, discovered a day later on the pane that fixed it. Paired into two columns it is 390 DIP, so seven of ten are visible at the minimum window and all ten at any real size. Numeric boxes read fine at half width, which is what makes the pairing free.
+
+**An emptied box is not a change.** `HasChanges` compared before against after, so clearing the album box lit **Will change** and then saved nothing — the writer has never written a blank over a value. The predicate now asks whether saving would alter the file, which is the question the badge was always claiming to answer.
+
+**Writing one artist back over a tag that held two destroyed data.** ID3v2.3 separates artists with a slash, so the file recorded as `AC/DC` holds the two values `AC` and `DC`; `Read` took `FirstPerformer`, the box showed `AC`, and `Write` did `tag.Performers = [track.Artist]` — narrowing the tag on the page whose purpose is repairing tags. It had been there since the writer was written and was invisible until an album artist box appeared next to the artist box showing `AC, DC` beside `AC`. The fix writes the original list back verbatim when its first entry still matches the box, since that is where the box was filled from; a match satisfies this by construction, because the mapper sets the artist from the first performer it assigns.
+
+The tempting fix is worse than the bug: splitting the box on commas the way the genre box splits reads `Earth, Wind & Fire` as three artists. **A list of names cannot be edited as a comma-separated line.** Genres can, because a genre list really is a list and commas inside one genre are vanishingly rare; names cannot, because commas inside one name are ordinary. Both artist boxes therefore keep the array they were filled from whenever the text still matches it, and take the whole line as a single value when it does not.
+
+The never-erase rule from the day before became one helper, `LibraryLookup`, rather than two hand-written copies, and grew from genre and year to all seven fields a lookup can leave empty. There are still two call sites, and both are still load-bearing — `MetadataViewModel.FetchOneAsync` for every automatic lookup and `SpotifyCatalogEnricher` for the manual **Use this** path, which does not pass through it — but the rule itself now exists once, so the next field cannot be added to one copy and forgotten in the other. That is precisely how the bug survived its first fix.
+
 ---
 
 ## 12. Risks

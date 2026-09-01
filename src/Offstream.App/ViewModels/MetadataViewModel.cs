@@ -93,6 +93,34 @@ public sealed partial class MetadataViewModel : ObservableObject
     /// </remarks>
     public ObservableCollection<LibraryTrackViewModel> VisibleTracks { get; } = [];
 
+    /// <summary>The row the editor on the right is editing, or null when none is picked.</summary>
+    /// <remarks>
+    /// The editor used to open inside the row itself, and it never fitted: an opened row measured
+    /// 539 device-independent pixels against a list viewport of 347, so choosing a track buried
+    /// the library it was chosen from and pushed the search results off the bottom of the page.
+    /// Hoisting the choice to the page turns the same controls into a pane that is always the
+    /// same size and always in the same place, and nothing reflows when the pick changes.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSelection))]
+    private LibraryTrackViewModel? _selectedTrack;
+
+    /// <summary>Whether a row is picked, and so whether the editor has anything to show.</summary>
+    public bool HasSelection => SelectedTrack is not null;
+
+    /// <summary>Fills the picked row's search box.</summary>
+    /// <remarks>
+    /// Seeding on selection covers every way in — clicking a row, arrowing onto it, or the list
+    /// re-filtering under a pick. It hung off an expand command once, so a row opened by its
+    /// chevron rather than its title got an empty box and searching from there asked Spotify for
+    /// nothing.
+    /// <para>This can fire more than once for the same pick: re-filtering clears the selection
+    /// and puts it back, so the row is seeded twice. That is harmless only because seeding is
+    /// idempotent — it returns early on a query that is already there. Anything added here has
+    /// to stay safe to repeat.</para>
+    /// </remarks>
+    partial void OnSelectedTrackChanged(LibraryTrackViewModel? value) => value?.SeedMatchQuery();
+
     /// <summary>The folder to scan. Starts at wherever recordings are being written.</summary>
     [ObservableProperty]
     private string _folder;
@@ -144,12 +172,20 @@ public sealed partial class MetadataViewModel : ObservableObject
     {
         var needle = Filter?.Trim();
 
+        // Clearing the collection makes the list null its own SelectedItem, which travels back
+        // here through the two-way binding. Without putting the pick back, typing in the filter
+        // box would empty the editor on every keystroke — including the keystrokes that still
+        // match the row being edited.
+        var picked = SelectedTrack;
+
         VisibleTracks.Clear();
 
         foreach (var row in Tracks)
         {
             if (Matches(row, needle)) VisibleTracks.Add(row);
         }
+
+        SelectedTrack = picked is not null && VisibleTracks.Contains(picked) ? picked : null;
 
         OnPropertyChanged(nameof(IsFiltered));
         OnPropertyChanged(nameof(HasNoMatches));
@@ -201,6 +237,7 @@ public sealed partial class MetadataViewModel : ObservableObject
         {
             var scan = await _scanner.ScanAsync(Folder, cancellationToken);
 
+            SelectedTrack = null;
             Tracks.Clear();
 
             foreach (var track in scan.Tracks) Tracks.Add(new LibraryTrackViewModel(track));
@@ -310,6 +347,98 @@ public sealed partial class MetadataViewModel : ObservableObject
         }
     }
 
+    /// <summary>Searches the catalogue for what the user typed on one row.</summary>
+    /// <remarks>
+    /// The escape hatch of last resort, and the only one that can correct a match the automatic
+    /// path is certain about. Re-fetch asks the same question again and gets the same answer;
+    /// this asks a different question, and the automatic path's own rule — reject any result
+    /// whose artist disagrees with the file — is precisely what stops it helping when the file's
+    /// artist is the thing that is wrong.
+    /// </remarks>
+    [RelayCommand]
+    private async Task SearchMatchesAsync(LibraryTrackViewModel? row)
+    {
+        if (row is null || string.IsNullOrWhiteSpace(row.MatchQuery)) return;
+
+        var search = _chain.CreateMatchSearch();
+
+        if (search is null)
+        {
+            row.SearchMessage = Strings.MetadataSearchNeedsSpotify;
+
+            return;
+        }
+
+        row.IsSearching = true;
+        row.SearchMessage = null;
+        row.Candidates.Clear();
+        row.NotifyCandidatesChanged();
+
+        try
+        {
+            var results = await search.SearchAsync(row.MatchQuery, CancellationToken.None);
+
+            foreach (var result in results) row.Candidates.Add(new LibraryMatchViewModel(row, result));
+
+            row.SearchMessage = results.Count == 0 ? Strings.MetadataSearchNoResults : null;
+        }
+        catch (MetadataLookupException ex)
+        {
+            row.SearchMessage = ex.Message;
+        }
+        finally
+        {
+            row.IsSearching = false;
+            row.NotifyCandidatesChanged();
+        }
+    }
+
+    /// <summary>Applies a chosen search result to its row.</summary>
+    /// <remarks>
+    /// The results disappear afterwards. The choice has been made and its effect is visible in
+    /// the fields above, so leaving the list open invites picking a second one on top of the
+    /// first — which works, but reads as though neither had been applied.
+    /// </remarks>
+    [RelayCommand]
+    private async Task UseMatchAsync(LibraryMatchViewModel? choice)
+    {
+        if (choice is null) return;
+
+        var search = _chain.CreateMatchSearch();
+
+        if (search is null)
+        {
+            choice.Row.SearchMessage = Strings.MetadataSearchNeedsSpotify;
+
+            return;
+        }
+
+        var row = choice.Row;
+
+        row.IsSearching = true;
+
+        try
+        {
+            await search.ApplyAsync(row.Track.Suggested, choice.Candidate, CancellationToken.None);
+
+            row.Track.Status = LibraryTrackStatus.Fetched;
+            row.Track.FailureReason = null;
+            row.RefreshFromSuggestion();
+
+            row.Candidates.Clear();
+            row.SearchMessage = null;
+        }
+        catch (MetadataLookupException ex)
+        {
+            row.SearchMessage = ex.Message;
+        }
+        finally
+        {
+            row.IsSearching = false;
+            row.NotifyCandidatesChanged();
+        }
+    }
+
     /// <summary>Writes the ticked rows back to their files.</summary>
     [RelayCommand]
     private async Task SaveSelectedAsync(CancellationToken cancellationToken)
@@ -369,9 +498,17 @@ public sealed partial class MetadataViewModel : ObservableObject
         row.Status = LibraryTrackStatus.Fetching;
         row.FailureReason = null;
 
+        var before = LibraryLookup.Snapshot(row.Track.Suggested);
+
         try
         {
             var updated = await chain.EnrichAsync(row.Track.Suggested, cancellationToken);
+
+            // A lookup on this page adds tags. It never takes one away. This is the call site
+            // every automatic lookup passes through, so the rule holds for whichever provider in
+            // the chain answers and for any provider added later; SpotifyCatalogEnricher keeps
+            // its own call because the manual "Use this" path never comes through here.
+            LibraryLookup.KeepWhatWasThere(row.Track.Suggested, before);
 
             row.Track.Status = updated ? LibraryTrackStatus.Fetched : LibraryTrackStatus.Untagged;
             row.Track.FailureReason = null;

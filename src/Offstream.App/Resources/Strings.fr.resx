@@ -541,11 +541,11 @@
   <data name="MetadataWasLabel" xml:space="preserve">
     <value>avant</value>
   </data>
-  <data name="MetadataExpand" xml:space="preserve">
-    <value>Afficher les champs</value>
+  <data name="MetadataNoSelection" xml:space="preserve">
+    <value>Choisissez une piste à gauche pour vérifier et modifier ses métadonnées.</value>
   </data>
-  <data name="MetadataCollapse" xml:space="preserve">
-    <value>Masquer les champs</value>
+  <data name="MetadataEditorHeading" xml:space="preserve">
+    <value>Métadonnées à écrire</value>
   </data>
   <data name="MetadataWillChange" xml:space="preserve">
     <value>Sera modifié</value>
@@ -630,10 +630,6 @@
     <value>Aucun fichier ne correspond à ce filtre.</value>
     <comment>Shown in place of the list when the filter matches nothing.</comment>
   </data>
-  <data name="MetadataMatchHeading" xml:space="preserve">
-    <value>Également trouvé</value>
-    <comment>Heading over the fields a match fills in that have no box of their own.</comment>
-  </data>
   <data name="MetadataFieldYear" xml:space="preserve">
     <value>Année</value>
     <comment>Label for the year a match found.</comment>
@@ -653,5 +649,68 @@
   <data name="MetadataCoverAfter" xml:space="preserve">
     <value>Après enregistrement</value>
     <comment>Caption under the artwork that would be written.</comment>
+  </data>
+  <data name="MetadataWrongMatchHeading" xml:space="preserve">
+    <value>Ce n'est pas le bon morceau ?</value>
+    <comment>Heading over the manual catalogue search in an opened row.</comment>
+  </data>
+  <data name="MetadataSearchLabel" xml:space="preserve">
+    <value>Rechercher</value>
+    <comment>Label for the manual search box.</comment>
+  </data>
+  <data name="MetadataSearchHelp" xml:space="preserve">
+    <value>Recherche sur Spotify ce que vous saisissez et affiche tous les résultats pour que vous choisissiez le bon. À utiliser quand la correspondance automatique s'est trompée de morceau : relancer la recherche pose la même question et donne la même réponse.</value>
+    <comment>Tooltip for the manual search box.</comment>
+  </data>
+  <data name="MetadataSearchAction" xml:space="preserve">
+    <value>Rechercher sur Spotify</value>
+    <comment>Button that runs the manual search.</comment>
+  </data>
+  <data name="MetadataSearchNoResults" xml:space="preserve">
+    <value>Spotify n'a renvoyé aucun résultat pour cette recherche.</value>
+    <comment>Shown when a manual search matched nothing.</comment>
+  </data>
+  <data name="MetadataSearchNeedsSpotify" xml:space="preserve">
+    <value>La recherche d'une autre correspondance nécessite Spotify. Connectez-vous depuis la page Paramètres.</value>
+    <comment>Shown when a manual search is attempted without a Spotify sign-in.</comment>
+  </data>
+  <data name="MetadataUseMatch" xml:space="preserve">
+    <value>Utiliser</value>
+    <comment>Button that applies one search result to the row.</comment>
+  </data>
+  <data name="MetadataUseMatchHelp" xml:space="preserve">
+    <value>Remplit les champs de cette ligne à partir du résultat sélectionné. Rien n'est écrit dans le fichier avant l'enregistrement.</value>
+    <comment>Tooltip for the button that applies a search result.</comment>
+  </data>
+  <data name="MetadataSearching" xml:space="preserve">
+    <value>Recherche en cours…</value>
+    <comment>Shown while a manual search is running.</comment>
+  </data>
+  <data name="MetadataFieldAlbumArtist" xml:space="preserve">
+    <value>Artiste de l'album</value>
+  </data>
+  <data name="MetadataFieldTrackNumber" xml:space="preserve">
+    <value>Piste</value>
+  </data>
+  <data name="MetadataFieldTrackCount" xml:space="preserve">
+    <value>Pistes sur l'album</value>
+  </data>
+  <data name="MetadataFieldDisc" xml:space="preserve">
+    <value>Disque</value>
+  </data>
+  <data name="MetadataFieldCopyright" xml:space="preserve">
+    <value>Droits d'auteur</value>
+  </data>
+  <data name="MetadataFieldArtwork" xml:space="preserve">
+    <value>Pochette</value>
+  </data>
+  <data name="MetadataListHint" xml:space="preserve">
+    <value>Séparez les valeurs par des virgules.</value>
+  </data>
+  <data name="MetadataYearInvalid" xml:space="preserve">
+    <value>Saisissez une année à quatre chiffres ou laissez le champ vide.</value>
+  </data>
+  <data name="MetadataNumberInvalid" xml:space="preserve">
+    <value>Saisissez un entier supérieur à zéro ou laissez le champ vide.</value>
   </data>
 </root>

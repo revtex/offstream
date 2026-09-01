@@ -36,6 +36,29 @@ public sealed class SpotifyTrackMapperTests
         Assert.Null(track.Disc);
     }
 
+    /// <summary>The artist a match writes is the first performer it assigns, and stays so.</summary>
+    /// <remarks>
+    /// <c>TagLibTagStore</c> decides whether a multi-value artist tag survives a save by asking
+    /// whether the performer list still starts with the artist — untouched means writable
+    /// verbatim. A match satisfies that by construction only while the mapper takes the artist
+    /// from <c>performers[0]</c>. Setting it from a joined string instead would silently collapse
+    /// every matched track's performer list to one name, with nothing else failing.
+    /// </remarks>
+    [Fact]
+    public void ApplyTrack_LeavesTheArtistAgreeingWithTheFirstPerformer()
+    {
+        var track = WindowTitleTrack();
+
+        SpotifyTrackMapper.Apply(track, new FullTrack
+        {
+            Name = "Under Pressure",
+            Artists = [new SimpleArtist { Name = "Queen" }, new SimpleArtist { Name = "David Bowie" }],
+        });
+
+        Assert.Equal(["Queen", "David Bowie"], track.Performers!);
+        Assert.Equal(track.Performers![0], track.Artist);
+    }
+
     [Fact]
     public void ApplyTrack_MapsNameArtistsTrackNumberAndDisc()
     {

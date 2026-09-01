@@ -692,11 +692,11 @@
     <value>was</value>
     <comment>Precedes the value a file carried before, shown only under a field that changed.</comment>
   </data>
-  <data name="MetadataExpand" xml:space="preserve">
-    <value>Show tag fields</value>
+  <data name="MetadataNoSelection" xml:space="preserve">
+    <value>Choose a track on the left to review and edit its tags.</value>
   </data>
-  <data name="MetadataCollapse" xml:space="preserve">
-    <value>Hide tag fields</value>
+  <data name="MetadataEditorHeading" xml:space="preserve">
+    <value>Tags to write</value>
   </data>
   <data name="MetadataWillChange" xml:space="preserve">
     <value>Will change</value>
@@ -790,10 +790,6 @@
     <value>No file matches that filter.</value>
     <comment>Shown in place of the list when the filter matches nothing.</comment>
   </data>
-  <data name="MetadataMatchHeading" xml:space="preserve">
-    <value>Also from the match</value>
-    <comment>Heading over the fields a match fills in that have no box of their own.</comment>
-  </data>
   <data name="MetadataFieldYear" xml:space="preserve">
     <value>Year</value>
     <comment>Label for the year a match found.</comment>
@@ -813,5 +809,68 @@
   <data name="MetadataCoverAfter" xml:space="preserve">
     <value>After saving</value>
     <comment>Caption under the artwork that would be written.</comment>
+  </data>
+  <data name="MetadataWrongMatchHeading" xml:space="preserve">
+    <value>Not the right track?</value>
+    <comment>Heading over the manual catalogue search in an opened row.</comment>
+  </data>
+  <data name="MetadataSearchLabel" xml:space="preserve">
+    <value>Search</value>
+    <comment>Label for the manual search box.</comment>
+  </data>
+  <data name="MetadataSearchHelp" xml:space="preserve">
+    <value>Searches Spotify for whatever you type, and shows every result so you can pick the right one. Use this when the automatic match found the wrong song — re-fetching asks the same question and gets the same answer.</value>
+    <comment>Tooltip for the manual search box.</comment>
+  </data>
+  <data name="MetadataSearchAction" xml:space="preserve">
+    <value>Search Spotify</value>
+    <comment>Button that runs the manual search.</comment>
+  </data>
+  <data name="MetadataSearchNoResults" xml:space="preserve">
+    <value>Spotify returned no results for that search.</value>
+    <comment>Shown when a manual search matched nothing.</comment>
+  </data>
+  <data name="MetadataSearchNeedsSpotify" xml:space="preserve">
+    <value>Searching for a different match needs Spotify. Sign in on the Settings page.</value>
+    <comment>Shown when a manual search is attempted without a Spotify sign-in.</comment>
+  </data>
+  <data name="MetadataUseMatch" xml:space="preserve">
+    <value>Use this</value>
+    <comment>Button that applies one search result to the row.</comment>
+  </data>
+  <data name="MetadataUseMatchHelp" xml:space="preserve">
+    <value>Fills this row's fields from the selected result. Nothing is written to the file until you save.</value>
+    <comment>Tooltip for the button that applies a search result.</comment>
+  </data>
+  <data name="MetadataSearching" xml:space="preserve">
+    <value>Searching…</value>
+    <comment>Shown while a manual search is running.</comment>
+  </data>
+  <data name="MetadataFieldAlbumArtist" xml:space="preserve">
+    <value>Album artist</value>
+  </data>
+  <data name="MetadataFieldTrackNumber" xml:space="preserve">
+    <value>Track</value>
+  </data>
+  <data name="MetadataFieldTrackCount" xml:space="preserve">
+    <value>Tracks on album</value>
+  </data>
+  <data name="MetadataFieldDisc" xml:space="preserve">
+    <value>Disc</value>
+  </data>
+  <data name="MetadataFieldCopyright" xml:space="preserve">
+    <value>Copyright</value>
+  </data>
+  <data name="MetadataFieldArtwork" xml:space="preserve">
+    <value>Artwork</value>
+  </data>
+  <data name="MetadataListHint" xml:space="preserve">
+    <value>Separate several with commas.</value>
+  </data>
+  <data name="MetadataYearInvalid" xml:space="preserve">
+    <value>Enter a four-digit year, or leave the box empty.</value>
+  </data>
+  <data name="MetadataNumberInvalid" xml:space="preserve">
+    <value>Enter a whole number above zero, or leave the box empty.</value>
   </data>
 </root>
