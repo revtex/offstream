@@ -16,17 +16,26 @@
 
     "sourceCommit is the obligation, not a courtesy: distributing LGPL binaries means",
     "distributing the source they were built from. The release attaches that archive rather",
-    "than promising it on request, so the offer cannot outlive whatever was going to host it."
+    "than promising it on request, so the offer cannot outlive whatever was going to host it.",
+
+    "This pin expires, and not because anything here is wrong. BtbN deletes autobuild",
+    "releases after about two weeks, so the asset URL 404s on a timer whether or not",
+    "Offstream cuts a release - it is the download that goes away, not the digest that stops",
+    "matching. Refreshing it is mechanical: pick the newest autobuild carrying the same",
+    "ffmpeg branch, take its sha256 from the GitHub releases API (assets carry a `digest`",
+    "field, so nothing has to be downloaded to re-pin), and resolve the asset's short commit",
+    "against FFmpeg/FFmpeg for sourceCommit. Do not switch branches to fix a 404 - that is a",
+    "toolchain change wearing the clothes of a broken link."
   ],
 
-  "version": "n8.1.2-40-g852b0552f0",
+  "version": "n8.1.2-50-g1a748fe2cd",
   "licence": "LGPL-3.0-or-later",
 
-  "release": "autobuild-2026-08-14-13-16",
-  "asset": "ffmpeg-n8.1.2-40-g852b0552f0-win64-lgpl-8.1.zip",
-  "sha256": "928a2215433d2060698b07037bfe301638b477978a525b7af41d79a98e357a11",
+  "release": "autobuild-2026-08-31-13-27",
+  "asset": "ffmpeg-n8.1.2-50-g1a748fe2cd-win64-lgpl-8.1.zip",
+  "sha256": "f6274bbd9c247f9e90c1bbed066b03ed4a3907cece2fb91be6dd352393936365",
 
-  "sourceCommit": "852b0552f072826723749db6891928d839f536d8",
-  "sourceUrl": "https://github.com/FFmpeg/FFmpeg/archive/852b0552f072826723749db6891928d839f536d8.tar.gz",
-  "buildScriptsUrl": "https://github.com/BtbN/FFmpeg-Builds/tree/autobuild-2026-08-14-13-16"
+  "sourceCommit": "1a748fe2cd43e3ead22fafb1b5b7d77f153898a8",
+  "sourceUrl": "https://github.com/FFmpeg/FFmpeg/archive/1a748fe2cd43e3ead22fafb1b5b7d77f153898a8.tar.gz",
+  "buildScriptsUrl": "https://github.com/BtbN/FFmpeg-Builds/tree/autobuild-2026-08-31-13-27"
 }
