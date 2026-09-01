@@ -8,9 +8,12 @@
   <ItemGroup Label="Audio">
     <PackageVersion Include="NAudio" Version="2.2.1" />
 
-    <!-- Cover art for Ogg/Opus only (plan §5.2). ffmpeg writes every textual tag and every
-         other container's picture; TagLib# is the documented fallback for the one case
-         ffmpeg's METADATA_BLOCK_PICTURE support does not handle reliably. -->
+    <!-- Two jobs, and they are unrelated. Cover art for Ogg/Opus during recording (plan
+         §5.2): ffmpeg writes every textual tag and every other container's picture, and
+         TagLib# is the documented fallback for the one case its METADATA_BLOCK_PICTURE
+         support does not handle reliably. And every tag on the Metadata page, which retags
+         files that already exist - ffmpeg cannot edit a tag in place, so that path is
+         TagLib# start to finish (Metadata/Library/TagLibTagStore). -->
     <PackageVersion Include="TagLibSharp" Version="2.3.0" />
   </ItemGroup>
 

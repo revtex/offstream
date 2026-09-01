@@ -74,6 +74,31 @@ phase plan these entries follow.
 
 ### Added
 
+- **Tags can be repaired after the fact, on a new Metadata page.** Offstream tags a recording
+  while it makes it, which left no way to fix one afterwards: a track recorded before a provider
+  was configured, or while Last.fm was unreachable, or whose window title the parser could not
+  split, kept its thin tags for good. The only remedy was to record it again. The page scans a
+  folder — the output folder by default, or any other — reads what each file already carries,
+  looks up the ones that are missing something, and shows the answer beside the current value so
+  it can be corrected before anything is written. **Nothing touches a file until Save**, because
+  an automatic match is wrong often enough that the review step is the feature rather than
+  friction in front of it. Files that already carry a title, artist and album are left alone and
+  cost no request; a single row can still be looked up deliberately when its tags are complete
+  and wrong. Each file is one compact row showing what would be written, with the fields opening
+  underneath only when asked — a library is a hundred files of which three are wrong, and a row
+  marked **Will change** is how the three are found without opening the other ninety-seven. A
+  **Filter** box narrows the list by title, artist, album or file name for libraries too long to
+  scroll — it changes what is drawn and nothing else, so Save still writes every ticked row it is
+  hiding. Beneath the editable fields, **Also from the match** shows the year, genre and artwork a
+  lookup found: Save writes all three and they appeared nowhere, so a row could announce that it
+  would change while every field on screen matched the file exactly.
+- **Looking a track up now falls back from Spotify to Last.fm instead of stopping at whichever
+  one the Settings page names.** That setting answers "who tags a recording as it is made", where
+  one source keeps a library consistent. Repairing files already on disk is the opposite problem —
+  the user is filling gaps — so refusing to ask Last.fm because the dropdown says Spotify would
+  leave a track untagged that one of their own configured accounts could have identified. Spotify
+  leads where it is signed in, because it carries the cover art and a dependable album. The
+  recording pipeline is untouched and still uses the single provider chosen on the Settings page.
 - **Offstream can tell Spotify to move on from a track it already has.** Keeping the file on disk
   was only ever half the answer: Offstream declined to record the song and Spotify played it to
   nobody for three minutes, so working through a playlist that is mostly recorded meant sitting
