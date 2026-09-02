@@ -373,7 +373,7 @@ Prove the risky parts survive the move before restructuring anything.
 | Enums (media format, provider, cover size, restrictions, policies) | ✅ ported |
 | `Text/StringExtensions`, `Text/EnumerableExtensions` | ✅ ported |
 | `Spotify/SpotifyWindowTitles` (idle/ad detection) | ✅ ported |
-| `Audio/WaveFormatExtensions` (MP3 limits) | ✅ ported |
+| ~~`Audio/WaveFormatExtensions` (MP3 limits)~~ | **Deleted 2026-09-02** — ported, never called, and ffmpeg makes the check unnecessary; see the encoding-profile finding |
 | `Naming/PathText` (diacritics, segment cleaning, tidy) | ✅ ported |
 | `Naming/FileNameTemplate` | ✅ ported, syntax byte-identical |
 | `Metadata/Track` | ✅ ported, with its own tests |
@@ -1091,10 +1091,27 @@ always JPEG here: `CoverArtFetcher.TempFileFor` keeps a `.png` extension deliber
 `CoverArtWriter` derives the picture's MIME type from it, and `copy` would put a PNG into an APIC
 frame. The re-encode is normalisation, not waste.
 
-One thing the audit turned up that is neither: `WaveFormatExtensions.GetMp3Restrictions` has no
-caller outside its own tests. It is a LAME-era guard — ffmpeg resamples and downmixes without
-being asked — kept because it came across with the ported suite. Worth deleting when something
-else touches that file, not on its own.
+One thing the audit turned up that is neither, and it is now gone:
+`WaveFormatExtensions.GetMp3Restrictions` had no caller outside its own tests. It answered "which
+MP3 limits does this capture format exceed" — more than two channels, or above 48 kHz — because
+LAME had to be told, and the reference implementation resampled and reduced channels by hand
+before handing it the buffer. ffmpeg does both unasked, so the answer had nowhere to go and the
+method, its `Mp3Restriction` enum and its four ported tests are deleted.
+
+That was checked rather than assumed, because libmp3lame really does refuse more than two
+channels and really is capped at 48 kHz — if ffmpeg had passed the constraint through instead of
+resolving it, the dead guard would have been pointing at a live crash on any 5.1 or high-rate
+endpoint. Encoding a 6-channel 48 kHz float32 WAV and a stereo 96 kHz one through the exact
+profiles this app ships:
+
+| Input | MP3 | FLAC | AAC | Opus |
+| --- | --- | --- | --- | --- |
+| 5.1 @ 48 kHz | downmixed to stereo | 6 channels kept | 6 channels kept | 6 channels kept |
+| stereo @ 96 kHz | resampled to 48 kHz | — | — | — |
+
+Every case exits 0. Worth knowing for its own sake: **a multichannel endpoint survives as
+multichannel in every format except MP3**, which is a real difference between the formats on the
+Settings page and not something the app says anywhere.
 
 ---
 
