@@ -70,6 +70,26 @@ public static class FFmpegArguments
             // With two inputs the mapping must be explicit, or ffmpeg picks one stream per type.
             args.AddRange(["-map", "0:a", "-map", "1:v"]);
             args.AddRange(["-c:v", "mjpeg", "-disposition:v", "attached_pic"]);
+
+            // Types the picture and names it. -disposition:v attached_pic only says "this
+            // stream is cover art" — it leaves the picture type at 0, which both ID3's APIC
+            // frame and FLAC's METADATA_BLOCK_PICTURE spell "Other", and software looking for a
+            // front cover specifically then passes over a file that has one.
+            //
+            // The two arguments do different jobs, and neither is free text. "comment" is read
+            // by the muxer as the picture type and only takes the spellings the format defines:
+            // "Cover (front)" selects type 3, and anything it does not recognise silently falls
+            // back to "Other" — so this string is a constant, not a caption. "title" is the
+            // description, and that one is genuinely free text. Both verified by encoding with
+            // each argument alone and reading the result back.
+            //
+            // M4A takes them and stores neither: the mov muxer keeps a cover as a bare atom with
+            // nowhere to put a type or a description. They are still written in the shared branch
+            // rather than per format, because the alternative is an exception list that has to
+            // stay right about a muxer detail nobody re-checks. English on purpose: this is tag
+            // content other software matches on, not a string the user reads.
+            args.AddRange(["-metadata:s:v", "title=Album cover"]);
+            args.AddRange(["-metadata:s:v", "comment=Cover (front)"]);
         }
 
         foreach (var argument in profile.CodecArguments)

@@ -122,10 +122,37 @@ public sealed class FFmpegArgumentsTests
             "-i", @"C:\temp\cover.jpg",
             "-map", "0:a", "-map", "1:v",
             "-c:v", "mjpeg", "-disposition:v", "attached_pic",
+            "-metadata:s:v", "title=Album cover",
+            "-metadata:s:v", "comment=Cover (front)",
             "-c:a", "libmp3lame", "-b:a", "320k",
             "-id3v2_version", "3",
             @"C:\music\out.mp3",
         ], argv);
+    }
+
+    /// <summary>
+    /// Every container that takes an attached picture also gets the picture's description.
+    /// </summary>
+    /// <remarks>
+    /// The description is a separate field from the disposition, and it is the one a player
+    /// shows when it lists what pictures a file holds. Pinned for all three formats rather than
+    /// for MP3 alone, because it is written once in the shared branch and a format added later
+    /// picks it up silently — this is what says that is intended.
+    /// </remarks>
+    [Theory]
+    [InlineData(MediaFormat.Mp3)]
+    [InlineData(MediaFormat.Flac)]
+    [InlineData(MediaFormat.Aac)]
+    public void CoverArt_NamesThePictureItAttaches(MediaFormat format)
+    {
+        var argv = FFmpegArguments.Build(Request(format, cover: @"C:\temp\cover.jpg")).ToList();
+
+        var disposition = argv.IndexOf("attached_pic");
+        Assert.True(disposition >= 0);
+
+        Assert.Equal(
+            ["-metadata:s:v", "title=Album cover", "-metadata:s:v", "comment=Cover (front)"],
+            argv.GetRange(disposition + 1, 4));
     }
 
     /// <summary>

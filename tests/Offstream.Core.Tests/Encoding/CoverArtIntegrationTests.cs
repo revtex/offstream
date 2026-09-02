@@ -55,6 +55,46 @@ public sealed class CoverArtIntegrationTests : IDisposable
     }
 
     /// <summary>
+    /// The attached picture is typed as the front cover, and described.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>-disposition:v attached_pic</c> does not settle this. It marks the stream as cover art
+    /// and leaves the picture type at 0 — <c>Other</c> — which is what every file written before
+    /// 2026-09-02 carries, and what makes software hunting for a front cover skip a file that
+    /// has one. The type comes from the stream's <c>comment</c> tag, which the muxer matches
+    /// against the spellings the format defines rather than storing verbatim.
+    /// </para>
+    /// <para>
+    /// Asserted through TagLib# rather than ffprobe because that is what a player sees, and
+    /// because ffprobe reports the type through the same <c>comment</c> key the argument uses,
+    /// so it would pass on a file where the string had been stored and never interpreted.
+    /// M4A is excluded: the mov muxer has nowhere to keep either field.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData(MediaFormat.Mp3)]
+    [InlineData(MediaFormat.Flac)]
+    public async Task Encode_TypesTheCoverArtAsTheFrontCover(MediaFormat format)
+    {
+        var source = await _workspace.CreateSourceWavAsync();
+        var cover = await _workspace.CreateCoverArtAsync();
+        var output = _workspace.PathFor(format, "typed-cover");
+
+        var outcome = await new AudioEncoder(_workspace.Runner).EncodeAsync(
+            new EncodeRequest(source, output, format, 192, SampleTrack(), cover));
+
+        Assert.False(outcome.HasWarning);
+
+        using var tagged = TagLib.File.Create(output);
+
+        var picture = Assert.Single(tagged.Tag.Pictures);
+
+        Assert.Equal(TagLib.PictureType.FrontCover, picture.Type);
+        Assert.Equal("Album cover", picture.Description);
+    }
+
+    /// <summary>
     /// <b>The §5.2 fallback.</b> ffmpeg's <c>METADATA_BLOCK_PICTURE</c> support for Ogg is weak,
     /// so the profile routes Opus through TagLib# after the encode. The picture must survive
     /// into the finished file, and the textual tags ffmpeg wrote must survive TagLib# rewriting
