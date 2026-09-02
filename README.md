@@ -222,6 +222,50 @@ The rest of the page, briefly:
   in only if you keep ffmpeg somewhere unusual. (The `C:\ffmpeg\bin\ffmpeg.exe` above is an example,
   not a requirement.)
 
+## Recording a bit-exact copy
+
+Offstream writes down whatever the audio device hands it, so a recording is only as faithful as
+the path in front of it. Four things on that path change the audio by default, and all four are
+settings rather than limitations.
+
+| What changes it | Where | Set it to |
+| --- | --- | --- |
+| **Sample-rate conversion** | `mmsys.cpl` → Playback → **CABLE Input** → Properties → Advanced, *and* Recording → **CABLE Output** → Properties → Advanced | **44100 Hz on both.** They have to match each other, or Windows converts between them. Spotify's lossless tier streams at 44.1 kHz; a cable set to 48 kHz makes Windows resample every track on the way through. |
+| **Bit depth** | The same two Advanced tabs | **24-bit.** Windows mixes in 32-bit float, and a 24-bit sample is the largest that survives that exactly — 32-bit integer does not, and 16-bit throws away depth the stream may be carrying. |
+| **Loudness normalisation** | Spotify → Settings → Playback → **Normalize volume** | **Off.** It is on by default and applies gain before the audio ever leaves Spotify, so with it on the recording is a scaled copy however well the rest is set up. |
+| **Volume, in four places** | Spotify's own slider; Windows Volume Mixer → Spotify; CABLE Input → Levels; CABLE Output → Levels | **100 % everywhere.** Any gain that is not exactly 1.0 is applied in floating point and rounded back on the way out. |
+
+Then two choices in Spotify and Offstream themselves:
+
+- **Spotify → Settings → Media Quality → Streaming quality: Lossless.** It is set per device, so set
+  it on the desktop app you are recording, not on your phone. Spotify falls back on a slow
+  connection and says so while it is playing — worth a glance before a long session.
+- **Offstream: Format FLAC.** MP3, AAC and Opus re-encode by definition and can never be exact.
+  WAV cannot either, here: Offstream writes 16-bit WAV, so it loses depth that FLAC keeps.
+
+### Checking it worked
+
+```powershell
+# 1. Sample rate and depth. Want 44100 / s32 / 24.
+ffprobe -v error -select_streams a -show_entries stream=sample_rate,sample_fmt,bits_per_raw_sample `
+  -of default=noprint_wrappers=1 "01 Your Track.flac"
+
+# 2. Draw the spectrum, then open spectrum.png and look at the top of it.
+ffmpeg -v error -y -i "01 Your Track.flac" -lavfi "showspectrumpic=s=900x420:legend=1" spectrum.png
+
+# 3. Peak level, to catch anything still turning the volume down.
+ffmpeg -v info -nostats -i "01 Your Track.flac" -af volumedetect -f null NUL
+```
+
+The picture is the one that catches the mistake you cannot hear. Audio stops dead at some
+frequency, and where it stops tells you what the file really came from:
+
+| The spectrum runs to | And the file says | Meaning |
+| --- | --- | --- |
+| The top of the frame | `44100` | Right. Nothing resampled it. |
+| ~22 kHz, with a dead band above it | `48000` | Windows resampled a 44.1 kHz stream. The file is a real 48 kHz file whose top 2 kHz is empty — match the cable to 44100 and record it again. |
+| ~20 kHz | either | Not lossless. Check Spotify's streaming quality, and that it has not fallen back. |
+
 ## Where things are kept
 
 | What | Where |
@@ -240,6 +284,7 @@ handy for testing against a clean profile without disturbing your real one.
 | **"Offstream can't find ffmpeg"** | ffmpeg isn't installed or isn't on `PATH`. Run the winget command above, then **reopen the terminal** and restart Offstream. |
 | **A `SILENT` lamp on the display, and the meter is flat** | Offstream is listening to a different audio device than the one playing — the commonest way to record an hour of nothing. Check **Record from** on the Settings page. |
 | **A `CLIP` lamp on the display** | The audio reached full scale, so this track may be distorted. Turn Spotify's own volume down a little and record it again; the lamp clears when the next track starts. |
+| **Recordings are 48 kHz, but Spotify streams lossless at 44.1** | The virtual cable is set to 48 kHz, so Windows resamples every track on the way through. See [Recording a bit-exact copy](#recording-a-bit-exact-copy). |
 | **Recordings include notification sounds, browser audio, everything** | Expected — you're recording the whole output device. Use VB-CABLE as described above to capture Spotify alone. |
 | **Files have no cover art** | No metadata provider is selected, or its key is missing. See [Better tags and cover art](#better-tags-and-cover-art). |
 | **Short files keep being thrown away** | That's the minimum-length setting doing its job. Lower it on the Settings page if you're recording something genuinely short. |
