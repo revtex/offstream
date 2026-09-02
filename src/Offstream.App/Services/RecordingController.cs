@@ -27,12 +27,23 @@ namespace Offstream.App.Services;
 /// dialog.
 /// </para>
 /// </remarks>
-public sealed class RecordingController(IRecordingSessionFactory factory, SettingsDocument settings)
-    : IAsyncDisposable
+public sealed class RecordingController : IAsyncDisposable
 {
-    private readonly IRecordingSessionFactory _factory = factory ?? throw new ArgumentNullException(nameof(factory));
+    private readonly IRecordingSessionFactory _factory;
 
-    private readonly SettingsDocument _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+    private readonly SettingsDocument _settings;
+
+    public RecordingController(IRecordingSessionFactory factory, SettingsDocument settings)
+    {
+        _factory = factory ?? throw new ArgumentNullException(nameof(factory));
+        _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+
+        // Everything on the format line is read from settings, so everything on it goes stale the
+        // moment a setting changes. Nothing else was telling the page: it re-read on start and on
+        // stop, which meant changing the format or the capture device while idle left the line
+        // describing the file the previous settings would have produced.
+        _settings.Changed += OnSettingsChanged;
+    }
 
     /// <summary>
     /// Serialises start against stop.
@@ -52,6 +63,13 @@ public sealed class RecordingController(IRecordingSessionFactory factory, Settin
 
     /// <summary>Raised whenever <see cref="IsRunning"/> changes.</summary>
     public event EventHandler? StateChanged;
+
+    /// <summary>Raised when <see cref="FormatSummary"/> may have changed under the page.</summary>
+    /// <remarks>
+    /// Separate from <see cref="StateChanged"/>, which promises to mean "IsRunning changed" and
+    /// would stop meaning it if settings borrowed it.
+    /// </remarks>
+    public event EventHandler? OutputChanged;
 
     /// <summary>A finished file landed in the library.</summary>
     public event EventHandler<TrackSavedEventArgs>? TrackSaved;
@@ -73,12 +91,26 @@ public sealed class RecordingController(IRecordingSessionFactory factory, Settin
     /// What the output is, as the display prints it — <c>MP3 320K 48K</c>.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Read from settings rather than remembered, so an idle page shows what pressing Start would
-    /// produce and a running one shows what it is producing. The sample rate only appears once a
-    /// session exists: it is the capture endpoint's rate, which is not knowable until the endpoint
-    /// is open, and printing a guess on the one line of the page that claims to describe the file
-    /// would be worse than printing nothing. Lossless formats omit the bitrate for the same
-    /// reason — the setting exists but does not apply.
+    /// produce and a running one shows what it is producing. Lossless formats omit the bitrate
+    /// — the setting exists but does not apply.
+    /// </para>
+    /// <para>
+    /// <b>The sample rate is shown while idle too</b> (2026-09-02). It used to appear only once a
+    /// session existed, on the grounds that the capture endpoint's rate is not knowable until the
+    /// endpoint is open. That is wrong: the rate is a property of the endpoint, and
+    /// <see cref="NAudio.CoreAudioApi.MMDevice"/> reports its mix format at any time. Withholding
+    /// it made one third of this line behave unlike the other two, which read from settings and
+    /// are always there — so the line grew a word on Start for no reason the user could see.
+    /// </para>
+    /// <para>
+    /// It is the same endpoint capture will open — <see cref="Offstream.Core.Audio.LoopbackAudioCapture"/>
+    /// resolves the identical id through <see cref="AudioEndpoints.Resolve"/> and takes its format
+    /// from the device — so the idle figure is the one the recording will use, not a guess. A
+    /// device that cannot be read prints nothing rather than a placeholder: this line describes
+    /// the file, and a wrong number on it is worse than a short one.
+    /// </para>
     /// </remarks>
     public string FormatSummary
     {
@@ -94,12 +126,38 @@ public sealed class RecordingController(IRecordingSessionFactory factory, Settin
                 parts.Add(string.Create(CultureInfo.CurrentCulture, $"{recording.BitrateKbps}K"));
             }
 
-            if (_session?.Level.Format.SampleRate is { } hertz)
+            if (SampleRateHertz() is { } hertz)
             {
                 parts.Add(string.Create(CultureInfo.CurrentCulture, $"{hertz / 1000d:0.#}K"));
             }
 
             return string.Join(' ', parts);
+        }
+    }
+
+    /// <summary>
+    /// The rate audio is being captured at, or would be captured at from a standing start.
+    /// </summary>
+    /// <remarks>
+    /// A running session already knows, and is asked first: its format came from the device when
+    /// the capture opened, and re-reading the endpoint could disagree with the file being written
+    /// if the default endpoint moved underneath us. Idle, the endpoint is asked directly.
+    /// </remarks>
+    private int? SampleRateHertz()
+    {
+        if (_session?.Level.Format.SampleRate is { } running) return running;
+
+        try
+        {
+            using var device = AudioEndpoints.Resolve(_settings.Current.Recording.AudioEndpointDeviceId);
+            return device.AudioClient.MixFormat.SampleRate;
+        }
+        catch (Exception ex)
+        {
+            // Nothing here is worth interrupting anyone over: the line simply comes up one word
+            // short, and Start reports a missing endpoint properly when it matters.
+            Log.Debug(ex, "Could not read the capture endpoint's sample rate for the format line");
+            return null;
         }
     }
 
@@ -197,6 +255,8 @@ public sealed class RecordingController(IRecordingSessionFactory factory, Settin
         if (_disposed) return;
         _disposed = true;
 
+        _settings.Changed -= OnSettingsChanged;
+
         await StopAsync();
 
         _gate.Dispose();
@@ -258,6 +318,10 @@ public sealed class RecordingController(IRecordingSessionFactory factory, Settin
 
         await session.DisposeAsync();
     }
+
+    /// <summary>A setting was saved, so <see cref="FormatSummary"/> may no longer be current.</summary>
+    private void OnSettingsChanged(object? sender, EventArgs e) =>
+        OutputChanged?.Invoke(this, EventArgs.Empty);
 
     /// <summary>
     /// Releases a session that stopped by itself — the recording timer elapsed, or the audio

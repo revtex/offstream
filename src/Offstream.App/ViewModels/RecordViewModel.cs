@@ -218,6 +218,7 @@ public sealed partial class RecordViewModel : ObservableObject
         controller.StateChanged += OnStateChanged;
         controller.TrackSaved += OnTrackSaved;
         controller.TrackEnriched += OnTrackEnriched;
+        controller.OutputChanged += OnOutputChanged;
 
         // Seeds the format line, which describes what pressing Start would produce and so has
         // something to say before anything is running.
@@ -545,6 +546,9 @@ public sealed partial class RecordViewModel : ObservableObject
     });
 
     private void OnStateChanged(object? sender, EventArgs e) => Dispatch(Sync);
+
+    /// <summary>A setting changed, so the format line may no longer describe what Start would do.</summary>
+    private void OnOutputChanged(object? sender, EventArgs e) => Dispatch(Sync);
 
     /// <summary>Adds a finished file to the session list and the totals.</summary>
     private void OnTrackSaved(object? sender, TrackSavedEventArgs e) => Dispatch(() =>
