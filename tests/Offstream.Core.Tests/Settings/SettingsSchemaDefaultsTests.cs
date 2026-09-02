@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Offstream.Core.Encoding;
 using Offstream.Core.Metadata;
 using Offstream.Core.Naming;
 using Offstream.Core.Recording;
@@ -85,6 +86,21 @@ public sealed class SettingsSchemaDefaultsTests
 
         Assert.Equal(MetadataProvider.LastFm, settings.Metadata.Provider);
         Assert.Equal("id", settings.Metadata.SpotifyClientId);
+    }
+
+    /// <summary>
+    /// Every install that predates the bitrate mode has a settings file without the key, and
+    /// this is the line that decides what those files mean. The generator yields the zero value
+    /// for an absent key, so the default is a property of the enum's member order rather than
+    /// of the initializer beside it — which is exactly the trap this class exists to guard.
+    /// </summary>
+    [Fact]
+    public void OmittedBitrateMode_ReadsAsAveraged()
+    {
+        var settings = Deserialize("""{"schemaVersion": 1, "output": {"bitrateKbps": 256}}""");
+
+        Assert.Equal(256, settings.Output.BitrateKbps);
+        Assert.Equal(BitrateMode.Average, settings.Output.BitrateMode);
     }
 
     /// <summary>

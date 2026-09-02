@@ -98,14 +98,16 @@
                                   SelectedValuePath="Value" />
                     </StackPanel>
 
-                    <StackPanel Grid.Row="1" Grid.Column="2" Style="{StaticResource Field}">
+                    <StackPanel Grid.Row="1" Grid.Column="2" Style="{StaticResource Field}" ToolTip="{x:Static res:Strings.SettingsBitrateHelp}">
                         <TextBlock Style="{StaticResource OffstreamFieldLabelStyle}" Text="{x:Static res:Strings.SettingsBitrateLabel}" />
                         <ComboBox AutomationProperties.AutomationId="SettingsBitrate"
+                                  AutomationProperties.HelpText="{x:Static res:Strings.SettingsBitrateHelp}"
                                   AutomationProperties.Name="{x:Static res:Strings.SettingsBitrateLabel}"
+                                  DisplayMemberPath="Name"
                                   IsEnabled="{Binding SupportsBitrate, Mode=OneWay}"
-                                  ItemStringFormat="{x:Static res:Strings.SettingsBitrateItem}"
                                   ItemsSource="{Binding Bitrates, Mode=OneWay}"
-                                  SelectedValue="{Binding BitrateKbps, Mode=TwoWay}" />
+                                  SelectedValue="{Binding SelectedBitrate, Mode=TwoWay}"
+                                  SelectedValuePath="Value" />
 
                         <!--
                             Shown only for the formats that have no bitrate to set, so the

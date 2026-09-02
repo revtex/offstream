@@ -1,3 +1,4 @@
+using Offstream.Core.Encoding;
 using Offstream.Core.Metadata;
 using Offstream.Core.Recording;
 using Offstream.Core.Settings;
@@ -23,6 +24,7 @@ public sealed class SettingsMappingTests
             Template = @"{artist} - {title} {count:00}",
             Format = MediaFormat.Opus,
             BitrateKbps = 160,
+            BitrateMode = BitrateMode.Constant,
             ExistingFilePolicy = ExistingFilePolicy.Duplicate,
             CurrentFileCounter = 7,
         },
@@ -44,6 +46,7 @@ public sealed class SettingsMappingTests
         Assert.Equal(@"{artist} - {title} {count:00}", runtime.OutputTemplate);
         Assert.Equal(MediaFormat.Opus, runtime.MediaFormat);
         Assert.Equal(160, runtime.BitrateKbps);
+        Assert.Equal(BitrateMode.Constant, runtime.BitrateMode);
         Assert.Equal(ExistingFilePolicy.Duplicate, runtime.ExistingFilePolicy);
         Assert.False(runtime.HasSkipPastRecordedEnabled);
         Assert.False(runtime.KeepsTheExistingFile);

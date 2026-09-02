@@ -172,6 +172,18 @@
   <data name="SettingsBitrateItem" xml:space="preserve">
     <value>{0} kbit/s</value>
   </data>
+  <data name="SettingsBitrateItemConstant" xml:space="preserve">
+    <value>{0} kbit/s (constant)</value>
+  </data>
+  <data name="SettingsBitrateItemSpotifyFree" xml:space="preserve">
+    <value>{0} kbit/s (Spotify Free)</value>
+  </data>
+  <data name="SettingsBitrateItemSpotifyPremium" xml:space="preserve">
+    <value>{0} kbit/s (Spotify Premium)</value>
+  </data>
+  <data name="SettingsBitrateHelp" xml:space="preserve">
+    <value>Le débit est moyenné sur l'enregistrement : les passages calmes ou simples coûtent moins de bits qu'un passage dense. Le palier constant maintient chaque trame au débit maximal, pour les lecteurs qui l'exigent. Spotify diffuse jusqu'à 160 kbit/s pour les comptes gratuits et 320 pour Premium ; un flux sans perte dépasse les deux, et c'est le FLAC qui le conserve.</value>
+  </data>
   <data name="SettingsBitrateNotApplicable" xml:space="preserve">
     <value>Ce format choisit lui-même son débit.</value>
   </data>

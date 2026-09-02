@@ -17,8 +17,19 @@ public sealed class FFmpegArgumentsTests
     private const string Input = @"C:\temp\capture.wav";
 
     private static EncodeRequest Request(
-        MediaFormat format, int bitrate = 320, Track? track = null, string? cover = null) =>
-        new(Input, $@"C:\music\out.{EncodingProfiles.For(format).Extension}", format, bitrate, track, cover);
+        MediaFormat format,
+        int bitrate = 320,
+        Track? track = null,
+        string? cover = null,
+        BitrateMode mode = BitrateMode.Average) =>
+        new(
+            Input,
+            $@"C:\music\out.{EncodingProfiles.For(format).Extension}",
+            format,
+            bitrate,
+            track,
+            cover,
+            BitrateMode: mode);
 
     [Fact]
     public void Mp3_ProducesExpectedArgv()
@@ -30,6 +41,11 @@ public sealed class FFmpegArgumentsTests
             "-hide_banner", "-nostdin", "-y",
             "-i", Input,
             "-c:a", "libmp3lame", "-b:a", "320k",
+
+            // libmp3lame holds every frame at -b:a unless it is told otherwise, spending the
+            // same bits on a fade-out as on a dense chorus. -abr 1 aims for the rate across the
+            // recording instead, and it must follow the -b:a it modifies.
+            "-abr", "1",
 
             // Not ffmpeg's default of 2.4: Windows Explorer and Windows Media Player do not read
             // v2.4 cover art, so the picture is in the file and neither shows it.
@@ -125,10 +141,51 @@ public sealed class FFmpegArgumentsTests
             "-metadata:s:v", "title=Album cover",
             "-metadata:s:v", "comment=Cover (front)",
             "-c:a", "libmp3lame", "-b:a", "320k",
+            "-abr", "1",
             "-id3v2_version", "3",
             @"C:\music\out.mp3",
         ], argv);
     }
+
+    /// <summary>
+    /// Constant rate is the absence of the switch, not a switch of its own — the flag is what
+    /// turns averaging on, so asking for constant rate must leave the argv without it.
+    /// </summary>
+    [Fact]
+    public void BitrateMode_Constant_OmitsTheAveragingFlag()
+    {
+        var argv = FFmpegArguments.Build(Request(MediaFormat.Mp3, mode: BitrateMode.Constant));
+
+        Assert.DoesNotContain("-abr", argv);
+        Assert.Contains("320k", argv);
+    }
+
+    /// <summary>
+    /// The averaging flag is profile data, so a format with nothing to declare emits nothing —
+    /// in either mode. libopus and the native AAC encoder already vary their rate, and adding a
+    /// libmp3lame flag to their command lines would fail the encode outright.
+    /// </summary>
+    [Theory]
+    [InlineData(MediaFormat.Opus, BitrateMode.Average)]
+    [InlineData(MediaFormat.Opus, BitrateMode.Constant)]
+    [InlineData(MediaFormat.Aac, BitrateMode.Average)]
+    [InlineData(MediaFormat.Aac, BitrateMode.Constant)]
+    [InlineData(MediaFormat.Flac, BitrateMode.Average)]
+    [InlineData(MediaFormat.Wav, BitrateMode.Average)]
+    public void BitrateMode_IsIgnoredByFormatsWithNoRateModeToSwitch(MediaFormat format, BitrateMode mode) =>
+        Assert.DoesNotContain("-abr", FFmpegArguments.Build(Request(format, mode: mode)));
+
+    /// <summary>MP3 is the only profile that has a rate mode to offer today.</summary>
+    [Fact]
+    public void SupportsBitrateMode_IsMp3Alone() =>
+        Assert.Equal(
+            [MediaFormat.Mp3],
+            EncodingProfiles.Known.Where(p => p.SupportsBitrateMode).Select(p => p.Format));
+
+    /// <summary>Formats that need no averaging flag carry an empty list, never null.</summary>
+    [Fact]
+    public void AverageBitrateArguments_DefaultToEmpty() =>
+        Assert.All(EncodingProfiles.Known, profile => Assert.NotNull(profile.AverageBitrateArguments));
 
     /// <summary>
     /// Every container that takes an attached picture also gets the picture's description.

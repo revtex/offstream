@@ -31,6 +31,9 @@ public sealed class RecordingSettings
     /// <summary>Target bitrate in kbps for lossy formats.</summary>
     public int BitrateKbps { get; set; } = 320;
 
+    /// <summary>How the encoder spends that bitrate, where the format offers a choice.</summary>
+    public BitrateMode BitrateMode { get; set; }
+
     /// <summary>What to do when the output file already exists.</summary>
     public Recording.ExistingFilePolicy ExistingFilePolicy { get; set; }
 

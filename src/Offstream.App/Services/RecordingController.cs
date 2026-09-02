@@ -155,9 +155,17 @@ public sealed class RecordingController : IAsyncDisposable
     /// Bytes a second the current format writes, or null when that cannot be known ahead.
     /// </summary>
     /// <remarks>
-    /// Only meaningful for a constant-bitrate format. FLAC and WAV are excluded rather than
-    /// estimated: a FLAC's size depends on how compressible the music is, and a guess on the line
-    /// that describes the file would be wrong by a quarter either way on ordinary material.
+    /// <para>
+    /// The nominal rate, which is exact for a constant-rate encode and close for an averaged one
+    /// — averaging aims at the same number across the recording, so the estimate drifts within a
+    /// track and lands near the right place by the end of it. Close is what this line needs: it
+    /// says roughly how large the file is getting, beside a clock that is already approximate.
+    /// </para>
+    /// <para>
+    /// FLAC and WAV are excluded rather than estimated. A FLAC's size depends on how compressible
+    /// the music is, and a guess there would be wrong by a quarter either way on ordinary
+    /// material — which is a different kind of wrong from a rate the encoder is aiming for.
+    /// </para>
     /// </remarks>
     public int? BytesPerSecond
     {

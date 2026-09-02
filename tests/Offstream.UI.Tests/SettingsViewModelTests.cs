@@ -159,9 +159,90 @@ public sealed class SettingsViewModelTests
 
         var viewModel = SettingsFakes.Settings(SettingsFakes.DocumentWith(stored));
 
-        Assert.Contains(111, viewModel.Bitrates);
+        Assert.Contains(viewModel.Bitrates, rung => rung.Value.Kbps == 111);
         Assert.Equal(111, viewModel.BitrateKbps);
-        Assert.Equal(viewModel.Bitrates.OrderBy(rate => rate), viewModel.Bitrates);
+        Assert.Equal(
+            viewModel.Bitrates.OrderBy(rung => rung.Value.Kbps),
+            viewModel.Bitrates);
+    }
+
+    /// <summary>
+    /// The default is the averaged rung, which is what an install with no such key in its
+    /// settings file gets.
+    /// </summary>
+    [Fact]
+    public void Bitrates_DefaultToTheAveragedRung()
+    {
+        var viewModel = SettingsFakes.Settings(SettingsFakes.Document());
+
+        Assert.Equal(BitrateMode.Average, viewModel.BitrateMode);
+    }
+
+    /// <summary>
+    /// Constant rate belongs to the format whose encoder has a rate mode to switch. Offering it
+    /// beside Opus would be a setting the encoder ignores, leaving the file and the page
+    /// disagreeing about what was recorded.
+    /// </summary>
+    [Theory]
+    [InlineData(MediaFormat.Mp3, true)]
+    [InlineData(MediaFormat.Opus, false)]
+    [InlineData(MediaFormat.Aac, false)]
+    public void Bitrates_OfferConstantRateOnlyWhereTheEncoderHasIt(MediaFormat format, bool expected)
+    {
+        var viewModel = SettingsFakes.Settings(SettingsFakes.Document());
+
+        viewModel.Format = format;
+
+        Assert.Equal(
+            expected,
+            viewModel.Bitrates.Any(rung => rung.Value.Mode == BitrateMode.Constant));
+    }
+
+    /// <summary>
+    /// Leaving MP3 has to take the constant-rate rung with it, and the selection with it —
+    /// a selection left pointing at a rung the list no longer holds empties the dropdown.
+    /// </summary>
+    [Fact]
+    public void Format_LeavingMp3_FallsBackToTheAveragedRung()
+    {
+        var stored = OffstreamSettings.CreateDefault() with
+        {
+            Output = new OutputSettings(Path: @"C:\Music", BitrateMode: BitrateMode.Constant),
+        };
+
+        var viewModel = SettingsFakes.Settings(SettingsFakes.DocumentWith(stored));
+        Assert.Equal(BitrateMode.Constant, viewModel.BitrateMode);
+
+        viewModel.Format = MediaFormat.Opus;
+
+        Assert.Equal(BitrateMode.Average, viewModel.BitrateMode);
+        Assert.Contains(viewModel.Bitrates, rung => rung.Value == viewModel.SelectedBitrate);
+    }
+
+    /// <summary>A constant-rate setting at a rate the ladder does not offer is still honoured.</summary>
+    [Fact]
+    public void Bitrates_IncludeAStoredConstantRungOffTheLadder()
+    {
+        var stored = OffstreamSettings.CreateDefault() with
+        {
+            Output = new OutputSettings(Path: @"C:\Music", BitrateKbps: 192, BitrateMode: BitrateMode.Constant),
+        };
+
+        var viewModel = SettingsFakes.Settings(SettingsFakes.DocumentWith(stored));
+
+        Assert.Equal(new BitrateChoice(192, BitrateMode.Constant), viewModel.SelectedBitrate);
+        Assert.Contains(viewModel.Bitrates, rung => rung.Value == viewModel.SelectedBitrate);
+    }
+
+    [Fact]
+    public void BitrateMode_ReachesTheFile()
+    {
+        var fileSystem = new MockFileSystem();
+        var viewModel = SettingsFakes.Settings(SettingsFakes.Document(fileSystem));
+
+        viewModel.SelectedBitrate = new BitrateChoice(320, BitrateMode.Constant);
+
+        Assert.Equal(BitrateMode.Constant, SettingsFakes.Reload(fileSystem).Output.BitrateMode);
     }
 
     [Fact]

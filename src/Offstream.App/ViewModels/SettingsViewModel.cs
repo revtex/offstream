@@ -24,6 +24,18 @@ public sealed record AudioDeviceOption(string? Id, string Name, bool IsAvailable
 /// <summary>One choice in a dropdown backed by an enum.</summary>
 public sealed record ChoiceOption<T>(T Value, string Name);
 
+/// <summary>One rung of the bitrate ladder: a rate, and how the encoder is to spend it.</summary>
+/// <remarks>
+/// A struct rather than a class because the dropdown selects it by value: WPF's
+/// <c>SelectedValue</c> compares the stored selection against the items with
+/// <see cref="object.Equals(object?)"/>, and a record struct compares field by field where a
+/// record class of the same shape would too — but a plain class would not, and a rung that
+/// never matches leaves the dropdown blank on load with nothing to point at.
+/// </remarks>
+/// <param name="Kbps">The rate in kilobits per second.</param>
+/// <param name="Mode">Whether the encoder holds that rate or averages towards it.</param>
+public readonly record struct BitrateChoice(int Kbps, BitrateMode Mode);
+
 /// <summary>
 /// Backs the Settings page: where recordings go, what they sound like, and where their
 /// details come from.
@@ -52,6 +64,22 @@ public sealed partial class SettingsViewModel : ObservableValidator
     /// </remarks>
     private static readonly int[] StandardBitrates = [96, 128, 160, 192, 256, 320];
 
+    /// <summary>The one rate offered as a constant-rate rung.</summary>
+    /// <remarks>
+    /// Constant rate is worth offering where the ceiling makes the extra bits harmless, and
+    /// it is the rung a user picks to be certain every frame is full size — a guarantee some
+    /// hardware players and broadcast tools still want. Below the ceiling the choice is between
+    /// two ways of being short of bits, which is not a decision worth a second dropdown entry.
+    /// A stored setting that asks for constant rate at some other rate is honoured all the same
+    /// (see <see cref="LoadBitrates"/>); it is simply not offered.
+    /// </remarks>
+    private const int ConstantRateKbps = 320;
+
+    /// <summary>The bitrate rungs Spotify's own tiers correspond to.</summary>
+    private const int SpotifyFreeKbps = 160;
+
+    private const int SpotifyPremiumKbps = 320;
+
     /// <summary>
     /// The two resource strings with placeholders, parsed once.
     /// </summary>
@@ -64,6 +92,18 @@ public sealed partial class SettingsViewModel : ObservableValidator
 
     private static readonly CompositeFormat MinimumLengthInvalidFormat =
         CompositeFormat.Parse(Strings.SettingsMinimumLengthInvalid);
+
+    private static readonly CompositeFormat BitrateItemFormat =
+        CompositeFormat.Parse(Strings.SettingsBitrateItem);
+
+    private static readonly CompositeFormat BitrateItemConstantFormat =
+        CompositeFormat.Parse(Strings.SettingsBitrateItemConstant);
+
+    private static readonly CompositeFormat BitrateItemSpotifyFreeFormat =
+        CompositeFormat.Parse(Strings.SettingsBitrateItemSpotifyFree);
+
+    private static readonly CompositeFormat BitrateItemSpotifyPremiumFormat =
+        CompositeFormat.Parse(Strings.SettingsBitrateItemSpotifyPremium);
 
     private readonly SettingsDocument _document;
     private readonly IAudioDeviceCatalog _catalog;
@@ -103,7 +143,9 @@ public sealed partial class SettingsViewModel : ObservableValidator
     private MediaFormat _format;
 
     [ObservableProperty]
-    private int _bitrateKbps;
+    [NotifyPropertyChangedFor(nameof(BitrateKbps))]
+    [NotifyPropertyChangedFor(nameof(BitrateMode))]
+    private BitrateChoice _selectedBitrate;
 
     [ObservableProperty]
     [NotifyDataErrorInfo]
@@ -188,7 +230,13 @@ public sealed partial class SettingsViewModel : ObservableValidator
     public ObservableCollection<AudioDeviceOption> Devices { get; } = [];
 
     /// <summary>Bitrates offered, including a hand-edited one that is not on the ladder.</summary>
-    public ObservableCollection<int> Bitrates { get; } = [];
+    public ObservableCollection<ChoiceOption<BitrateChoice>> Bitrates { get; } = [];
+
+    /// <summary>The chosen rate, for the code that only cares about the number.</summary>
+    public int BitrateKbps => SelectedBitrate.Kbps;
+
+    /// <summary>How the chosen rate is spent.</summary>
+    public BitrateMode BitrateMode => SelectedBitrate.Mode;
 
     /// <summary>The output formats, in enum order so the list does not reshuffle per language.</summary>
     public IReadOnlyList<ChoiceOption<MediaFormat>> Formats { get; }
@@ -371,7 +419,7 @@ public sealed partial class SettingsViewModel : ObservableValidator
             // The method swallows its own failures, so nothing is dropped by letting it run on.
             _ = RefreshSpotifyAccountNameAsync();
 
-            LoadBitrates(settings.Output.BitrateKbps);
+            LoadBitrates(settings.Output.BitrateKbps, settings.Output.BitrateMode);
             LoadDevices(settings.Recording.AudioEndpointDeviceId);
         }
         finally
@@ -384,14 +432,70 @@ public sealed partial class SettingsViewModel : ObservableValidator
         ValidateAllProperties();
     }
 
-    private void LoadBitrates(int stored)
+    /// <summary>
+    /// Rebuilds the bitrate ladder for the current format and selects the stored rung.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The constant-rate rung belongs to the formats whose encoder has a rate mode to switch —
+    /// MP3 alone today. Offering it beside Opus would be a control that changes nothing, since
+    /// libopus varies its rate whatever it is told, and the setting would then disagree with
+    /// the file.
+    /// </para>
+    /// <para>
+    /// The stored rung is added if the ladder does not already hold it, which covers both a
+    /// hand-edited rate and a constant-rate setting at a rate this list does not offer. Neither
+    /// is silently rounded to the nearest rung: the dropdown would otherwise open showing a
+    /// value the file does not contain, and the first change to any other setting would write
+    /// that misreading back.
+    /// </para>
+    /// </remarks>
+    private void LoadBitrates(int stored, BitrateMode storedMode)
     {
-        Bitrates.Clear();
+        // Rebuilding the list moves the selection, and a selection change persists. Suppressed
+        // so that reloading the ladder is not itself a settings write — the caller decides.
+        var reloading = _loading;
+        _loading = true;
 
-        foreach (var rate in StandardBitrates.Append(stored).Distinct().Order()) Bitrates.Add(rate);
+        try
+        {
+            var supportsMode = EncodingProfiles.For(Format).SupportsBitrateMode;
+            var selected = new BitrateChoice(stored, supportsMode ? storedMode : BitrateMode.Average);
 
-        BitrateKbps = stored;
+            var rungs = StandardBitrates.Select(rate => new BitrateChoice(rate, BitrateMode.Average));
+
+            if (supportsMode) rungs = rungs.Append(new BitrateChoice(ConstantRateKbps, BitrateMode.Constant));
+
+            Bitrates.Clear();
+
+            foreach (var rung in rungs.Append(selected).Distinct().OrderBy(r => r.Kbps).ThenBy(r => r.Mode))
+                Bitrates.Add(new ChoiceOption<BitrateChoice>(rung, BitrateName(rung)));
+
+            SelectedBitrate = selected;
+        }
+        finally
+        {
+            _loading = reloading;
+        }
     }
+
+    /// <summary>What one rung reads as in the dropdown.</summary>
+    /// <remarks>
+    /// The two annotated rungs are the rates Spotify's own tiers stream at, so a user who wants
+    /// a recording no worse and no larger than what arrived has somewhere obvious to land. They
+    /// describe the source, not the encode: a lossless stream is above both, which is what the
+    /// tooltip says and what FLAC is for.
+    /// </remarks>
+    private static string BitrateName(BitrateChoice rung) => string.Format(
+        CultureInfo.CurrentCulture,
+        rung switch
+        {
+            { Mode: BitrateMode.Constant } => BitrateItemConstantFormat,
+            { Kbps: SpotifyFreeKbps } => BitrateItemSpotifyFreeFormat,
+            { Kbps: SpotifyPremiumKbps } => BitrateItemSpotifyPremiumFormat,
+            _ => BitrateItemFormat,
+        },
+        rung.Kbps);
 
     /// <summary>
     /// Rebuilds the device list, keeping a stored device that is not currently connected.
@@ -467,9 +571,15 @@ public sealed partial class SettingsViewModel : ObservableValidator
 
     partial void OnSelectedDeviceChanged(AudioDeviceOption? value) => Persist();
 
-    partial void OnFormatChanged(MediaFormat value) => Persist();
+    partial void OnFormatChanged(MediaFormat value)
+    {
+        // The ladder is format-dependent, so it is rebuilt before the new format is written:
+        // switching away from MP3 has to take the constant-rate rung with it.
+        LoadBitrates(BitrateKbps, BitrateMode);
+        Persist();
+    }
 
-    partial void OnBitrateKbpsChanged(int value) => Persist();
+    partial void OnSelectedBitrateChanged(BitrateChoice value) => Persist();
 
     partial void OnMinimumLengthSecondsChanged(string value) => Persist();
 
@@ -566,6 +676,7 @@ public sealed partial class SettingsViewModel : ObservableValidator
                 Path = OutputPath.Trim(),
                 Format = Format,
                 BitrateKbps = BitrateKbps,
+                BitrateMode = BitrateMode,
             },
             Recording = settings.Recording with
             {
