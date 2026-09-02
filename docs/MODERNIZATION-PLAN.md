@@ -173,7 +173,7 @@ All conversion goes through ffmpeg. Capture writes raw PCM WAV to a temp file; f
 | Format | Args | Notes |
 | --- | --- | --- |
 | MP3 | `-c:a libmp3lame -b:a {rate}k` | CBR; VBR (`-q:a`) can be exposed later |
-| WAV | `-c:a pcm_s16le` | Or stream-copy when the temp already matches |
+| WAV | `-c:a pcm_s16le` | Never a stream copy — the temp is float32, see the 2026-09-02 finding |
 | Opus | `-c:a libopus -b:a {rate}k` | Ogg container, `.opus` |
 | **FLAC** | `-c:a flac -compression_level 8` | New — near-free once ffmpeg owns conversion |
 | **AAC/M4A** | `-c:a aac -b:a {rate}k` | New |
@@ -373,7 +373,7 @@ Prove the risky parts survive the move before restructuring anything.
 | Enums (media format, provider, cover size, restrictions, policies) | ✅ ported |
 | `Text/StringExtensions`, `Text/EnumerableExtensions` | ✅ ported |
 | `Spotify/SpotifyWindowTitles` (idle/ad detection) | ✅ ported |
-| `Audio/WaveFormatExtensions` (MP3 limits) | ✅ ported |
+| ~~`Audio/WaveFormatExtensions` (MP3 limits)~~ | **Deleted 2026-09-02** — ported, never called, and ffmpeg makes the check unnecessary; see the encoding-profile finding |
 | `Naming/PathText` (diacritics, segment cleaning, tidy) | ✅ ported |
 | `Naming/FileNameTemplate` | ✅ ported, syntax byte-identical |
 | `Metadata/Track` | ✅ ported, with its own tests |
@@ -1041,6 +1041,77 @@ Filling the gap turned up three defects underneath it, none of which were visibl
 The tempting fix is worse than the bug: splitting the box on commas the way the genre box splits reads `Earth, Wind & Fire` as three artists. **A list of names cannot be edited as a comma-separated line.** Genres can, because a genre list really is a list and commas inside one genre are vanishingly rare; names cannot, because commas inside one name are ordinary. Both artist boxes therefore keep the array they were filled from whenever the text still matches it, and take the whole line as a single value when it does not.
 
 The never-erase rule from the day before became one helper, `LibraryLookup`, rather than two hand-written copies, and grew from genre and year to all seven fields a lookup can leave empty. There are still two call sites, and both are still load-bearing — `MetadataViewModel.FetchOneAsync` for every automatic lookup and `SpotifyCatalogEnricher` for the manual **Use this** path, which does not pass through it — but the rule itself now exists once, so the next field cannot be added to one copy and forgotten in the other. That is precisely how the bug survived its first fix.
+
+### Finding: three of the four ways the encoding profiles differ from a comparable recorder are ours to keep (2026-09-02)
+
+The profiles were audited flag by flag against another Windows Spotify recorder's, on the working
+assumption that any difference was a gap. One was. The other three are decisions this project had
+already taken, and they are written down here rather than left to be rediscovered, because each
+one reads from the outside as an obvious improvement that nobody has got round to.
+
+**The real gap: the attached picture was typed `Other`.** `-disposition:v attached_pic` marks a
+stream as cover art and settles nothing else about it — in particular it leaves the picture type
+at 0, which is `Other` in both ID3's `APIC` frame and FLAC's `METADATA_BLOCK_PICTURE`. Every file
+Offstream had ever written carried its sleeve under that type, and software that looks for a
+front cover specifically skips it.
+
+Two `-metadata:s:v` arguments fix it, and the surprise is that **neither is free text in the way
+it looks**. `comment` is read by the muxer as the picture *type*, matched against the spellings
+the format defines: `Cover (front)` selects type 3, and anything unrecognised falls back to
+`Other` without complaint — encoding with `comment=Sleeve test` produced a file reporting
+`Other`, and the string was nowhere in it. `title` is the description and is genuinely free text.
+Reading the result back with ffprobe is not enough to tell these apart, because ffprobe reports
+the *type* through the same `comment` key the argument uses, so a file where the string was
+stored verbatim and a file where it was interpreted look identical; the isolation run — each
+argument alone, then a byte search of the output — is what separated them, and
+`Encode_TypesTheCoverArtAsTheFrontCover` asserts it through TagLib# for that reason. M4A takes
+both arguments and stores neither: the mov muxer keeps a cover as a bare atom with nowhere to put
+a type or a description.
+
+**MP3 stays constant-bitrate.** The other ladder passes `-abr 1` at every rung and keeps plain
+`-b:a 320k` for a top rung of its own. Offstream's `-b:a {rate}k` with no `-abr` *is* that top
+rung — the default output is already the best MP3 that ladder can produce. Taking the `-abr 1`
+without also adding a constant-bitrate rung would move the default down a notch on the
+most-used format; adding the rung means the bitrate stops being a plain kbps number, which is the
+`LAMEPreset`-shaped setting §5.1 rejected on purpose. ABR is a genuine quality win at 96 and 128
+kbps, so this is worth reopening if those rungs turn out to be the ones people use. It buys
+nothing at a default of 320.
+
+**WAV stays `-c:a pcm_s16le`, and the stream-copy §5.1 used to offer is off the table.** The
+other implementation copies the captured WAV instead of encoding it, which is the same idea. The
+temp file never matches: `WasapiLoopbackCapture` reports the endpoint's shared-mode mix format,
+which on Windows is 32-bit float — `codec_name=pcm_f32le`, confirmed with ffprobe. Copying it
+would make Offstream's WAV output float32, twice the size of the 16-bit file it writes today, in
+the one format people pick precisely because they are handing it to something else. The copy is
+not a cheaper way to produce the same file; it produces a different file.
+
+**Cover art stays `-c:v mjpeg`.** The other implementation pipes the downloaded bytes through
+`-c:v copy`, which is a free generation of quality whenever the source is already JPEG. It is not
+always JPEG here: `CoverArtFetcher.TempFileFor` keeps a `.png` extension deliberately, because
+`CoverArtWriter` derives the picture's MIME type from it, and `copy` would put a PNG into an APIC
+frame. The re-encode is normalisation, not waste.
+
+One thing the audit turned up that is neither, and it is now gone:
+`WaveFormatExtensions.GetMp3Restrictions` had no caller outside its own tests. It answered "which
+MP3 limits does this capture format exceed" — more than two channels, or above 48 kHz — because
+LAME had to be told, and the reference implementation resampled and reduced channels by hand
+before handing it the buffer. ffmpeg does both unasked, so the answer had nowhere to go and the
+method, its `Mp3Restriction` enum and its four ported tests are deleted.
+
+That was checked rather than assumed, because libmp3lame really does refuse more than two
+channels and really is capped at 48 kHz — if ffmpeg had passed the constraint through instead of
+resolving it, the dead guard would have been pointing at a live crash on any 5.1 or high-rate
+endpoint. Encoding a 6-channel 48 kHz float32 WAV and a stereo 96 kHz one through the exact
+profiles this app ships:
+
+| Input | MP3 | FLAC | AAC | Opus |
+| --- | --- | --- | --- | --- |
+| 5.1 @ 48 kHz | downmixed to stereo | 6 channels kept | 6 channels kept | 6 channels kept |
+| stereo @ 96 kHz | resampled to 48 kHz | — | — | — |
+
+Every case exits 0. Worth knowing for its own sake: **a multichannel endpoint survives as
+multichannel in every format except MP3**, which is a real difference between the formats on the
+Settings page and not something the app says anywhere.
 
 ---
 

@@ -51,6 +51,16 @@ phase plan these entries follow.
   or Advanced left the Record page describing the file the previous settings would have produced,
   until something was recorded. It now follows a saved setting straight away.
 
+- **Embedded cover art was filed as "Other", not as the front cover.** A picture inside an audio
+  file carries a type — front cover, back cover, artist photo, and a dozen more — and a
+  description of its own. Offstream set neither. It marked the stream as attached artwork and
+  left the type at 0, which both ID3's `APIC` frame and FLAC's `METADATA_BLOCK_PICTURE` spell
+  `Other`, so software that goes looking for a front cover specifically passed over files that
+  had one: the sleeve was in there, correct and complete, and still showed as a grey box. The
+  picture is now typed as the front cover and described as one. M4A is the exception and always
+  was — its container has nowhere to keep either field, so the sleeve goes in bare there whatever
+  is asked for.
+
 ## [0.2.0] - 2026-08-31
 
 **Upgrading from 0.1.0 resets one setting.** The three advertisement switches
