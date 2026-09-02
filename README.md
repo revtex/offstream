@@ -135,58 +135,43 @@ Offstream tags a recording while it makes it, so a track recorded before you set
 or while Last.fm was down, or whose title Spotify reported oddly — keeps whatever thin tags it got
 at the time. The **Metadata** tab is where you repair those.
 
+![The Offstream Metadata page: scanned files on the left, the tag editor for the selected one on the right](docs/images/metadata.png)
+
 1. **Scan Directory** reads every taggable file in the folder shown. It starts at your recordings
    folder; **Browse…** points it somewhere else, so a library Offstream didn't record works too.
 2. **Auto-Fetch Metadata** looks up the files that are missing a title, artist or album. Spotify is
    asked first if you're signed in, then Last.fm if you have a key. Files that already have all
-   three are left alone and cost no lookup — use **Re-fetch** on a row when its tags are complete
-   but wrong.
-3. **Save Selected Tags** writes the ticked rows into the files.
+   three are left alone and cost no lookup — use **Re-fetch** in the editor when a track's tags
+   are complete but wrong.
+3. **Save Selected Tags** writes the ticked rows into the files. Nothing reaches a file before that.
 
-Nothing reaches a file until you press Save. The page is a list beside an editor. Each file is one
-row showing what *would* be written — the title, then the artist and album, then the file it came
-from — and clicking a row, or arrowing onto it, fills the pane on the right with its tags as
-editable boxes: Title, Artist, Album artist, Album, Genre, Year, Disc, Track, Tracks on album and
-Copyright. That is every tag Offstream writes while recording, so anything it can put into a file
-it can also repair. There is a **was …** line under anything you'd be changing, so a match
-that got the remix wrong is a correction rather than a reason to start over. The pane stays the
-same size and in the same place whichever row you pick, so the library never moves out from under
-you while you're working on one of its files. Rows that would actually alter a file are marked
-**Will change**, which is how you find the three that need attention without reading the other
-hundred. Artwork a lookup found is shown under the boxes, before and after, since it is the one
-thing Save writes that you can't type.
+Clicking a row fills the editor on the right: title, artist, album artist, album, genre, year, disc,
+track, tracks on album and copyright — every tag Offstream writes while recording, so anything it
+can put into a file it can also repair. A **was …** line sits under anything you'd be changing, and
+artwork a lookup found is shown below the boxes, before and after.
 
-Only what a lookup actually found is proposed: a provider with no genre for a track leaves the
-file's own alone rather than offering to remove it. Save writes no blank over a value either, so
-emptying a box leaves that tag as it was — clear a box to stop Offstream changing something, not
-to erase it. Type a comma into **Genre** to give a track more than one; **Artist** and **Album
-artist** take the name as you write it, commas and all, because "Earth, Wind & Fire" is one band.
-A file whose artist tag already holds several names shows the first in the box and keeps all of
-them on Save unless you type over it.
-
-**Filter** narrows the list to the rows whose title, artist, album or file name contain what you
-type. It only changes what is on screen: Save still writes every ticked row, including the ones the
-filter is hiding.
+- **Will change** marks the rows that would actually alter a file, which is how you find the three
+  that need attention without reading the other hundred.
+- **Filter** narrows the list by title, artist, album or file name. It only changes what is on
+  screen: Save still writes every ticked row, including the ones the filter is hiding.
 
 ### When the match is wrong
 
-Untick the row and nothing happens to that file. To fix it instead, either type the correct values
-into Title, Artist and Album — they're yours to edit and they win over anything a lookup found —
-or use **Not the right track?** at the foot of the pane. The box starts filled in with the row's
-artist and title, so it is usually a word or two away from the right query, and it keeps its place
-at the bottom so results appear where you were already looking. It searches
-Spotify for whatever you type and lists what it finds, with the year beside each result so you can tell a remaster from
-the original, and **Use this** fills the row in from the one you pick.
+Untick the row and nothing happens to that file. To fix it instead, type over the boxes — your
+edits win over anything a lookup found — or use **Not the right track?** at the foot of the pane,
+which searches Spotify for whatever you type and lists what it finds, with the year beside each
+result so you can tell a remaster from the original. **Use this** fills the row in from the one you
+pick, cover art included.
 
-Reach for the search rather than **Re-fetch** whenever the artist is the thing that's wrong.
-Re-fetch asks the same question the automatic lookup already asked — built from the file's own
-fields, and refusing any result whose artist disagrees with them — so it returns the same answer
-however many times you press it. The search takes your words instead, which is the only way to
-reach a track the file's tags point away from. Picking a result also replaces the cover art, since
-the old one belongs to whatever the file used to claim to be.
+Reach for that search rather than **Re-fetch** whenever the artist is the thing that's wrong.
+Re-fetch builds its query from the file's own fields and refuses any result that disagrees with
+them, so it cannot reach a track those fields point away from.
 
 A few things worth knowing:
 
+- **Clearing a box stops Offstream changing that tag; it doesn't erase it.** Save writes no blank
+  over a value, and a lookup that found no genre leaves the file's own alone.
+- **Commas separate genres, not names.** "Earth, Wind & Fire" in an artist box stays one band.
 - **`.wav` files are skipped**, and the page says how many. WAV has no tag format players agree on,
   so a row for one would look editable and then fail when you saved it.
 - **A file that's open elsewhere can't be written.** If you're playing the track you're retagging,
@@ -197,7 +182,7 @@ A few things worth knowing:
 
 The **Advanced** page is where the details live.
 
-![The Offstream Advanced page: filename template with a live preview, detection options, tag options and app options](docs/images/advanced.png)
+![The Offstream Advanced page: filename template with a live preview, recording options, tag options and application options](docs/images/advanced.png)
 
 **File names** are a template with a live preview, so you can see exactly what the next file will be
 called before you record anything. Use `\` to make folders — `{artist}\({year}) {album}\{track:00}
