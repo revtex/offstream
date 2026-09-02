@@ -333,6 +333,60 @@ public sealed class RecordingControllerTests
         Assert.Fail($"Timed out waiting for {because}.");
     }
 
+    /// <summary>
+    /// The format line describes what pressing Start would produce, so it has to follow the
+    /// settings it is built from — it used to be re-read only on start and on stop, which left an
+    /// idle page describing the file the previous settings would have made.
+    /// </summary>
+    [Fact]
+    public async Task FormatSummary_FollowsABitrateChangedWhileIdle()
+    {
+        var document = RecordingFakes.Document();
+        await using var controller = new RecordingController(new FakeSessionFactory(), document);
+
+        Assert.StartsWith("MP3 320K", controller.FormatSummary, StringComparison.Ordinal);
+
+        document.Update(settings => settings with { Output = settings.Output with { BitrateKbps = 128 } });
+
+        Assert.StartsWith("MP3 128K", controller.FormatSummary, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Saving a setting tells the page the format line may have moved. Separate from
+    /// <c>StateChanged</c>, which promises to mean "IsRunning changed".
+    /// </summary>
+    [Fact]
+    public async Task OutputChanged_FiresWhenASettingIsSaved()
+    {
+        var document = RecordingFakes.Document();
+        await using var controller = new RecordingController(new FakeSessionFactory(), document);
+
+        var raised = 0;
+        controller.OutputChanged += (_, _) => raised++;
+
+        document.Update(settings => settings with { Output = settings.Output with { BitrateKbps = 192 } });
+
+        Assert.Equal(1, raised);
+    }
+
+    /// <summary>
+    /// Disposal unsubscribes, so a document outliving the controller cannot keep raising into it.
+    /// </summary>
+    [Fact]
+    public async Task Dispose_StopsListeningToTheSettingsDocument()
+    {
+        var document = RecordingFakes.Document();
+        var controller = new RecordingController(new FakeSessionFactory(), document);
+
+        var raised = 0;
+        controller.OutputChanged += (_, _) => raised++;
+
+        await controller.DisposeAsync();
+        document.Update(settings => settings with { Output = settings.Output with { BitrateKbps = 192 } });
+
+        Assert.Equal(0, raised);
+    }
+
     [Fact]
     public void Constructor_RejectsNulls()
     {

@@ -12,6 +12,27 @@ phase plan these entries follow.
 
 ## [Unreleased]
 
+### Fixed
+
+- **One notch of the wheel jumped three tracks in the session list.** The list of what has been
+  recorded scrolled by whole items, and its rows are two lines tall, so a single wheel notch moved
+  about 150 device-independent pixels — three finished tracks at once. There was no way to move
+  through it slowly. It scrolls by pixels now, like the list on the Metadata page, which had been
+  built that way from the start and did not have the problem.
+
+- **The sample rate appeared on the transport display only once recording started.** The line that
+  says what the file will be — `MP3 320K 48K` — showed its first two parts while idle and grew the
+  third on Start, which read as the display filling in rather than as the deliberate omission it
+  was. The reason recorded for it was wrong: the rate was thought to be unknowable until the
+  capture device was open, when it is a property of the device and readable at any time. It is the
+  same device the recording will open, so the figure shown while idle is the one the recording
+  will use.
+
+- **The transport display ignored settings changed while it was idle.** It re-read the format,
+  bitrate and device only when a session started or stopped, so changing any of them on Settings
+  or Advanced left the Record page describing the file the previous settings would have produced,
+  until something was recorded. It now follows a saved setting straight away.
+
 ## [0.2.0] - 2026-08-31
 
 **Upgrading from 0.1.0 resets one setting.** The three advertisement switches
