@@ -30,6 +30,14 @@ phase plan these entries follow.
   elapsed clock whenever a recording timer is armed — it is set on the Advanced page and was then
   completely invisible on the page running it.
 
+- **How to record a copy that is identical to what Spotify sent.** Four things on the path between
+  Spotify and a recording quietly change the audio, and every one of them is on by default: the
+  virtual cable resampling 44.1 kHz to 48, a bit depth that does not survive the Windows mixer,
+  Spotify's loudness normalisation, and four separate volume controls. Getting a bit-exact copy is
+  a matter of settings rather than of Offstream's capabilities, and the README now says which ones
+  and why — with three commands for checking a finished recording, because the failure this
+  catches produces a file that plays perfectly and measures wrong.
+
 ### Fixed
 
 - **One notch of the wheel jumped three tracks in the session list.** The list of what has been
