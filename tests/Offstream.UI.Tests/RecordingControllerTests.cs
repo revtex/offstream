@@ -387,6 +387,86 @@ public sealed class RecordingControllerTests
         Assert.Equal(0, raised);
     }
 
+    /// <summary>
+    /// The countdown only exists while a session does. Reading it from an idle controller has to
+    /// be null rather than the full duration, or the display would show a timer counting down
+    /// before anything had started.
+    /// </summary>
+    [Fact]
+    public async Task TimerRemaining_IsNullBeforeAnythingStarts()
+    {
+        var document = RecordingFakes.Document();
+        document.Update(settings => settings with { Recording = settings.Recording with { Timer = "010000" } });
+
+        await using var controller = new RecordingController(new FakeSessionFactory(), document);
+
+        Assert.Null(controller.TimerRemaining);
+    }
+
+    [Fact]
+    public async Task TimerRemaining_IsNullWhileRunningWithNoTimerArmed()
+    {
+        await using var controller = new RecordingController(new FakeSessionFactory(), RecordingFakes.Document());
+
+        await controller.StartAsync();
+
+        Assert.Null(controller.TimerRemaining);
+    }
+
+    [Fact]
+    public async Task TimerRemaining_CountsDownFromTheArmedDuration()
+    {
+        var document = RecordingFakes.Document();
+        document.Update(settings => settings with { Recording = settings.Recording with { Timer = "010000" } });
+
+        await using var controller = new RecordingController(new FakeSessionFactory(), document);
+
+        await controller.StartAsync();
+
+        var left = controller.TimerRemaining;
+
+        Assert.NotNull(left);
+        Assert.InRange(left.Value, TimeSpan.FromMinutes(59), TimeSpan.FromMinutes(60));
+    }
+
+    /// <summary>Stopping puts the countdown away with the session that owned it.</summary>
+    [Fact]
+    public async Task TimerRemaining_IsNullAgainAfterStopping()
+    {
+        var document = RecordingFakes.Document();
+        document.Update(settings => settings with { Recording = settings.Recording with { Timer = "010000" } });
+
+        await using var controller = new RecordingController(new FakeSessionFactory(), document);
+
+        await controller.StartAsync();
+        await controller.StopAsync();
+
+        Assert.Null(controller.TimerRemaining);
+    }
+
+    /// <summary>
+    /// The running size is bitrate times elapsed, so it can only be offered for a format whose
+    /// bitrate is fixed. A FLAC's size depends on the music.
+    /// </summary>
+    [Fact]
+    public async Task BytesPerSecond_IsTheBitrateForALossyFormat()
+    {
+        await using var controller = new RecordingController(new FakeSessionFactory(), RecordingFakes.Document());
+
+        Assert.Equal(320 * 1000 / 8, controller.BytesPerSecond);
+    }
+
+    [Fact]
+    public async Task BytesPerSecond_IsNullForALosslessFormat()
+    {
+        var document = RecordingFakes.Document();
+        document.Update(settings => settings with { Output = settings.Output with { Format = Offstream.Core.Metadata.MediaFormat.Flac } });
+
+        await using var controller = new RecordingController(new FakeSessionFactory(), document);
+
+        Assert.Null(controller.BytesPerSecond);
+    }
+
     [Fact]
     public void Constructor_RejectsNulls()
     {

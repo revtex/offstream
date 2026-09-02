@@ -131,71 +131,115 @@
                         would read as a glow, not as a driven segment - and a whole second per
                         cycle, well under the rate that matters for photosensitivity.
                     -->
-                    <Border Grid.Column="0"
-                            MinWidth="52"
-                            Padding="8,3"
-                            HorizontalAlignment="Left"
-                            VerticalAlignment="Center"
-                            BorderBrush="{StaticResource OffstreamLcdSegmentBrush}"
-                            BorderThickness="1"
-                            CornerRadius="2">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Background" Value="Transparent" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsCapturing, Mode=OneWay}" Value="True">
-                                        <Setter Property="Background" Value="{StaticResource OffstreamLcdSegmentBrush}" />
-                                    </DataTrigger>
-
-                                    <!--
-                                        Gated on the system's own animation setting: a user who
-                                        turned animations off asked for this. No information is
-                                        lost when it is off, because armed still reads as outlined
-                                        against capturing's inverted block.
-                                    -->
-                                    <MultiDataTrigger>
-                                        <MultiDataTrigger.Conditions>
-                                            <Condition Binding="{Binding IsArmed, Mode=OneWay}" Value="True" />
-                                            <Condition Binding="{Binding Source={x:Static SystemParameters.ClientAreaAnimation}}" Value="True" />
-                                        </MultiDataTrigger.Conditions>
-
-                                        <MultiDataTrigger.EnterActions>
-                                            <BeginStoryboard x:Name="BlinkWhileArmed">
-                                                <Storyboard RepeatBehavior="Forever">
-                                                    <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="Opacity" Duration="0:0:1">
-                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1" />
-                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:0.55" Value="0" />
-                                                    </DoubleAnimationUsingKeyFrames>
-                                                </Storyboard>
-                                            </BeginStoryboard>
-                                        </MultiDataTrigger.EnterActions>
-
-                                        <MultiDataTrigger.ExitActions>
-                                            <StopStoryboard BeginStoryboardName="BlinkWhileArmed" />
-                                        </MultiDataTrigger.ExitActions>
-                                    </MultiDataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-
-                        <TextBlock HorizontalAlignment="Center"
-                                   AutomationProperties.AutomationId="RecordTransport"
-                                   FontFamily="{StaticResource OffstreamMonoFontFamily}"
-                                   FontSize="12"
-                                   FontWeight="Bold"
-                                   Text="{Binding Transport, Mode=OneWay}">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground" Value="{StaticResource OffstreamLcdSegmentBrush}" />
+                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                        <Border
+                                MinWidth="52"
+                                Padding="8,3"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center"
+                                BorderBrush="{StaticResource OffstreamLcdSegmentBrush}"
+                                BorderThickness="1"
+                                CornerRadius="2">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="Transparent" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsCapturing, Mode=OneWay}" Value="True">
-                                            <Setter Property="Foreground" Value="{StaticResource OffstreamLcdPanelBrush}" />
+                                            <Setter Property="Background" Value="{StaticResource OffstreamLcdSegmentBrush}" />
                                         </DataTrigger>
+
+                                        <!--
+                                            Gated on the system's own animation setting: a user who
+                                            turned animations off asked for this. No information is
+                                            lost when it is off, because armed still reads as outlined
+                                            against capturing's inverted block.
+                                        -->
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding IsArmed, Mode=OneWay}" Value="True" />
+                                                <Condition Binding="{Binding Source={x:Static SystemParameters.ClientAreaAnimation}}" Value="True" />
+                                            </MultiDataTrigger.Conditions>
+
+                                            <MultiDataTrigger.EnterActions>
+                                                <BeginStoryboard x:Name="BlinkWhileArmed">
+                                                    <Storyboard RepeatBehavior="Forever">
+                                                        <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="Opacity" Duration="0:0:1">
+                                                            <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1" />
+                                                            <DiscreteDoubleKeyFrame KeyTime="0:0:0.55" Value="0" />
+                                                        </DoubleAnimationUsingKeyFrames>
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </MultiDataTrigger.EnterActions>
+
+                                            <MultiDataTrigger.ExitActions>
+                                                <StopStoryboard BeginStoryboardName="BlinkWhileArmed" />
+                                            </MultiDataTrigger.ExitActions>
+                                        </MultiDataTrigger>
                                     </Style.Triggers>
                                 </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
+                            </Border.Style>
+
+                            <TextBlock HorizontalAlignment="Center"
+                                       AutomationProperties.AutomationId="RecordTransport"
+                                       FontFamily="{StaticResource OffstreamMonoFontFamily}"
+                                       FontSize="12"
+                                       FontWeight="Bold"
+                                       Text="{Binding Transport, Mode=OneWay}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource OffstreamLcdSegmentBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsCapturing, Mode=OneWay}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource OffstreamLcdPanelBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Border>
+
+                    <!--
+                        Warning lamps, in the field the transport badge already owns. Both are
+                        absent unless something is wrong, so the ordinary display is unchanged —
+                        which is what lets them be loud when they do appear.
+                    -->
+                    <Border Margin="8,0,0,0"
+                            Padding="8,3"
+                            VerticalAlignment="Center"
+                            AutomationProperties.AutomationId="RecordClipLamp"
+                            AutomationProperties.HelpText="{x:Static res:Strings.RecordLampClipHelp}"
+                            Background="#24E8483F"
+                            BorderBrush="{StaticResource OffstreamRecordingBrush}"
+                            BorderThickness="1"
+                            CornerRadius="2"
+                            ToolTip="{x:Static res:Strings.RecordLampClipHelp}"
+                            Visibility="{Binding HasClipped, Converter={StaticResource BooleanToVisibility}}">
+                        <TextBlock FontFamily="{StaticResource OffstreamMonoFontFamily}"
+                                   FontSize="11"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource OffstreamRecordingBrush}"
+                                   Text="{x:Static res:Strings.RecordLampClip}" />
                     </Border>
+
+                    <Border Margin="8,0,0,0"
+                            Padding="8,3"
+                            VerticalAlignment="Center"
+                            AutomationProperties.AutomationId="RecordSilenceLamp"
+                            AutomationProperties.HelpText="{x:Static res:Strings.RecordLampSilentHelp}"
+                            Background="#20C2992F"
+                            BorderBrush="{StaticResource OffstreamLcdWarnBrush}"
+                            BorderThickness="1"
+                            CornerRadius="2"
+                            ToolTip="{x:Static res:Strings.RecordLampSilentHelp}"
+                            Visibility="{Binding IsSilent, Converter={StaticResource BooleanToVisibility}}">
+                        <TextBlock FontFamily="{StaticResource OffstreamMonoFontFamily}"
+                                   FontSize="11"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource OffstreamLcdWarnBrush}"
+                                   Text="{Binding SilenceText, Mode=OneWay}" />
+                    </Border>
+
+                    </StackPanel>
 
                     <!--
                         What the output will be, beside the transport block rather than under the
@@ -220,20 +264,50 @@
                         on a recorder face could be elapsed, remaining, or a timestamp, and one
                         small word settles it once instead of the user settling it every glance.
                     -->
-                    <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                        <TextBlock HorizontalAlignment="Right"
-                                   FontFamily="{StaticResource OffstreamMonoFontFamily}"
-                                   FontSize="9"
-                                   Foreground="{StaticResource OffstreamLcdInkBrush}"
-                                   Text="{x:Static res:Strings.RecordElapsedLabel}" />
+                    <StackPanel Grid.Column="2"
+                                VerticalAlignment="Center"
+                                Orientation="Horizontal">
+                        <!--
+                            The countdown, when the Advanced page has armed one. Deliberately
+                            smaller than the elapsed clock beside it: two readouts at the same
+                            size read as two equal answers, and this one is subordinate - it says
+                            when the session ends, not how far the current file has got.
+                        -->
+                        <StackPanel Margin="0,0,22,0"
+                                    VerticalAlignment="Bottom"
+                                    AutomationProperties.HelpText="{x:Static res:Strings.RecordTimerHelp}"
+                                    ToolTip="{x:Static res:Strings.RecordTimerHelp}"
+                                    Visibility="{Binding HasTimer, Mode=OneWay, Converter={StaticResource BooleanToVisibility}}">
+                            <TextBlock HorizontalAlignment="Right"
+                                       FontFamily="{StaticResource OffstreamMonoFontFamily}"
+                                       FontSize="9"
+                                       Foreground="{StaticResource OffstreamLcdInkBrush}"
+                                       Text="{x:Static res:Strings.RecordTimerLabel}" />
 
-                        <TextBlock Margin="0,-2,0,0"
-                                   HorizontalAlignment="Right"
-                                   AutomationProperties.AutomationId="RecordElapsed"
-                                   FontFamily="{StaticResource OffstreamMonoFontFamily}"
-                                   FontSize="34"
-                                   Foreground="{StaticResource OffstreamLcdSegmentBrush}"
-                                   Text="{Binding ElapsedText, Mode=OneWay}" />
+                            <TextBlock Margin="0,-1,0,0"
+                                       HorizontalAlignment="Right"
+                                       AutomationProperties.AutomationId="RecordTimerRemaining"
+                                       FontFamily="{StaticResource OffstreamMonoFontFamily}"
+                                       FontSize="19"
+                                       Foreground="{StaticResource OffstreamLcdSegmentBrush}"
+                                       Text="{Binding TimerText, Mode=OneWay}" />
+                        </StackPanel>
+
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock HorizontalAlignment="Right"
+                                       FontFamily="{StaticResource OffstreamMonoFontFamily}"
+                                       FontSize="9"
+                                       Foreground="{StaticResource OffstreamLcdInkBrush}"
+                                       Text="{x:Static res:Strings.RecordElapsedLabel}" />
+
+                            <TextBlock Margin="0,-2,0,0"
+                                       HorizontalAlignment="Right"
+                                       AutomationProperties.AutomationId="RecordElapsed"
+                                       FontFamily="{StaticResource OffstreamMonoFontFamily}"
+                                       FontSize="34"
+                                       Foreground="{StaticResource OffstreamLcdSegmentBrush}"
+                                       Text="{Binding ElapsedText, Mode=OneWay}" />
+                        </StackPanel>
                     </StackPanel>
                 </Grid>
 

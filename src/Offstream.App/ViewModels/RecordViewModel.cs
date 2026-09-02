@@ -89,6 +89,15 @@ public sealed partial class RecordViewModel : ObservableObject
     private static readonly CompositeFormat DurationFormat =
         CompositeFormat.Parse(Strings.RecordSessionDuration);
 
+    private static readonly CompositeFormat SilenceFormat =
+        CompositeFormat.Parse(Strings.RecordLampSilent);
+
+    private static readonly CompositeFormat MegabytesFormat =
+        CompositeFormat.Parse(Strings.RecordSizeMegabytes);
+
+    private static readonly CompositeFormat GigabytesFormat =
+        CompositeFormat.Parse(Strings.RecordSizeGigabytes);
+
     private readonly InMemoryLogSink _logSink;
     private readonly RecordingController _controller;
 
@@ -122,6 +131,37 @@ public sealed partial class RecordViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     private AudioLevelMeter? _level;
+
+    /// <summary>Whether the capture has hit full scale during the track being recorded.</summary>
+    /// <summary>
+    /// How long the capture has to be silent before the lamp appears.
+    /// </summary>
+    /// <remarks>
+    /// Long enough to clear the gap between two tracks, short enough that a wrongly routed
+    /// session says so before a whole song has been lost.
+    /// </remarks>
+    private static readonly TimeSpan SilenceWarningAfter = TimeSpan.FromSeconds(6);
+
+    /// <summary>The settled part of the format line, without the size that moves.</summary>
+    private string _outputBase = string.Empty;
+
+    [ObservableProperty]
+    private bool _hasClipped;
+
+    /// <summary>
+    /// How long the capture has been silent, once that has gone on long enough to be worth
+    /// saying; null the rest of the time, which is what hides the lamp.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SilenceText))]
+    [NotifyPropertyChangedFor(nameof(IsSilent))]
+    private TimeSpan? _silentFor;
+
+    /// <summary>Time left on the recording timer, or null when none is armed.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TimerText))]
+    [NotifyPropertyChangedFor(nameof(HasTimer))]
+    private TimeSpan? _timerRemaining;
 
     /// <summary>The transport word on the display: <c>REC</c>, <c>WAIT</c> or <c>STOP</c>.</summary>
     [ObservableProperty]
@@ -262,6 +302,20 @@ public sealed partial class RecordViewModel : ObservableObject
     /// </para>
     /// </remarks>
     public string ElapsedText => Clock(Elapsed);
+
+    /// <summary>Whether the silence lamp is showing.</summary>
+    public bool IsSilent => SilentFor is not null;
+
+    /// <summary>The silence lamp's text, counting how long the quiet has run.</summary>
+    public string SilenceText => SilentFor is { } quiet
+        ? string.Format(CultureInfo.CurrentCulture, SilenceFormat, Clock(quiet))
+        : string.Empty;
+
+    /// <summary>Whether the countdown is showing.</summary>
+    public bool HasTimer => TimerRemaining is not null;
+
+    /// <summary>The countdown's text.</summary>
+    public string TimerText => TimerRemaining is { } left ? Clock(left) : string.Empty;
 
     /// <summary>A duration as a fixed-width <c>00:03:42</c> clock.</summary>
     /// <remarks>
@@ -534,6 +588,8 @@ public sealed partial class RecordViewModel : ObservableObject
             };
         }
 
+        RefreshDisplay();
+
         if (IsBusy || !progress.ConcernsNowPlaying) return;
 
         Status = progress.Stage switch
@@ -619,6 +675,11 @@ public sealed partial class RecordViewModel : ObservableObject
         Album = string.Empty;
         Destination = string.Empty;
         CoverArt = null;
+
+        // The clip lamp is latched, and what it latches is a fault in one file. Carrying it into
+        // the next song would report the previous song's damage against a recording that is fine.
+        _controller.Level?.ResetClip();
+        HasClipped = false;
     }
 
     /// <summary>Album and year, as one line, from whichever of the two the lookup found.</summary>
@@ -687,7 +748,51 @@ public sealed partial class RecordViewModel : ObservableObject
     {
         IsRecording = _controller.IsRunning;
         Level = _controller.Level;
-        FormatText = _controller.FormatSummary;
+
+        // Cached rather than read per tick. FormatSummary opens the capture endpoint to read its
+        // rate and its name, so it is asked when something has actually changed — start, stop, or
+        // a saved setting — and the running part of the line is composed from it afterwards.
+        _outputBase = _controller.FormatSummary;
+
+        RefreshDisplay();
+    }
+
+    /// <summary>
+    /// Updates everything on the transport display that moves while a session runs.
+    /// </summary>
+    /// <remarks>
+    /// Driven by progress reports rather than a timer of its own. They already arrive as often as
+    /// the elapsed clock needs, which is faster than any of these readings can usefully change,
+    /// and a second timer would be a second thing to stop.
+    /// </remarks>
+    private void RefreshDisplay()
+    {
+        FormatText = ComposeOutputLine();
+        TimerRemaining = _controller.TimerRemaining;
+
+        var meter = _controller.Level;
+
+        HasClipped = meter?.HasClipped ?? false;
+
+        // The lamp waits a few seconds before appearing. The gap between tracks is silent, and a
+        // warning that flashes up between every song is one nobody reads by the third time.
+        var quiet = meter?.SilentFor;
+
+        SilentFor = IsCapturing && quiet >= SilenceWarningAfter ? quiet : null;
+    }
+
+    /// <summary>The format line, with the running file size on the end of it.</summary>
+    private string ComposeOutputLine()
+    {
+        if (!IsCapturing || _controller.BytesPerSecond is not { } rate) return _outputBase;
+
+        var bytes = rate * Elapsed.TotalSeconds;
+
+        var size = bytes >= 1_000_000_000
+            ? string.Format(CultureInfo.CurrentCulture, GigabytesFormat, bytes / 1_000_000_000)
+            : string.Format(CultureInfo.CurrentCulture, MegabytesFormat, bytes / 1_000_000);
+
+        return $"{_outputBase} · {size}";
     }
 
     /// <summary>Runs an update on the UI thread; see <see cref="UiThread"/>.</summary>

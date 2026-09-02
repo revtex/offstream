@@ -102,6 +102,11 @@ Press Stop when you're done. The part-recorded song is finished off and encoded 
 closes, rather than being dropped on the floor — unless it's shorter than your minimum length, in
 which case it's discarded like any other fragment.
 
+The display above the meter watches the capture while you are not. It carries what the file will be —
+format, bitrate, sample rate, the device being recorded and the size so far — and lights a **`SILENT`**
+lamp if nothing has been heard for a few seconds, or **`CLIP`** if the audio hit full scale. With a timer
+set on the Advanced page, a **`STOPS IN`** countdown appears beside the elapsed clock.
+
 ## Better tags and cover art
 
 With no provider configured, Offstream writes what Spotify itself reports to Windows: artist, title,
@@ -233,7 +238,8 @@ handy for testing against a clean profile without disturbing your real one.
 | What you see | What's happening |
 | --- | --- |
 | **"Offstream can't find ffmpeg"** | ffmpeg isn't installed or isn't on `PATH`. Run the winget command above, then **reopen the terminal** and restart Offstream. |
-| **Nothing is recorded, and the meter is flat** | Offstream is listening to a different audio device than the one playing. Check **Record from** on the Settings page. |
+| **A `SILENT` lamp on the display, and the meter is flat** | Offstream is listening to a different audio device than the one playing — the commonest way to record an hour of nothing. Check **Record from** on the Settings page. |
+| **A `CLIP` lamp on the display** | The audio reached full scale, so this track may be distorted. Turn Spotify's own volume down a little and record it again; the lamp clears when the next track starts. |
 | **Recordings include notification sounds, browser audio, everything** | Expected — you're recording the whole output device. Use VB-CABLE as described above to capture Spotify alone. |
 | **Files have no cover art** | No metadata provider is selected, or its key is missing. See [Better tags and cover art](#better-tags-and-cover-art). |
 | **Short files keep being thrown away** | That's the minimum-length setting doing its job. Lower it on the Settings page if you're recording something genuinely short. |

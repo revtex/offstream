@@ -713,4 +713,28 @@
   <data name="MetadataNumberInvalid" xml:space="preserve">
     <value>Saisissez un entier supérieur à zéro ou laissez le champ vide.</value>
   </data>
+  <data name="RecordLampClip" xml:space="preserve">
+    <value>CRÊTE</value>
+  </data>
+  <data name="RecordLampClipHelp" xml:space="preserve">
+    <value>La capture a atteint le niveau maximal pendant ce morceau : il peut être saturé. Baissez le volume de Spotify et réenregistrez-le.</value>
+  </data>
+  <data name="RecordLampSilent" xml:space="preserve">
+    <value>SILENCE {0}</value>
+  </data>
+  <data name="RecordLampSilentHelp" xml:space="preserve">
+    <value>Rien n'a été entendu depuis un moment. Spotify joue probablement vers un autre périphérique que celui enregistré : vérifiez Source audio dans les Paramètres.</value>
+  </data>
+  <data name="RecordTimerLabel" xml:space="preserve">
+    <value>ARRÊT DANS</value>
+  </data>
+  <data name="RecordTimerHelp" xml:space="preserve">
+    <value>Temps restant sur la minuterie définie dans Avancé. Le morceau en cours se termine avant l'arrêt de l'enregistrement.</value>
+  </data>
+  <data name="RecordSizeMegabytes" xml:space="preserve">
+    <value>{0:0.#} Mo</value>
+  </data>
+  <data name="RecordSizeGigabytes" xml:space="preserve">
+    <value>{0:0.##} Go</value>
+  </data>
 </root>

@@ -12,6 +12,24 @@ phase plan these entries follow.
 
 ## [Unreleased]
 
+### Added
+
+- **The transport display now says when a recording is going wrong, instead of leaving it to be
+  noticed.** Recording an hour of silence is this app's signature failure — audio routed to a
+  device Offstream is not capturing shows full volume in Windows and writes nothing — and the only
+  symptom was a flat meter nobody was watching. A **`SILENT`** lamp now appears after a few seconds
+  of nothing, counting how long the quiet has run, and a **`CLIP`** lamp latches if the audio
+  reached full scale during a track, which is distortion you can still do something about while the
+  track is playing. Both are absent unless something is wrong, so the ordinary display is
+  unchanged.
+
+- **The display also says what it is recording, how big the file is, and when the timer will stop
+  it.** The capture device's name sits on the line that describes the file, which is the question
+  the silence lamp raises and previously meant a trip to the Settings page to answer. The running
+  size follows it for constant-bitrate formats. And a **`STOPS IN`** countdown appears beside the
+  elapsed clock whenever a recording timer is armed — it is set on the Advanced page and was then
+  completely invisible on the page running it.
+
 ### Fixed
 
 - **One notch of the wheel jumped three tracks in the session list.** The list of what has been

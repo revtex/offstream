@@ -366,4 +366,116 @@ public sealed class AudioLevelMeterTests
     [Fact]
     public void Constructor_RejectsANullFormat() =>
         Assert.Throws<ArgumentNullException>(() => new AudioLevelMeter(null!));
+
+    /// <summary>
+    /// Drives <see cref="AudioLevelMeter.SilentFor"/> without waiting. Frequency of 1,000 makes
+    /// one tick a millisecond, so the arithmetic in the tests reads as time.
+    /// </summary>
+    private sealed class TestClock : TimeProvider
+    {
+        private long _timestamp;
+
+        public override long GetTimestamp() => _timestamp;
+
+        public override long TimestampFrequency => 1_000;
+
+        public void Advance(TimeSpan amount) => _timestamp += (long)(amount.TotalSeconds * TimestampFrequency);
+    }
+
+    /// <summary>
+    /// The clip flag has to come off the peak sample. Every reading this meter publishes is RMS,
+    /// which for real music sits well under the peak — so a lamp driven from a reading would stay
+    /// dark through a recording that is audibly clipped.
+    /// </summary>
+    [Fact]
+    public void HasClipped_IsSetByAPeakTheRmsReadingNeverShows()
+    {
+        var meter = new AudioLevelMeter(Float32);
+
+        // One sample at full scale among a run of quiet ones: clipping as it actually arrives.
+        meter.Write(BitConverter.GetBytes(1.0f));
+        for (var i = 0; i < 200; i++) meter.Write(BitConverter.GetBytes(0.02f));
+
+        Assert.True(meter.HasClipped);
+        Assert.True(meter.Read().Decibels < -20, "the RMS reading stays far below full scale");
+    }
+
+    /// <summary>
+    /// A converter out of headroom pins to the largest value the format holds, which for 16-bit
+    /// is 32767/32768 — never exactly full scale once normalised.
+    /// </summary>
+    [Fact]
+    public void HasClipped_CatchesAPinnedIntegerSample()
+    {
+        var meter = new AudioLevelMeter(Pcm16);
+
+        meter.Write(BitConverter.GetBytes(short.MaxValue));
+
+        Assert.True(meter.HasClipped);
+    }
+
+    [Fact]
+    public void HasClipped_IsNotSetByLoudAudioShortOfFullScale()
+    {
+        var meter = new AudioLevelMeter(Float32);
+
+        meter.Write(BitConverter.GetBytes(0.9f));
+
+        Assert.False(meter.HasClipped);
+    }
+
+    /// <summary>Reading the meter must not clear the latch — the two are independent.</summary>
+    [Fact]
+    public void HasClipped_SurvivesARead()
+    {
+        var meter = new AudioLevelMeter(Float32);
+
+        meter.Write(BitConverter.GetBytes(1.0f));
+        meter.Read();
+
+        Assert.True(meter.HasClipped);
+
+        meter.ResetClip();
+
+        Assert.False(meter.HasClipped);
+    }
+
+    [Fact]
+    public void SilentFor_GrowsWhileNothingArrives()
+    {
+        var clock = new TestClock();
+        var meter = new AudioLevelMeter(Float32, clock);
+
+        clock.Advance(TimeSpan.FromSeconds(30));
+
+        Assert.Equal(TimeSpan.FromSeconds(30), meter.SilentFor);
+    }
+
+    [Fact]
+    public void SilentFor_IsResetByAudio()
+    {
+        var clock = new TestClock();
+        var meter = new AudioLevelMeter(Float32, clock);
+
+        clock.Advance(TimeSpan.FromSeconds(30));
+        meter.Write(BitConverter.GetBytes(0.5f));
+
+        Assert.Equal(TimeSpan.Zero, meter.SilentFor);
+    }
+
+    /// <summary>
+    /// A dither floor is not audio. The threshold sits at −80 dBFS so that a capture graph idling
+    /// on noise still counts as silent — which is the case the warning exists for.
+    /// </summary>
+    [Fact]
+    public void SilentFor_TreatsADitherFloorAsSilence()
+    {
+        var clock = new TestClock();
+        var meter = new AudioLevelMeter(Float32, clock);
+
+        clock.Advance(TimeSpan.FromSeconds(10));
+        meter.Write(BitConverter.GetBytes(0.00001f));
+
+        Assert.Equal(TimeSpan.FromSeconds(10), meter.SilentFor);
+    }
 }
