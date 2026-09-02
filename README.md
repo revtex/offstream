@@ -135,7 +135,7 @@ Offstream tags a recording while it makes it, so a track recorded before you set
 or while Last.fm was down, or whose title Spotify reported oddly — keeps whatever thin tags it got
 at the time. The **Metadata** tab is where you repair those.
 
-![The Offstream Metadata page: scanned files on the left, the tag editor for the selected one on the right](docs/images/metadata.png)
+![The Offstream Metadata page: the scanned library on the left with cover art and Will change badges, and the selected track's tag editor on the right — its fields scroll, with the search box pinned below them](docs/images/metadata.png)
 
 1. **Scan Directory** reads every taggable file in the folder shown. It starts at your recordings
    folder; **Browse…** points it somewhere else, so a library Offstream didn't record works too.
