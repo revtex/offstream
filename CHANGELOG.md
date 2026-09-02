@@ -88,8 +88,10 @@ Nothing else in `settings.json` changes meaning, and no recording already on dis
   pick therefore describes the recording rather than each frame of it, so a file can come in under
   the nominal figure; that is the point, not a shortfall. **320 kbps (constant)** is a rung of its
   own at the foot of the bitrate list for anyone who wants the old behaviour, whether for a
-  hardware player that expects it or simply to be sure. Existing settings files have no such
-  preference recorded and are read as averaged.
+  hardware player that expects it or simply to be sure. It is remembered while you look at a
+  format that has no such choice — FLAC and Opus hide the rung, and picking MP3 again brings it
+  back rather than quietly resetting it. Existing settings files have no such preference recorded
+  and are read as averaged.
 
 - **The bitrate list says which rungs Spotify actually streams at.** Choosing between six numbers
   meant guessing where the source stopped and the waste began. **160 kbps** and **320 kbps** are

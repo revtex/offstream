@@ -15,7 +15,10 @@ namespace Offstream.Core.Settings;
 /// </para>
 /// <para>
 /// Bitrate is a plain kbps number, not the predecessor's <c>LAMEPreset</c>: NAudio.Lame is
-/// removed and ffmpeg takes <c>-b:a {rate}k</c> (§5.1, §8).
+/// removed and ffmpeg takes <c>-b:a {rate}k</c> (§5.1, §8). <see cref="BitrateMode"/> beside it
+/// is not that preset returning — the preset bundled the rate and the encoder's rate mode into
+/// one value, which is what made it impossible to validate. These are two values, and the
+/// number stays a number.
 /// </para>
 /// </remarks>
 public sealed class RecordingSettings

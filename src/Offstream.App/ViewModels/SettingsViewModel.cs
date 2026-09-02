@@ -105,6 +105,20 @@ public sealed partial class SettingsViewModel : ObservableValidator
     private static readonly CompositeFormat BitrateItemSpotifyPremiumFormat =
         CompositeFormat.Parse(Strings.SettingsBitrateItemSpotifyPremium);
 
+    /// <summary>
+    /// The rate mode the user chose, kept whatever format is selected.
+    /// </summary>
+    /// <remarks>
+    /// Held apart from <see cref="SelectedBitrate"/> because the dropdown may not be able to
+    /// show it: FLAC has no rate mode and Opus has no constant one, so the rung on screen is
+    /// coerced to what the chosen format can honour. Persisting the coerced value instead would
+    /// mean that picking FLAC and picking MP3 again silently discarded the choice — and the
+    /// bitrate *number* survives that same detour, so losing only the mode would be the same
+    /// control giving two different answers to "does looking at another format cost me
+    /// anything". The device list keeps a disconnected device for the same reason.
+    /// </remarks>
+    private BitrateMode _preferredBitrateMode;
+
     private readonly SettingsDocument _document;
     private readonly IAudioDeviceCatalog _catalog;
     private readonly IFolderPicker _folderPicker;
@@ -235,8 +249,8 @@ public sealed partial class SettingsViewModel : ObservableValidator
     /// <summary>The chosen rate, for the code that only cares about the number.</summary>
     public int BitrateKbps => SelectedBitrate.Kbps;
 
-    /// <summary>How the chosen rate is spent.</summary>
-    public BitrateMode BitrateMode => SelectedBitrate.Mode;
+    /// <summary>How the chosen rate is spent — the stored choice, not the coerced display.</summary>
+    public BitrateMode BitrateMode => _preferredBitrateMode;
 
     /// <summary>The output formats, in enum order so the list does not reshuffle per language.</summary>
     public IReadOnlyList<ChoiceOption<MediaFormat>> Formats { get; }
@@ -449,6 +463,11 @@ public sealed partial class SettingsViewModel : ObservableValidator
     /// value the file does not contain, and the first change to any other setting would write
     /// that misreading back.
     /// </para>
+    /// <para>
+    /// A mode the chosen format cannot honour is coerced out of the rung on screen but kept in
+    /// <see cref="_preferredBitrateMode"/>, so it is there again when a format that can honour
+    /// it is chosen.
+    /// </para>
     /// </remarks>
     private void LoadBitrates(int stored, BitrateMode storedMode)
     {
@@ -459,6 +478,8 @@ public sealed partial class SettingsViewModel : ObservableValidator
 
         try
         {
+            _preferredBitrateMode = storedMode;
+
             var supportsMode = EncodingProfiles.For(Format).SupportsBitrateMode;
             var selected = new BitrateChoice(stored, supportsMode ? storedMode : BitrateMode.Average);
 
@@ -579,7 +600,15 @@ public sealed partial class SettingsViewModel : ObservableValidator
         Persist();
     }
 
-    partial void OnSelectedBitrateChanged(BitrateChoice value) => Persist();
+    partial void OnSelectedBitrateChanged(BitrateChoice value)
+    {
+        // Only a format that offers both modes can be said to have chosen one. On the others
+        // every rung reads Average because that is all the list holds, and taking that as an
+        // answer would throw away the mode the user picked on MP3.
+        if (EncodingProfiles.For(Format).SupportsBitrateMode) _preferredBitrateMode = value.Mode;
+
+        Persist();
+    }
 
     partial void OnMinimumLengthSecondsChanged(string value) => Persist();
 

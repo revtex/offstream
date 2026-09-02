@@ -199,25 +199,68 @@ public sealed class SettingsViewModelTests
     }
 
     /// <summary>
-    /// Leaving MP3 has to take the constant-rate rung with it, and the selection with it —
-    /// a selection left pointing at a rung the list no longer holds empties the dropdown.
+    /// Leaving MP3 takes the constant-rate rung off the list, and the selection with it — a
+    /// selection left pointing at a rung the list no longer holds empties the dropdown.
     /// </summary>
-    [Fact]
-    public void Format_LeavingMp3_FallsBackToTheAveragedRung()
+    [Theory]
+    [InlineData(MediaFormat.Opus)]
+    [InlineData(MediaFormat.Flac)]
+    public void Format_LeavingMp3_ShowsAnAveragedRung(MediaFormat format)
     {
-        var stored = OffstreamSettings.CreateDefault() with
-        {
-            Output = new OutputSettings(Path: @"C:\Music", BitrateMode: BitrateMode.Constant),
-        };
+        var viewModel = SettingsFakes.Settings(SettingsFakes.DocumentWith(StoredConstant()));
 
-        var viewModel = SettingsFakes.Settings(SettingsFakes.DocumentWith(stored));
-        Assert.Equal(BitrateMode.Constant, viewModel.BitrateMode);
+        viewModel.Format = format;
 
-        viewModel.Format = MediaFormat.Opus;
-
-        Assert.Equal(BitrateMode.Average, viewModel.BitrateMode);
+        Assert.Equal(BitrateMode.Average, viewModel.SelectedBitrate.Mode);
         Assert.Contains(viewModel.Bitrates, rung => rung.Value == viewModel.SelectedBitrate);
     }
+
+    /// <summary>
+    /// Looking at another format must not cost the choice. The rate mode is coerced on screen
+    /// where the encoder cannot honour it, but the bitrate number survives that detour, and a
+    /// mode that did not would be the same control answering "did I lose anything" two ways.
+    /// </summary>
+    [Theory]
+    [InlineData(MediaFormat.Opus)]
+    [InlineData(MediaFormat.Flac)]
+    public void Format_ReturningToMp3_BringsTheConstantRungBack(MediaFormat format)
+    {
+        var fileSystem = new MockFileSystem();
+        var viewModel = SettingsFakes.Settings(SettingsFakes.DocumentWith(StoredConstant(), fileSystem));
+
+        viewModel.Format = format;
+        Assert.Equal(BitrateMode.Constant, viewModel.BitrateMode);
+        Assert.Equal(BitrateMode.Constant, SettingsFakes.Reload(fileSystem).Output.BitrateMode);
+
+        viewModel.Format = MediaFormat.Mp3;
+
+        Assert.Equal(new BitrateChoice(320, BitrateMode.Constant), viewModel.SelectedBitrate);
+    }
+
+    /// <summary>
+    /// Changing the rate on a format with no mode to offer changes the rate and nothing else.
+    /// Every rung there reads averaged because that is all the list holds, so reading the
+    /// selection as an answer would discard a choice the user never revisited.
+    /// </summary>
+    [Fact]
+    public void Bitrate_ChangedOnAFormatWithoutModes_KeepsTheStoredMode()
+    {
+        var viewModel = SettingsFakes.Settings(SettingsFakes.DocumentWith(StoredConstant()));
+
+        viewModel.Format = MediaFormat.Opus;
+        viewModel.SelectedBitrate = new BitrateChoice(160, BitrateMode.Average);
+
+        Assert.Equal(BitrateMode.Constant, viewModel.BitrateMode);
+
+        viewModel.Format = MediaFormat.Mp3;
+
+        Assert.Equal(new BitrateChoice(160, BitrateMode.Constant), viewModel.SelectedBitrate);
+    }
+
+    private static OffstreamSettings StoredConstant() => OffstreamSettings.CreateDefault() with
+    {
+        Output = new OutputSettings(Path: @"C:\Music", BitrateMode: BitrateMode.Constant),
+    };
 
     /// <summary>A constant-rate setting at a rate the ladder does not offer is still honoured.</summary>
     [Fact]
