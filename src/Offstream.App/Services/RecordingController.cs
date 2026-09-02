@@ -56,6 +56,7 @@ public sealed class RecordingController : IAsyncDisposable
     private readonly SemaphoreSlim _gate = new(1, 1);
 
     private RecordingSession? _session;
+    private DateTimeOffset? _startedAt;
     private bool _disposed;
 
     /// <summary>Progress from the running session, forwarded verbatim.</summary>
@@ -126,12 +127,19 @@ public sealed class RecordingController : IAsyncDisposable
                 parts.Add(string.Create(CultureInfo.CurrentCulture, $"{recording.BitrateKbps}K"));
             }
 
-            if (SampleRateHertz() is { } hertz)
+            var (hertz, name) = CaptureEndpoint();
+
+            if (hertz is { } rate)
             {
-                parts.Add(string.Create(CultureInfo.CurrentCulture, $"{hertz / 1000d:0.#}K"));
+                parts.Add(string.Create(CultureInfo.CurrentCulture, $"{rate / 1000d:0.#}K"));
             }
 
-            return string.Join(' ', parts);
+            var technical = string.Join(' ', parts);
+
+            // The device goes after a separator rather than into the space-joined run: it is the
+            // one part of this line that is a name rather than a number, and names have spaces in
+            // them. "MP3 320K 48K Speakers (Realtek(R) Audio)" reads as one long token.
+            return string.IsNullOrWhiteSpace(name) ? technical : $"{technical} · {name}";
         }
     }
 
@@ -143,23 +151,75 @@ public sealed class RecordingController : IAsyncDisposable
     /// the capture opened, and re-reading the endpoint could disagree with the file being written
     /// if the default endpoint moved underneath us. Idle, the endpoint is asked directly.
     /// </remarks>
-    private int? SampleRateHertz()
+    /// <summary>
+    /// Bytes a second the current format writes, or null when that cannot be known ahead.
+    /// </summary>
+    /// <remarks>
+    /// Only meaningful for a constant-bitrate format. FLAC and WAV are excluded rather than
+    /// estimated: a FLAC's size depends on how compressible the music is, and a guess on the line
+    /// that describes the file would be wrong by a quarter either way on ordinary material.
+    /// </remarks>
+    public int? BytesPerSecond
     {
-        if (_session?.Level.Format.SampleRate is { } running) return running;
+        get
+        {
+            var recording = _settings.Current.ToRecordingSettings();
+            var profile = EncodingProfiles.For(recording.MediaFormat);
 
+            return profile.SupportsBitrate ? recording.BitrateKbps * 1000 / 8 : null;
+        }
+    }
+
+    private (int? Hertz, string? Name) CaptureEndpoint()
+    {
+        // One activation for both facts. They come off the same device, and this used to be two
+        // calls a second on the path AudioEndpoints.Resolve already warns about.
         try
         {
             using var device = AudioEndpoints.Resolve(_settings.Current.Recording.AudioEndpointDeviceId);
-            return device.AudioClient.MixFormat.SampleRate;
+
+            // A running session's own format wins. It was taken from the device when the capture
+            // opened, and re-reading could disagree with the file actually being written if the
+            // system default moved underneath us mid-recording.
+            var hertz = _session?.Level.Format.SampleRate ?? device.AudioClient.MixFormat.SampleRate;
+
+            return (hertz, device.FriendlyName);
         }
         catch (Exception ex)
         {
-            // Nothing here is worth interrupting anyone over: the line simply comes up one word
-            // short, and Start reports a missing endpoint properly when it matters.
-            Log.Debug(ex, "Could not read the capture endpoint's sample rate for the format line");
-            return null;
+            // Nothing here is worth interrupting anyone over: the line simply comes up short, and
+            // Start reports a missing endpoint properly when it matters.
+            Log.Debug(ex, "Could not read the capture endpoint for the format line");
+            return (_session?.Level.Format.SampleRate, null);
         }
     }
+
+    /// <summary>
+    /// How long until the recording timer stops the session, or null when none is armed.
+    /// </summary>
+    /// <remarks>
+    /// <b>It reads "stops after the track playing when this runs out", not "stops at zero".</b>
+    /// <see cref="Offstream.Core.Recording.RecordingSession"/> arms a one-shot timer at session
+    /// start that sets a flag; the session then finishes the track it is on before stopping, so
+    /// the real end is this figure plus whatever is left of the current song. Counting down to
+    /// zero and then continuing to record would look broken without that said somewhere, which is
+    /// what the label and its tooltip are for.
+    /// </remarks>
+    public TimeSpan? TimerRemaining
+    {
+        get
+        {
+            if (_startedAt is not { } started) return null;
+
+            var recording = _settings.Current.ToRecordingSettings();
+            if (!recording.HasRecordingTimerEnabled) return null;
+
+            var left = recording.RecordingTimerDuration - (DateTimeOffset.UtcNow - started);
+
+            return left > TimeSpan.Zero ? left : TimeSpan.Zero;
+        }
+    }
+
 
     /// <summary>The library root, so paths can be shown relative to it rather than in full.</summary>
     public string? OutputPath => _settings.Current.Output.Path;
@@ -192,6 +252,7 @@ public sealed class RecordingController : IAsyncDisposable
             }
 
             _session = await BuildAsync(settings);
+            _startedAt = DateTimeOffset.UtcNow;
         }
         catch (FFmpegNotFoundException ex)
         {
@@ -225,6 +286,7 @@ public sealed class RecordingController : IAsyncDisposable
 
         var session = _session;
         _session = null;
+        _startedAt = null;
 
         try
         {
@@ -355,6 +417,7 @@ public sealed class RecordingController : IAsyncDisposable
             if (session is null) return;
 
             _session = null;
+            _startedAt = null;
 
             CaptureRuntimeState(session);
             await Release(session);

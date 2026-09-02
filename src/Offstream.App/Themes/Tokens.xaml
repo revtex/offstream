@@ -76,6 +76,13 @@
     <SolidColorBrush x:Key="OffstreamLcdBezelBrush" Color="#333A35" />
 
     <!--
+        The warning lamp's amber. Taken from the spectrum's own −12 dB stop rather than picked
+        fresh, so the one colour on the panel that means "look at this, it is not an error yet"
+        is a colour the meter is already using at the same point on its scale.
+    -->
+    <SolidColorBrush x:Key="OffstreamLcdWarnBrush" Color="#C2992F" />
+
+    <!--
         The glass itself: a faint vertical gradient with scanlines over it. A flat fill reads as
         a coloured rectangle; the sheen and the line structure are what make the eye accept it as
         a panel with depth behind it. Both are near-invisible individually and only work together,

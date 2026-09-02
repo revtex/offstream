@@ -93,6 +93,19 @@ These are load-bearing; violating them breaks the app in ways that are not obvio
   inequality made an emptied box light the **Will change** badge and then save nothing. Any field
   added to the editor has to go through `Replaces`, which asks whether there is a new value at
   all before asking whether it differs.
+- **`AudioLevelMeter.Read` drains what it reports, so the meter has exactly one reader**
+  (decided 2026-09-02). The draining is the point — it lets a slow reader see the loudness of its
+  whole interval instead of an instant — but it makes a second consumer a silent bug rather than a
+  compile error: two readers split the samples, and the bars end up reporting a fraction of the
+  audio while the other reader gets the rest, with neither side visibly broken. `LcdMeterView` is
+  that reader. Anything else that needs to know about the audio is folded in on the capture thread
+  inside `Write`, where every sample passes once and nothing is consumed — which is where
+  `HasClipped` and `SilentFor` live. Two consequences worth keeping: a clip test must use the
+  **peak** sample, because everything this meter publishes is RMS and RMS never reaches full scale
+  on real music, so a lamp driven from `LevelReading.Decibels` would never light; and the clip
+  threshold is 0.999, not 1.0, because a converter out of headroom pins to the largest value the
+  format holds and 16-bit's 32767/32768 never normalises to exactly one.
+
 - **Use `ProcessStartInfo.ArgumentList`, never a command string.** Track metadata comes from Spotify window titles and is untrusted. The argv array prevents argument injection structurally; the old app needed hand-written `CommandLineToArgvW` escaping because .NET Framework lacked `ArgumentList`.
 
 ## Spotify Web API rules

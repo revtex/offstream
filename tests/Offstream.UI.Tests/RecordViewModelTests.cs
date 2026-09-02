@@ -586,13 +586,25 @@ public sealed class RecordViewModelTests
     /// The format line describes what pressing Start would produce, so it has to say something
     /// before anything is running - an empty field on an idle display reads as a fault.
     /// </summary>
+    /// <remarks>
+    /// Only the technical run is asserted to be upper case. It used to be the whole string,
+    /// which held while the line was nothing but codes and numbers; the capture device's name
+    /// now follows them after a separator, and a name keeps the capitalisation its maker gave
+    /// it. Shouting "SPEAKERS (REALTEK(R) AUDIO)" to preserve a rule about codes would make the
+    /// one part of this line a person actually reads the hardest part to read.
+    /// </remarks>
     [Fact]
     public void FormatText_IsPopulatedBeforeAnythingStarts()
     {
         var text = ViewModelFor().FormatText;
 
         Assert.False(string.IsNullOrWhiteSpace(text));
-        Assert.Equal(text, text.ToUpperInvariant());
+
+        // The device is absent on a machine with no render endpoint, which is what CI is.
+        var technical = text.Split(" · ", StringSplitOptions.None)[0];
+
+        Assert.False(string.IsNullOrWhiteSpace(technical));
+        Assert.Equal(technical, technical.ToUpperInvariant());
     }
 
     [Fact]

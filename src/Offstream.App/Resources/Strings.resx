@@ -873,4 +873,28 @@
   <data name="MetadataNumberInvalid" xml:space="preserve">
     <value>Enter a whole number above zero, or leave the box empty.</value>
   </data>
+  <data name="RecordLampClip" xml:space="preserve">
+    <value>CLIP</value>
+  </data>
+  <data name="RecordLampClipHelp" xml:space="preserve">
+    <value>The capture reached full scale during this track, so it may be distorted. Turn Spotify's own volume down and record it again.</value>
+  </data>
+  <data name="RecordLampSilent" xml:space="preserve">
+    <value>SILENT {0}</value>
+  </data>
+  <data name="RecordLampSilentHelp" xml:space="preserve">
+    <value>Nothing has been heard for a while. Spotify is most likely playing to a different device than the one being recorded — check Record from on the Settings page.</value>
+  </data>
+  <data name="RecordTimerLabel" xml:space="preserve">
+    <value>STOPS IN</value>
+  </data>
+  <data name="RecordTimerHelp" xml:space="preserve">
+    <value>Time left on the recording timer set on the Advanced page. The track playing when it runs out is finished before recording stops.</value>
+  </data>
+  <data name="RecordSizeMegabytes" xml:space="preserve">
+    <value>{0:0.#} MB</value>
+  </data>
+  <data name="RecordSizeGigabytes" xml:space="preserve">
+    <value>{0:0.##} GB</value>
+  </data>
 </root>

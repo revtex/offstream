@@ -46,17 +46,45 @@ public sealed class AudioLevelMeter
     /// </remarks>
     private const double FloorDecibels = -60;
 
+    /// <summary>
+    /// Sample magnitude counted as clipping, as a fraction of full scale.
+    /// </summary>
+    /// <remarks>
+    /// Just under 1 rather than at it: a converter that has run out of headroom pins samples to
+    /// the largest value the format can hold, and for 16-bit that is 32767/32768 — never quite
+    /// 1.0 once normalised. Testing for equality with full scale would miss every clipped
+    /// integer recording, which is most of them.
+    /// </remarks>
+    private const float ClipMagnitude = 0.999f;
+
+    /// <summary>
+    /// Sample magnitude below which an interval counts as silent.
+    /// </summary>
+    /// <remarks>
+    /// −80&#160;dBFS, two decades below the meter's own floor. Digital silence is exact zeroes
+    /// and would justify testing for zero, but a capture graph with any analogue stage in it
+    /// idles at a dither floor instead, and calling that "not silent" would make the warning
+    /// this feeds useless on exactly the hardware that needs it.
+    /// </remarks>
+    private const float SilenceMagnitude = 0.0001f;
+
     private readonly SampleReader? _read;
     private readonly Lock _gate = new();
+    private readonly TimeProvider _time;
 
     private readonly double[] _sumOfSquares;
     private readonly long[] _samples;
 
-    public AudioLevelMeter(WaveFormat format)
+    private long _lastSoundAt;
+    private bool _clipped;
+
+    public AudioLevelMeter(WaveFormat format, TimeProvider? time = null)
     {
         ArgumentNullException.ThrowIfNull(format);
 
         Format = format;
+        _time = time ?? TimeProvider.System;
+        _lastSoundAt = _time.GetTimestamp();
         _read = SampleReaderFor(format);
         IsSupported = _read is not null;
 
@@ -88,6 +116,8 @@ public sealed class AudioLevelMeter
         // One capture thread and one reader, and the critical section is a handful of additions —
         // the hundred acquisitions a second this takes are far cheaper than the lock-free dance a
         // running sum would otherwise need.
+        var peak = 0f;
+
         lock (_gate)
         {
             var channel = 0;
@@ -97,13 +127,68 @@ public sealed class AudioLevelMeter
             // starting at channel zero each time keeps left and right from swapping over.
             for (var offset = 0; offset + stride <= data.Length; offset += stride)
             {
-                double sample = _read(data.Slice(offset, stride));
+                float sample = _read(data.Slice(offset, stride));
 
-                _sumOfSquares[channel] += sample * sample;
+                _sumOfSquares[channel] += (double)sample * sample;
                 _samples[channel]++;
+
+                var magnitude = Math.Abs(sample);
+                if (magnitude > peak) peak = magnitude;
 
                 if (++channel == ChannelCount) channel = 0;
             }
+
+            // Both flags are folded in here, on the capture thread, and neither is disturbed by
+            // Read. They have to be: Read drains the interval it reports, so a second consumer
+            // calling it to look for silence or clipping would take samples away from the meter
+            // and leave the bars reporting a fraction of the audio.
+            if (peak >= ClipMagnitude) _clipped = true;
+
+            // One clock read per buffer rather than per sample. Write runs about a hundred times
+            // a second with a few thousand samples in each call.
+            if (peak > SilenceMagnitude) _lastSoundAt = _time.GetTimestamp();
+        }
+    }
+
+    /// <summary>
+    /// Whether any sample since the last <see cref="ResetClip"/> reached full scale.
+    /// </summary>
+    /// <remarks>
+    /// <b>Latched, and taken from the peak sample rather than from a reading.</b> The readings
+    /// this meter publishes are RMS, which for real music sits ten to twenty decibels under the
+    /// peak and so never reaches full scale even while the converter is clipping — a clip lamp
+    /// driven from <see cref="LevelReading.Decibels"/> would simply never light. Latching is the
+    /// point as well: clipping is a handful of samples, gone long before anyone looks at the
+    /// screen, and the damage it does is permanent once encoded.
+    /// </remarks>
+    public bool HasClipped
+    {
+        get { lock (_gate) return _clipped; }
+    }
+
+    /// <summary>Clears <see cref="HasClipped"/>, for the start of a new track.</summary>
+    public void ResetClip()
+    {
+        lock (_gate) _clipped = false;
+    }
+
+    /// <summary>
+    /// How long it has been since audio above <see cref="SilenceMagnitude"/> arrived.
+    /// </summary>
+    /// <remarks>
+    /// This is the meter's answer to the failure named in the class remarks — audio routed to a
+    /// device that is not being captured shows full volume in Windows and records nothing. The
+    /// bars already report it, by sitting flat; this reports it in a form that can be counted and
+    /// put into words, which is what makes it survive the user looking away.
+    /// </remarks>
+    public TimeSpan SilentFor
+    {
+        get
+        {
+            long last;
+            lock (_gate) last = _lastSoundAt;
+
+            return _time.GetElapsedTime(last);
         }
     }
 
@@ -165,6 +250,9 @@ public sealed class AudioLevelMeter
         {
             Array.Clear(_sumOfSquares);
             Array.Clear(_samples);
+
+            _clipped = false;
+            _lastSoundAt = _time.GetTimestamp();
         }
     }
 

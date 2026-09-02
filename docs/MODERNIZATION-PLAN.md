@@ -999,6 +999,33 @@ Three second-order notes from doing it:
 
 Commands bound from inside the pane reach the page with `RelativeSource={RelativeSource AncestorType=UserControl}`; the row template's old `AncestorType=ListBox` has no such ancestor once the editor is out of the list.
 
+### Finding: a meter that reports has to be read exactly once (2026-09-02)
+
+`AudioLevelMeter.Read` drains the interval it reports. That is deliberate and documented — it is
+what lets a slow reader see the loudness of its whole interval rather than an instant — but it
+makes the meter a single-consumer object, and nothing said so where a second consumer would look.
+
+Adding the silence and clip lamps looked like a job for a second reader: poll `Read`, notice a
+run of quiet or a full-scale figure, light a lamp. That would have worked in a test and been
+wrong in the app. Two readers split the samples between them, so the bars would have reported a
+fraction of the audio and the lamps the rest, with neither obviously broken — the meter would
+simply have read low, by an amount that varied with how often each side happened to poll.
+
+Both flags are folded in on the capture thread inside `Write` instead, where every sample passes
+once, and neither is disturbed by `Read`. Two things fell out of doing it there. The clip flag
+has to come off the **peak** sample, not off a reading: everything this meter publishes is RMS,
+which for real music sits ten to twenty decibels below the peak, so a clip lamp driven from
+`LevelReading.Decibels` would never light at all. And the clip threshold is 0.999 rather than 1.0,
+because a converter out of headroom pins to the largest value the format holds — 32767/32768 for
+16-bit — which never quite normalises to full scale.
+
+The silence threshold is −80 dBFS rather than exact zero for the same class of reason: digital
+silence is zeroes, but a capture graph with any analogue stage in it idles on a dither floor, and
+calling that "not silent" would disable the warning on exactly the hardware that needs it.
+
+Verified live, and by accident: a staged profile recording the default endpoint while Spotify
+played to VB-CABLE reproduced the failure the lamp exists for, and the lamp lit at six seconds.
+
 ### Finding: a tag the recorder writes and the editor cannot reach is a tag nobody can fix (2026-08-31)
 
 The page shipped with three editable fields — title, artist, album — and showed year, genre and artwork read-only beside them. The scope question "which fields belong here" has an answer that is not a matter of taste: **whatever the recording path writes**. `FFmpegArguments.MetadataArguments` writes title, artist, album, album artist, genre, date, track, disc and copyright, so a recording could carry a wrong disc number that no part of Offstream could correct. Composer, comment and BPM are in neither list, and that is what keeps this from drifting into a general-purpose tag editor.
