@@ -11,11 +11,12 @@ It is a Windows 11 desktop app. It never asks for your Spotify password, and you
 your machine — the only thing that ever leaves it is a "who sings this?" lookup, and only if you
 turn one on.
 
-![The Offstream Record page mid-recording: a REC transport reading MP3 320K 48K and 18 seconds elapsed, a live stereo level meter, and the track being captured with its cover art, album, year and the file it is being written to](docs/images/record.png)
+![The Offstream Record page mid-recording: a REC transport reading MP3 320K 48K and 12 seconds elapsed, a live stereo level meter, the track being captured with its cover art, album, year and the file it is being written to, and the track already finished this session listed below it](docs/images/record.png)
 
-*Eighteen seconds into a song. The meter moves with the audio, the cover art and album have already
+*Twelve seconds into a song. The meter moves with the audio, the cover art and album have already
 been looked up, and the Save path shows exactly which file this will become. Each finished track
-drops into the list below as it is completed.*
+drops into the list below as it is completed, with its length and a button that opens the folder
+it landed in.*
 
 ## What it does
 
