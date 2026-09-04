@@ -562,6 +562,12 @@
   <data name="MetadataWillChange" xml:space="preserve">
     <value>Sera modifié</value>
   </data>
+  <data name="MetadataQualityLossless" xml:space="preserve">
+    <value>{0} · Sans perte</value>
+  </data>
+  <data name="MetadataQualityBitrate" xml:space="preserve">
+    <value>{0} · {1} kbit/s</value>
+  </data>
   <data name="MetadataFieldTitle" xml:space="preserve">
     <value>Titre</value>
   </data>

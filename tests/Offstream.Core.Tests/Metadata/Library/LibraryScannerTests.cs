@@ -108,7 +108,8 @@ public sealed class LibraryScannerTests
                 [@"C:\Music\good.mp3"] = new(string.Empty),
                 [@"C:\Music\broken.mp3"] = new(string.Empty),
             }),
-            store);
+            store,
+            new StubQualityReader());
 
         var scan = await scanner.ScanAsync(Root);
 
@@ -199,7 +200,8 @@ public sealed class LibraryScannerTests
             {
                 [@"C:\Music\Wrong - Name.mp3"] = new(string.Empty),
             }),
-            store);
+            store,
+            new StubQualityReader());
 
         var track = (await scanner.ScanAsync(Root)).Tracks.Single();
 
@@ -221,7 +223,8 @@ public sealed class LibraryScannerTests
 
         var scanner = new LibraryScanner(
             new MockFileSystem(new Dictionary<string, MockFileData> { [@"C:\Music\a.mp3"] = new(string.Empty) }),
-            store);
+            store,
+            new StubQualityReader());
 
         var track = (await scanner.ScanAsync(Root)).Tracks.Single();
 
@@ -239,13 +242,33 @@ public sealed class LibraryScannerTests
 
         var scanner = new LibraryScanner(
             new MockFileSystem(new Dictionary<string, MockFileData> { [@"C:\Music\a.mp3"] = new(string.Empty) }),
-            store);
+            store,
+            new StubQualityReader());
 
         Assert.Equal(LibraryTrackStatus.Untagged, (await scanner.ScanAsync(Root)).Tracks.Single().Status);
     }
 
+    /// <summary>
+    /// A file's own audio properties reach the row Save never touches them for. Covered here
+    /// rather than with a dedicated fixture because the interesting behaviour is entirely in the
+    /// wiring — the reader itself is <see cref="TagLibAudioQualityReaderTests"/>'s job.
+    /// </summary>
+    [Fact]
+    public async Task Scan_CarriesTheQualityReaderResultOntoTheRow()
+    {
+        var reader = new StubQualityReader { Result = new AudioQuality(320, 44100, 0) };
+        var scanner = new LibraryScanner(
+            new MockFileSystem(new Dictionary<string, MockFileData> { [@"C:\Music\a.mp3"] = new(string.Empty) }),
+            new StubTagStore(),
+            reader);
+
+        var track = (await scanner.ScanAsync(Root)).Tracks.Single();
+
+        Assert.Equal(320, track.Quality.BitrateKbps);
+    }
+
     private static LibraryScanner Build(Dictionary<string, MockFileData> files) =>
-        new(new MockFileSystem(files), new StubTagStore());
+        new(new MockFileSystem(files), new StubTagStore(), new StubQualityReader());
 
     /// <summary>An <see cref="ILibraryTagStore"/> that answers from a dictionary.</summary>
     private sealed class StubTagStore : ILibraryTagStore
@@ -267,5 +290,13 @@ public sealed class LibraryScannerTests
 
             Tags[path] = track;
         }
+    }
+
+    /// <summary>An <see cref="IAudioQualityReader"/> that answers with a fixed result.</summary>
+    private sealed class StubQualityReader : IAudioQualityReader
+    {
+        public AudioQuality Result { get; init; } = AudioQuality.Unknown;
+
+        public AudioQuality Read(string path) => Result;
     }
 }

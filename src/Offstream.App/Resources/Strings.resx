@@ -718,6 +718,14 @@
     <value>Will change</value>
     <comment>Marks a row whose save would alter the file, so those rows can be found without opening each one.</comment>
   </data>
+  <data name="MetadataQualityLossless" xml:space="preserve">
+    <value>{0} · Lossless</value>
+    <comment>{0} is the codec name, e.g. "FLAC". Shown under a row for a lossless file.</comment>
+  </data>
+  <data name="MetadataQualityBitrate" xml:space="preserve">
+    <value>{0} · {1} kbps</value>
+    <comment>{0} is the codec name, e.g. "MP3"; {1} is the bitrate the file reports.</comment>
+  </data>
   <data name="MetadataFieldTitle" xml:space="preserve">
     <value>Title</value>
   </data>

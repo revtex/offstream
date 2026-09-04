@@ -108,6 +108,28 @@
                                    TextWrapping="NoWrap" />
 
                         <!--
+                            What the file's own header says about its audio — a codec name and a
+                            bitrate, or "Lossless". Nothing decoded, nothing guessed: exactly what
+                            TagLib# read off the container, so it costs one more file open per row
+                            and no spectral analysis. Only a lossy file under 128 kbps gets the
+                            caution colour; everything else is background information, not a warning.
+                        -->
+                        <TextBlock Text="{Binding QualityLabel, Mode=OneTime}"
+                                   TextTrimming="CharacterEllipsis"
+                                   TextWrapping="NoWrap"
+                                   Visibility="{Binding HasQuality, Converter={StaticResource BooleanToVisibility}}">
+                            <TextBlock.Style>
+                                <Style BasedOn="{StaticResource OffstreamHintStyle}" TargetType="TextBlock">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsQualityLow}" Value="True">
+                                            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <!--
                             The reason a row failed, wrapped rather than trimmed. It is the one
                             piece of text on the page the user can act on — a locked file, an
                             expired sign-in, a throttle that has not cleared — and half of it is
