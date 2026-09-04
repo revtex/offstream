@@ -19,7 +19,12 @@ public sealed class LibraryTrack
     /// <summary>Creates a scanned track from what the file already carries.</summary>
     /// <param name="path">Full path to the audio file.</param>
     /// <param name="existing">Tags read from the file, or parsed from its name when it has none.</param>
-    public LibraryTrack(string path, Track existing)
+    /// <param name="quality">
+    /// What the file's own container reports about its audio. Defaults to
+    /// <see cref="AudioQuality.Unknown"/> so every existing caller that has no quality to offer —
+    /// chiefly tests — keeps compiling unchanged.
+    /// </param>
+    public LibraryTrack(string path, Track existing, AudioQuality quality = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentNullException.ThrowIfNull(existing);
@@ -27,6 +32,7 @@ public sealed class LibraryTrack
         Path = path;
         FileName = System.IO.Path.GetFileName(path);
         Existing = existing;
+        Quality = quality;
 
         // A copy, not the same instance: the suggestion is enriched in place and the row needs
         // the original beside it to show what would change. Sharing one Track would make every
@@ -44,6 +50,9 @@ public sealed class LibraryTrack
 
     /// <summary>What the file carries today. Never mutated.</summary>
     public Track Existing { get; }
+
+    /// <summary>What the file's own container reports about its audio.</summary>
+    public AudioQuality Quality { get; }
 
     /// <summary>What would be written, once a provider or the user has had a say.</summary>
     public Track Suggested { get; }

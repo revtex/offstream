@@ -84,6 +84,7 @@ public static class AppServices
         // independent of the recording pipeline's: a scanner over the file system, a TagLib#
         // store, and a provider chain rebuilt per run so signing in takes effect immediately.
         services.AddSingleton<ILibraryTagStore, TagLibTagStore>();
+        services.AddSingleton<IAudioQualityReader, TagLibAudioQualityReader>();
         services.AddSingleton<ILibraryScanner, LibraryScanner>();
         services.AddSingleton<ILibraryTagWriter, LibraryTagWriter>();
         services.AddSingleton<ILibraryMetadataChain, LibraryMetadataChain>();

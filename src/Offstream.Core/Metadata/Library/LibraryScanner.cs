@@ -36,7 +36,10 @@ public interface ILibraryScanner
 /// way is what lets the interesting cases — a nested folder, a file with no tags, a file that
 /// cannot be opened — be tested without writing a valid MP3 for each one.
 /// </remarks>
-public sealed class LibraryScanner(IFileSystem fileSystem, ILibraryTagStore tagStore) : ILibraryScanner
+public sealed class LibraryScanner(
+    IFileSystem fileSystem,
+    ILibraryTagStore tagStore,
+    IAudioQualityReader qualityReader) : ILibraryScanner
 {
     /// <summary>
     /// Containers with a tag format worth offering to edit.
@@ -90,7 +93,7 @@ public sealed class LibraryScanner(IFileSystem fileSystem, ILibraryTagStore tagS
 
             try
             {
-                tracks.Add(new LibraryTrack(path, ReadOrInferTags(path)));
+                tracks.Add(new LibraryTrack(path, ReadOrInferTags(path), qualityReader.Read(path)));
             }
             catch (LibraryTagException ex)
             {
