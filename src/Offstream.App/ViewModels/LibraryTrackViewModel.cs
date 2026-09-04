@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.IO;
+using System.Text;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Offstream.App.Resources;
@@ -27,6 +28,12 @@ namespace Offstream.App.ViewModels;
 /// </remarks>
 public sealed partial class LibraryTrackViewModel : ObservableValidator
 {
+    private static readonly CompositeFormat QualityLosslessFormat =
+        CompositeFormat.Parse(Strings.MetadataQualityLossless);
+
+    private static readonly CompositeFormat QualityBitrateFormat =
+        CompositeFormat.Parse(Strings.MetadataQualityBitrate);
+
     private readonly LibraryTrack _track;
     private readonly string? _existingTitle;
     private readonly string? _existingArtist;
@@ -87,6 +94,9 @@ public sealed partial class LibraryTrackViewModel : ObservableValidator
 
         CoverArt = LoadCoverArt(track.Existing.AlbumArtImage);
         ExistingCoverArt = CoverArt;
+
+        QualityLabel = FormatQuality(track.Quality, FileName);
+        IsQualityLow = track.Quality.Tier == AudioQualityTier.Low;
     }
 
     /// <summary>The file's own name, which is what identifies the row.</summary>
@@ -132,6 +142,21 @@ public sealed partial class LibraryTrackViewModel : ObservableValidator
 
     /// <inheritdoc cref="CurrentTitle" />
     public string CurrentCopyright { get; }
+
+    /// <summary>
+    /// What the file's own audio properties say, e.g. "MP3 · 128 kbps" or "FLAC · Lossless", or
+    /// null when the file reported nothing usable.
+    /// </summary>
+    public string? QualityLabel { get; }
+
+    /// <summary>Whether <see cref="QualityLabel"/> has anything to show.</summary>
+    public bool HasQuality => QualityLabel is not null;
+
+    /// <summary>
+    /// Whether the file is lossy at under 128 kbps — audibly compressed on most material, and the
+    /// one tier worth calling out rather than just stating.
+    /// </summary>
+    public bool IsQualityLow { get; }
 
     /// <summary>The scanned track this row edits.</summary>
     internal LibraryTrack Track => _track;
@@ -537,6 +562,41 @@ public sealed partial class LibraryTrackViewModel : ObservableValidator
 
         MatchQuery = string.Join(' ', new[] { Artist, Title }.Where(part => !string.IsNullOrWhiteSpace(part)));
     }
+
+    /// <summary>
+    /// Turns a container-property read into the one line the row shows. Deliberately just a
+    /// codec name and a number — no spectral analysis, no transcode detection, just what the
+    /// file's own header already says.
+    /// </summary>
+    private static string? FormatQuality(AudioQuality quality, string fileName)
+    {
+        var codec = CodecName(System.IO.Path.GetExtension(fileName), quality.Tier);
+
+        if (quality.Tier == AudioQualityTier.Lossless)
+        {
+            return string.Format(CultureInfo.CurrentCulture, QualityLosslessFormat, codec);
+        }
+
+        return quality.BitrateKbps is > 0
+            ? string.Format(CultureInfo.CurrentCulture, QualityBitrateFormat, codec, quality.BitrateKbps)
+            : null;
+    }
+
+    /// <summary>A short codec name from the file's extension, which the scanner already filtered on.</summary>
+    /// <remarks>
+    /// <c>.m4a</c> is ambiguous by extension alone — Offstream only ever writes AAC into it, but a
+    /// file from elsewhere can be ALAC. <see cref="AudioQuality.Tier"/> already tells the two
+    /// apart, so a lossless <c>.m4a</c> is labelled ALAC rather than guessed wrong.
+    /// </remarks>
+    private static string CodecName(string extension, AudioQualityTier tier) => extension.ToUpperInvariant() switch
+    {
+        ".M4A" => tier == AudioQualityTier.Lossless ? "ALAC" : "AAC",
+        ".MP3" => "MP3",
+        ".FLAC" => "FLAC",
+        ".OPUS" => "Opus",
+        ".OGG" => "Vorbis",
+        _ => extension.TrimStart('.').ToUpperInvariant(),
+    };
 
     private static string Or(string? value, string fallback) =>
         string.IsNullOrWhiteSpace(value) ? fallback : value;

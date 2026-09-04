@@ -38,6 +38,15 @@ phase plan these entries follow.
   and why — with three commands for checking a finished recording, because the failure this
   catches produces a file that plays perfectly and measures wrong.
 
+- **The Metadata page now shows what a file's own bitrate and codec actually are, not just its
+  tags.** Repairing a library's metadata never said anything about the audio underneath it — a
+  file downloaded at 96 kbps and a lossless rip looked identical on the one page built to review a
+  folder of them. Each row now carries a line under its name — `MP3 · 320 kbps`, `FLAC ·
+  Lossless` — read straight from the file's own container properties, so it costs one more file
+  open per row and nothing else: no ffprobe, no decoding, no spectral analysis, no guessing beyond
+  what the header already claims. Only the one tier worth a second look, a lossy file under 128
+  kbps, gets the caution colour; everything else is background information.
+
 ### Fixed
 
 - **One notch of the wheel jumped three tracks in the session list.** The list of what has been

@@ -350,6 +350,55 @@ public sealed class LibraryTrackViewModelTests
         Assert.Equal("cloudbusting", row.MatchQuery);
     }
 
+    /// <summary>A lossy file names its codec and bitrate on one line.</summary>
+    [Fact]
+    public void QualityLabel_NamesTheCodecAndBitrateForALossyFile()
+    {
+        var row = QualityRow("track.mp3", new AudioQuality(320, 44100, 0));
+
+        Assert.True(row.HasQuality);
+        Assert.Equal("MP3 · 320 kbps", row.QualityLabel);
+        Assert.False(row.IsQualityLow);
+    }
+
+    /// <summary>Only the under-128 tier is called out — the one worth a second look.</summary>
+    [Fact]
+    public void QualityLabel_FlagsALowBitrateFile() =>
+        Assert.True(QualityRow("track.mp3", new AudioQuality(96, 44100, 0)).IsQualityLow);
+
+    /// <summary>A lossless file says so, with no bitrate threshold involved.</summary>
+    [Fact]
+    public void QualityLabel_NamesLosslessFiles()
+    {
+        var row = QualityRow("track.flac", new AudioQuality(1411, 44100, 16));
+
+        Assert.Equal("FLAC · Lossless", row.QualityLabel);
+        Assert.False(row.IsQualityLow);
+    }
+
+    /// <summary>
+    /// A lossless <c>.m4a</c> is ALAC, not AAC — the extension alone cannot tell the two apart,
+    /// but the bit depth that makes it lossless can.
+    /// </summary>
+    [Fact]
+    public void QualityLabel_NamesALosslessM4aAsAlac() =>
+        Assert.Equal("ALAC · Lossless", QualityRow("track.m4a", new AudioQuality(1000, 44100, 16)).QualityLabel);
+
+    /// <summary>A file the reader could not open shows no quality line at all.</summary>
+    [Fact]
+    public void QualityLabel_IsAbsentWhenNothingWasRead()
+    {
+        var row = QualityRow("track.mp3", AudioQuality.Unknown);
+
+        Assert.False(row.HasQuality);
+        Assert.Null(row.QualityLabel);
+    }
+
+    private static LibraryTrackViewModel QualityRow(string fileName, AudioQuality quality) => new(new LibraryTrack(
+        $@"C:\Music\{fileName}",
+        new Track { Title = "Running Up That Hill", Artist = "Kate Bush" },
+        quality));
+
     private static LibraryTrackViewModel Row(
         string? title = "Running Up That Hill",
         string? artist = "Kate Bush",
