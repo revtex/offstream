@@ -285,7 +285,7 @@
 
                                 <TextBox x:Name="AlbumArtistBox"
                                          AutomationProperties.HelpText="{x:Static res:Strings.MetadataListHint}"
-                                         AutomationProperties.Name="{x:Static res:Strings.MetadataFieldAlbumArtist}"
+                                         AutomationProperties.Name="{x:Static res:Strings.MetadataFieldAlbumArtist}"
                                                                      ToolTip="{x:Static res:Strings.MetadataListHint}"
                                          Text="{Binding AlbumArtist, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
@@ -320,7 +320,7 @@
 
                                 <TextBox x:Name="GenresBox"
                                          AutomationProperties.HelpText="{x:Static res:Strings.MetadataListHint}"
-                                         AutomationProperties.Name="{x:Static res:Strings.MetadataFieldGenre}"
+                                         AutomationProperties.Name="{x:Static res:Strings.MetadataFieldGenre}"
                                                                      ToolTip="{x:Static res:Strings.MetadataListHint}"
                                          Text="{Binding Genres, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
