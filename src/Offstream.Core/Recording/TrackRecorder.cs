@@ -414,7 +414,8 @@ public sealed class TrackRecorder : IDisposable
             _settings.BitrateKbps,
             _track,
             enrichment.CoverArtPath,
-            _settings.OrderNumberAsTag);
+            _settings.OrderNumberAsTag,
+            _settings.BitrateMode);
 
         return new TrackRecording(RecordingOutcome.Captured, _track, duration, encode);
     }

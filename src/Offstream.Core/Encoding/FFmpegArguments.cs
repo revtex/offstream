@@ -16,6 +16,10 @@ namespace Offstream.Core.Encoding;
 /// setting. Only the tag is affected — the <c>{track}</c> filename token keeps meaning the
 /// position within the album, which is what the reference implementation did too.
 /// </param>
+/// <param name="BitrateMode">
+/// How the encoder spends <paramref name="BitrateKbps"/>. Ignored by every format whose
+/// profile declares no <see cref="EncodingProfile.AverageBitrateArguments"/>.
+/// </param>
 public sealed record EncodeRequest(
     string InputPath,
     string OutputPath,
@@ -23,7 +27,8 @@ public sealed record EncodeRequest(
     int BitrateKbps,
     Track? Track = null,
     string? CoverArtPath = null,
-    int? TrackNumberOverride = null);
+    int? TrackNumberOverride = null,
+    BitrateMode BitrateMode = BitrateMode.Average);
 
 /// <summary>
 /// Builds the ffmpeg argument vector for an <see cref="EncodeRequest"/>.
@@ -99,6 +104,12 @@ public static class FFmpegArguments
                 request.BitrateKbps.ToString(CultureInfo.InvariantCulture),
                 StringComparison.Ordinal));
         }
+
+        // After the codec flags, because the switch modifies the -b:a that precedes it. A
+        // profile with nothing to declare contributes nothing, which is how the lossless and
+        // already-variable formats opt out without a branch on the format here.
+        if (request.BitrateMode == BitrateMode.Average)
+            args.AddRange(profile.AverageBitrateArguments);
 
         args.AddRange(profile.ContainerArguments);
 

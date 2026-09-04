@@ -213,6 +213,22 @@
     <value>{0} kbps</value>
     <comment>One entry in the bitrate dropdown. {0} is the rate in kilobits per second.</comment>
   </data>
+  <data name="SettingsBitrateItemConstant" xml:space="preserve">
+    <value>{0} kbps (constant)</value>
+    <comment>Bitrate dropdown entry for the constant-rate rung. {0} is the rate in kilobits per second.</comment>
+  </data>
+  <data name="SettingsBitrateItemSpotifyFree" xml:space="preserve">
+    <value>{0} kbps (Spotify Free)</value>
+    <comment>Bitrate dropdown entry marking the rate a free Spotify account streams at. "Spotify Free" is a product name and is not translated. {0} is the rate in kilobits per second.</comment>
+  </data>
+  <data name="SettingsBitrateItemSpotifyPremium" xml:space="preserve">
+    <value>{0} kbps (Spotify Premium)</value>
+    <comment>Bitrate dropdown entry marking the rate a Premium Spotify account streams at. "Spotify Premium" is a product name and is not translated. {0} is the rate in kilobits per second.</comment>
+  </data>
+  <data name="SettingsBitrateHelp" xml:space="preserve">
+    <value>The rate is averaged across the recording, so quiet or simple passages cost fewer bits than a dense one. The constant rung holds every frame at the full rate instead, for players that expect it. Spotify streams at up to 160 kbps to free accounts and 320 to Premium; a lossless stream is above both, and FLAC is what keeps it.</value>
+    <comment>Settings page: tooltip and screen-reader help for the bitrate dropdown.</comment>
+  </data>
   <data name="SettingsBitrateNotApplicable" xml:space="preserve">
     <value>This format sets its own rate.</value>
     <comment>Shown next to the disabled bitrate control for FLAC and WAV.</comment>

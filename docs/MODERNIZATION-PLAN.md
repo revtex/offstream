@@ -172,7 +172,7 @@ All conversion goes through ffmpeg. Capture writes raw PCM WAV to a temp file; f
 
 | Format | Args | Notes |
 | --- | --- | --- |
-| MP3 | `-c:a libmp3lame -b:a {rate}k` | CBR; VBR (`-q:a`) can be exposed later |
+| MP3 | `-c:a libmp3lame -b:a {rate}k [-abr 1]` | ABR by default, CBR on request — see the 2026-09-02 finding; true VBR (`-q:a`) can be exposed later |
 | WAV | `-c:a pcm_s16le` | Never a stream copy — the temp is float32, see the 2026-09-02 finding |
 | Opus | `-c:a libopus -b:a {rate}k` | Ogg container, `.opus` |
 | **FLAC** | `-c:a flac -compression_level 8` | New — near-free once ffmpeg owns conversion |
@@ -410,7 +410,7 @@ Deliberate departures so far, each a consequence of a decision already taken:
 - **`FromLegacySettings` is not ported.** It rebuilt a template from the predecessor's pre-template checkbox settings; with no importer (§6) nothing can supply its inputs. Its six test cases go with it.
 - **The reference suite's idle-state test used the predecessor's product-name constant** as its negative case. §0 forbids that identifier, so the ported test asserts on a real track title instead — same property, stated more directly.
 - **`GetTempFileName` → `GetTempPath` + `GetRandomFileName`.** The framework method is obsolete on modern .NET: it creates the file eagerly and gives up after 65535 names in a directory, which is a real ceiling for an app that records unattended overnight. The `.tmp` extension is kept because `DeleteFile` uses it to tell a scratch file from a finished recording.
-- **`RecordingSettings.BitrateKbps` replaces `LAMEPreset`.** Forced by removing NAudio.Lame (§8); ffmpeg takes `-b:a {rate}k`.
+- **`RecordingSettings.BitrateKbps` replaces `LAMEPreset`.** Forced by removing NAudio.Lame (§8); ffmpeg takes `-b:a {rate}k`. Joined on 2026-09-02 by `BitrateMode`, which is the *other* half of what the preset bundled — a two-member enum beside a number, rather than one value meaning both (see the encoding-profile finding).
 - **Exceptions are typed.** The reference threw bare `Exception` for "no artist" and "empty file name"; those are now `UnrecognizedTrackException`, and invalid arguments are `ArgumentException`, so callers can distinguish them. Assertions changed from `Assert.Throws<Exception>` to the specific type — the only test edits made so far beyond renaming.
 - **Title parsing is split from API enrichment.** The reference's `SpotifyStatus` both parsed the window title and called an `ExternalAPI.Instance` singleton to enrich the result, so no test could parse a title without stubbing a global. `SpotifyTitleParser` is now pure; enrichment moves to the metadata layer. This is the §3 "core must be testable" rule applied one level below the UI boundary, and it is why the ported process tests need no API stub at all.
 - **`ISpotifyPlaybackProbe`** replaces a direct dependency on the whole audio-session manager. Track detection needs exactly one bit — is Spotify making sound — so it depends on one method instead of the audio stack, and stays testable with no audio hardware.
@@ -1042,12 +1042,17 @@ The tempting fix is worse than the bug: splitting the box on commas the way the 
 
 The never-erase rule from the day before became one helper, `LibraryLookup`, rather than two hand-written copies, and grew from genre and year to all seven fields a lookup can leave empty. There are still two call sites, and both are still load-bearing — `MetadataViewModel.FetchOneAsync` for every automatic lookup and `SpotifyCatalogEnricher` for the manual **Use this** path, which does not pass through it — but the rule itself now exists once, so the next field cannot be added to one copy and forgotten in the other. That is precisely how the bug survived its first fix.
 
-### Finding: three of the four ways the encoding profiles differ from a comparable recorder are ours to keep (2026-09-02)
+### Finding: two of the four ways the encoding profiles differ from a comparable recorder are ours to keep (2026-09-02)
 
 The profiles were audited flag by flag against another Windows Spotify recorder's, on the working
-assumption that any difference was a gap. One was. The other three are decisions this project had
+assumption that any difference was a gap. Two were. The other two are decisions this project had
 already taken, and they are written down here rather than left to be rediscovered, because each
 one reads from the outside as an obvious improvement that nobody has got round to.
+
+> This finding first recorded **three** of the four as ours to keep, on the reasoning below about
+> MP3 rate mode. That reasoning was sound about the trade-off and wrong about the conclusion, and
+> the MP3 paragraph now records what was actually built. It is left in place rather than deleted
+> because the argument it makes is what shaped the fix.
 
 **The real gap: the attached picture was typed `Other`.** `-disposition:v attached_pic` marks a
 stream as cover art and settles nothing else about it — in particular it leaves the picture type
@@ -1068,14 +1073,35 @@ argument alone, then a byte search of the output — is what separated them, and
 both arguments and stores neither: the mov muxer keeps a cover as a bare atom with nowhere to put
 a type or a description.
 
-**MP3 stays constant-bitrate.** The other ladder passes `-abr 1` at every rung and keeps plain
-`-b:a 320k` for a top rung of its own. Offstream's `-b:a {rate}k` with no `-abr` *is* that top
-rung — the default output is already the best MP3 that ladder can produce. Taking the `-abr 1`
-without also adding a constant-bitrate rung would move the default down a notch on the
-most-used format; adding the rung means the bitrate stops being a plain kbps number, which is the
-`LAMEPreset`-shaped setting §5.1 rejected on purpose. ABR is a genuine quality win at 96 and 128
-kbps, so this is worth reopening if those rungs turn out to be the ones people use. It buys
-nothing at a default of 320.
+**MP3 takes `-abr 1`, and the constant rung it would have cost is a rung of its own.** The other
+ladder passes `-abr 1` at every rung and keeps plain `-b:a 320k` for a top rung beside them.
+Offstream's `-b:a {rate}k` with no `-abr` *is* that top rung, which is why the first reading of
+this was "already there": the default output was the best MP3 that ladder can produce, and taking
+the `-abr 1` on its own would have moved the default down a notch on the most-used format.
+
+What that reading got wrong was treating the rung as unaffordable. The objection to adding it was
+that the bitrate would stop being a plain kbps number, which is the `LAMEPreset`-shaped setting
+§5.1 rejected on purpose — but a preset enum bundles the rate and the mode into one value, and
+that is the part §5.1 rejected. Keeping them as two values, an `int` and a two-member
+`BitrateMode`, is not that setting: `bitrateKbps` is still a number the file can be hand-edited
+to, and validation still has a range to check it against. A single dropdown presents the pair as
+one ladder, so the split costs the page nothing.
+
+The flag itself is **profile data, not a branch**: `EncodingProfile.AverageBitrateArguments`
+holds `["-abr", "1"]` for MP3 and is empty everywhere else, so `Build` appends whatever the
+profile declares and never asks what format it is looking at. Empty is the honest answer for the
+other lossy profiles rather than an omission — libopus and the native AAC encoder both vary their
+rate unasked, so there is no switch to throw and no constant rung to offer beside them.
+`SupportsBitrateMode` is derived from that list being non-empty, which is what keeps the dropdown
+and the encoder from disagreeing when a format is added.
+
+Two things worth knowing before measuring this. **ABR at a given rate produces a smaller file
+than CBR at the same rate**, because the encoder is aiming for the number across the recording
+instead of holding it — the nominal rate stops being a promise about the file's size. And **pink
+noise is the wrong thing to measure it on**: two synthetic sources here, one at a steady level
+and one with a slow 6 dB swell, came back within 0.1% of each other at ABR 320, because LAME
+allocates on spectral demand and noise is equally easy to code at any level. Neither number says
+anything about music, which is why none is quoted here or in the changelog.
 
 **WAV stays `-c:a pcm_s16le`, and the stream-copy §5.1 used to offer is off the table.** The
 other implementation copies the captured WAV instead of encoding it, which is the same idea. The

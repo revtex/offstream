@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Offstream.Core.Encoding;
 using Offstream.Core.Metadata;
 using Offstream.Core.Naming;
 using Offstream.Core.Recording;
@@ -96,6 +97,7 @@ public sealed record OffstreamSettings(
         OutputTemplate = Output.Template,
         MediaFormat = Output.Format,
         BitrateKbps = Output.BitrateKbps,
+        BitrateMode = Output.BitrateMode,
         ExistingFilePolicy = Output.ExistingFilePolicy,
         MinimumRecordedLengthSeconds = Recording.MinimumLengthSeconds,
         RecordSelection = Recording.RecordSelection,
@@ -126,6 +128,10 @@ public sealed record OffstreamSettings(
 /// </param>
 /// <param name="Template">Filename template; see <see cref="FileNameTemplate"/>.</param>
 /// <param name="BitrateKbps">Target bitrate for lossy formats; ignored by FLAC and WAV.</param>
+/// <param name="BitrateMode">
+/// How the encoder spends that bitrate. Only MP3 has both answers; every other profile varies
+/// its rate already or has no bitrate at all, so the value is stored and ignored there.
+/// </param>
 /// <param name="CurrentFileCounter">
 /// The running counter behind the <c>{count}</c> template token, persisted so numbering
 /// continues across restarts rather than overwriting yesterday's files.
@@ -141,6 +147,7 @@ public sealed record OutputSettings(
     [property: JsonPropertyName("template")] string Template = FileNameTemplate.Default,
     [property: JsonPropertyName("format")] MediaFormat Format = MediaFormat.Mp3,
     [property: JsonPropertyName("bitrateKbps")] int BitrateKbps = 320,
+    [property: JsonPropertyName("bitrateMode")] BitrateMode BitrateMode = BitrateMode.Average,
     [property: JsonPropertyName("existingFilePolicy")] ExistingFilePolicy ExistingFilePolicy = ExistingFilePolicy.Skip,
     [property: JsonPropertyName("currentFileCounter")] int CurrentFileCounter = 1);
 

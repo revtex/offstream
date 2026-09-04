@@ -16,16 +16,29 @@ namespace Offstream.Core.Encoding;
 /// Muxer flags, applied after the codec flags. Separate from <paramref name="CodecArguments"/>
 /// because they configure the file being written rather than the audio going into it.
 /// </param>
+/// <param name="AverageBitrateArguments">
+/// Flags that switch this codec from constant to average bitrate, appended after the codec
+/// flags when the request asks for <see cref="BitrateMode.Average"/>. Empty means the codec
+/// has no such switch — either because it is lossless, or because it already varies its rate
+/// by default and there is nothing to turn on.
+/// </param>
 public sealed record EncodingProfile(
     MediaFormat Format,
     string Extension,
     IReadOnlyList<string> CodecArguments,
     bool SupportsBitrate,
     CoverArtSupport CoverArt,
-    IReadOnlyList<string>? ContainerArguments = null)
+    IReadOnlyList<string>? ContainerArguments = null,
+    IReadOnlyList<string>? AverageBitrateArguments = null)
 {
     /// <inheritdoc cref="ContainerArguments"/>
     public IReadOnlyList<string> ContainerArguments { get; init; } = ContainerArguments ?? [];
+
+    /// <inheritdoc cref="AverageBitrateArguments"/>
+    public IReadOnlyList<string> AverageBitrateArguments { get; init; } = AverageBitrateArguments ?? [];
+
+    /// <summary>Whether the bitrate mode is a real choice for this format.</summary>
+    public bool SupportsBitrateMode => AverageBitrateArguments.Count > 0;
 }
 
 /// <summary>How a container takes embedded cover art.</summary>
@@ -67,7 +80,15 @@ public static class EncodingProfiles
             // else" report. The predecessor tagged with TagLib#, which writes v2.3, so this is
             // also what restores parity. Nothing is lost by it — the full date and "4/12"
             // track numbers both survive, verified with ffprobe.
-            ContainerArguments: ["-id3v2_version", "3"]),
+            ContainerArguments: ["-id3v2_version", "3"],
+
+            // libmp3lame is the one codec here that has to be told. Left alone it holds every
+            // frame at the requested rate, which spends the same bits on a fade-out as on a
+            // dense chorus; -abr 1 lets it aim for the rate across the recording instead. The
+            // other lossy profiles need no equivalent flag: libopus and the native AAC encoder
+            // both vary their rate out of the box, so an "average" request is already what they
+            // are doing and a "constant" one is not offered.
+            AverageBitrateArguments: ["-abr", "1"]),
 
         [MediaFormat.Wav] = new(
             MediaFormat.Wav,

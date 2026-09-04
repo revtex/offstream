@@ -92,6 +92,14 @@ Defaults are sensible if you'd rather not decide: recordings go to `%USERPROFILE
 MP3, the device is whatever Windows is currently playing through, and anything under 30 seconds is
 discarded.
 
+The bitrate list marks the two rungs Spotify itself streams at — 160 kbps for free accounts, 320
+for Premium — so you can record no worse, and no larger, than what arrived. (A lossless stream is
+above both; see [Recording a bit-exact copy](#recording-a-bit-exact-copy).) MP3 aims for the rate
+you pick across the whole recording rather than holding it frame by frame, so quiet or simple
+passages cost fewer bits and a finished file can come in a little under the number on the label.
+If you need every frame at the full rate — some hardware players expect it — pick **320 kbps
+(constant)** at the foot of the list.
+
 **4. Press Start, then play something**
 
 Go back to **Record** and press Start. Play music in Spotify. Offstream waits for a track to begin,

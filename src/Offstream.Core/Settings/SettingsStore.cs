@@ -203,6 +203,9 @@ public sealed class SettingsStore(
         if (settings.Output.BitrateKbps is < 8 or > 320)
             problems.Add($"output.bitrateKbps must be between 8 and 320; found {settings.Output.BitrateKbps}.");
 
+        if (!Enum.IsDefined(settings.Output.BitrateMode))
+            problems.Add($"output.bitrateMode '{settings.Output.BitrateMode}' is not a known bitrate mode.");
+
         if (!Enum.IsDefined(settings.Output.ExistingFilePolicy))
             problems.Add($"output.existingFilePolicy '{settings.Output.ExistingFilePolicy}' is not a known policy.");
 

@@ -26,9 +26,9 @@ phase plan these entries follow.
 - **The display also says what it is recording, how big the file is, and when the timer will stop
   it.** The capture device's name sits on the line that describes the file, which is the question
   the silence lamp raises and previously meant a trip to the Settings page to answer. The running
-  size follows it for constant-bitrate formats. And a **`STOPS IN`** countdown appears beside the
-  elapsed clock whenever a recording timer is armed — it is set on the Advanced page and was then
-  completely invisible on the page running it.
+  size follows it for the formats that have a bitrate to go on. And a **`STOPS IN`** countdown
+  appears beside the elapsed clock whenever a recording timer is armed — it is set on the Advanced
+  page and was then completely invisible on the page running it.
 
 - **How to record a copy that is identical to what Spotify sent.** Four things on the path between
   Spotify and a recording quietly change the audio, and every one of them is on by default: the
@@ -79,6 +79,26 @@ tracks only** — so anyone who had asked for advertisements to be recorded need
 Nothing else in `settings.json` changes meaning, and no recording already on disk is affected.
 
 ### Changed
+
+- **MP3 spends its bitrate where the music needs it, instead of the same amount everywhere.**
+  Every MP3 Offstream wrote held each frame at exactly the rate you picked, whether the frame was
+  a dense chorus or the tail of a fade — bits spent on silence are bits not available to the loud
+  passage two seconds later. MP3 now averages towards the chosen rate across the recording, which
+  is what the encoder does well and what every other format here was already doing. The rate you
+  pick therefore describes the recording rather than each frame of it, so a file can come in under
+  the nominal figure; that is the point, not a shortfall. **320 kbps (constant)** is a rung of its
+  own at the foot of the bitrate list for anyone who wants the old behaviour, whether for a
+  hardware player that expects it or simply to be sure. It is remembered while you look at a
+  format that has no such choice — FLAC and Opus hide the rung, and picking MP3 again brings it
+  back rather than quietly resetting it. Existing settings files have no such preference recorded
+  and are read as averaged.
+
+- **The bitrate list says which rungs Spotify actually streams at.** Choosing between six numbers
+  meant guessing where the source stopped and the waste began. **160 kbps** and **320 kbps** are
+  now marked as the rates free and Premium accounts stream at, so recording no worse — and no
+  larger — than what arrived is a matter of reading the list rather than knowing it. The hint
+  beside the control adds the part the labels cannot: a lossless stream is above both, and FLAC is
+  what keeps it.
 
 - **The three advertisement switches are one dropdown, because between them they only ever had
   three answers.** "Mute advertisements", "Record everything Spotify plays" and "Include
